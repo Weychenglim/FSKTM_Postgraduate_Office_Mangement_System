@@ -11,10 +11,14 @@ class PeriodTargetingMigrationTests(TransactionTestCase):
         latest = executor.loader.graph.leaf_nodes()
         other_apps = [node for node in latest if node[0] != "marks"]
         before = [*other_apps, ("marks", "0007_evaluationtask_pause_reason_evaluationtask_paused_at_and_more")]
-        after = [*other_apps, ("marks", "0008_evaluation_period_targeting")]
+        # Advance only Marks; newer dependent app leaves require later Marks migrations.
+        after = [("marks", "0008_evaluation_period_targeting")]
         try:
+            # Historical Marks targets can unapply newer dependent app migrations.
+            # Build model state from the actual applied graph, not requested leaves.
             executor.migrate(before)
-            old_apps = executor.loader.project_state(before).apps
+            executor = MigrationExecutor(connection)
+            old_apps = executor.loader.project_state(list(executor.loader.applied_migrations)).apps
             Rubric = old_apps.get_model("marks", "Rubric")
             Period = old_apps.get_model("marks", "EvaluationPeriod")
             rubric = Rubric.objects.create(name="Legacy targeting rubric", code="legacy-targeting")
@@ -53,7 +57,8 @@ class PeriodTargetingMigrationTests(TransactionTestCase):
             }
             executor = MigrationExecutor(connection)
             executor.migrate(after)
-            new_apps = executor.loader.project_state(after).apps
+            executor = MigrationExecutor(connection)
+            new_apps = executor.loader.project_state(list(executor.loader.applied_migrations)).apps
             Period = new_apps.get_model("marks", "EvaluationPeriod")
             for period in Period.objects.filter(pk__in=period_ids):
                 with self.subTest(state=period.lifecycle_status):

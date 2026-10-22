@@ -7,7 +7,7 @@ import type { WorkflowReport } from '../types';
 
 for (const role of ['Lecturer', 'Programme Coordinator', 'Office Staff/Admin'] as const) {
   const html = renderToStaticMarkup(<reports.WorkflowReports currentUserRole={role} onBack={() => {}} onNavigateToRoute={() => {}} />);
-  const controls = html.match(/<(?:input|select)\b[^>]*>|<button\b[^>]*role="combobox"[^>]*>/g) ?? [];
+  const controls = html.match(/<input\b[^>]*>|<button\b(?=[^>]*role="combobox")[^>]*>/g) ?? [];
   assert.equal(controls.length, role === 'Office Staff/Admin' ? 4 : 3);
   for (const control of controls) assert.match(control, /class="[^"]*\bform-control\b/, `${role} filters use the shared visible control`);
   assert.match(html, /Apply filters/i);

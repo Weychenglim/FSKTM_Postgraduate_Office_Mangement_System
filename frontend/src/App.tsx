@@ -1,4 +1,5 @@
-﻿/**
+import {recordPathWithSearch} from './utils/recordNavigation';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -15,6 +16,8 @@ import { MarkSubmissionMonitoring } from './components/MarkSubmissionMonitoring'
 import { AlertListCard } from './components/AlertListCard';
 import { QuickActionsCard } from './components/QuickActionsCard';
 import { PortalToast } from './components/PortalPrimitives';
+import { OfficeDashboardLayout, isOfficeDashboardPresentation } from './components/OfficeDashboardLayout';
+import { officeWorkloadNavigationState, officeMarksDeadlineRoute } from './utils/officeDashboard';
 import { 
   Calendar, 
   Sliders, 
@@ -70,7 +73,7 @@ import { NotificationsProvider } from './context/NotificationsContext';
 import { defaultLandingPageForUser } from './utils/landingPage';
 import { returnPathAfterSignIn, type SignInReturnState } from './utils/signInReturn';
 import { MarkRecordStatusTab } from './utils/markRecords';
-import { recordBackSteps, recordReturn, recordSourceLabel } from './utils/recordNavigation';
+import { recordBackSteps, recordReturn, recordSourceLabel, studentSupervisorRequestReturn } from './utils/recordNavigation';
 import {
   buildMarksSetupChecklist,
   formatPeriodStatus,
@@ -96,7 +99,9 @@ const LecturerMarksEntry = lazyNamed('LecturerMarksEntry', () => import('./compo
 const LecturerPanelAppointments = lazyNamed('LecturerPanelAppointments', () => import('./components/LecturerPanelAppointments'));
 const LecturerSupervisorAppointments = lazyNamed('LecturerSupervisorAppointments', () => import('./components/LecturerSupervisorAppointments'));
 const AdministrationDashboard = lazyNamed('AdministrationDashboard', () => import('./components/AdministrationDashboard'));
+const OfficeAttentionPage = lazyNamed('OfficeAttentionPage', () => import('./components/OfficeAttentionPage'));
 const TimelineManagement = lazyNamed('TimelineManagement', () => import('./components/TimelineManagement'));
+const OfficePeriodsManagement = lazyNamed('OfficePeriodsManagement', () => import('./components/OfficePeriodsManagement'));
 const AcademicSemesterManagement = lazyNamed('AcademicSemesterManagement', () => import('./components/AcademicSemesterManagement'));
 const ParticipantLifecycleManagement = lazyNamed('ParticipantLifecycleManagement', () => import('./components/ParticipantLifecycleManagement'));
 const WorkflowReconciliationCentre = lazyNamed('WorkflowReconciliationCentre', () => import('./components/WorkflowReconciliationCentre'));
@@ -118,6 +123,7 @@ const StudentRegistry = lazyNamed('StudentRegistry', () => import('./components/
 const StaffLecturersRegistry = lazyNamed('StaffLecturersRegistry', () => import('./components/StaffLecturersRegistry'));
 const StudentDashboard = lazyNamed('StudentDashboard', () => import('./components/StudentDashboard'));
 const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
+const LecturerAvailabilityPage = lazyNamed('LecturerAvailabilityPage', () => import('./components/LecturerAvailabilityPage'));
 const CoordinatorDashboard = lazyNamed('CoordinatorDashboard', () => import('./components/CoordinatorDashboard'));
 const WorkflowReports = lazyNamed('WorkflowReports', () => import('./components/WorkflowReports'));
 const StudentProgressDossier = lazyNamed('StudentProgressDossier', () => import('./components/StudentProgressDossier'));
@@ -290,11 +296,14 @@ export default function App() {
     || Boolean(markRecordId)
   );
   const isDashboardTimelineRoute = pathname === APP_ROUTES.dashboardTimeline;
+  const isDashboardPeriodsRoute = pathname === APP_ROUTES.dashboardPeriods;
   const isDashboardSemestersRoute = pathname === APP_ROUTES.dashboardSemesters;
   const isDashboardReportsRoute = pathname === APP_ROUTES.dashboardReports;
+  const isDashboardAttentionRoute = pathname === APP_ROUTES.dashboardAttention;
   const isDashboardParticipantLifecycleRoute = pathname === APP_ROUTES.dashboardParticipantLifecycle;
   const isDashboardWorkflowReconciliationRoute = pathname === APP_ROUTES.dashboardWorkflowReconciliation;
   const isDashboardLecturerCapacityRoute = pathname === APP_ROUTES.dashboardLecturerCapacity;
+  const isDashboardMyAvailabilityRoute = pathname === APP_ROUTES.dashboardMyAvailability;
   const dashboardProgressMatch = matchPath(`${APP_ROUTES.dashboardProgress}/:studentId`, pathname);
   const isDashboardProgressRoute = pathname === APP_ROUTES.dashboardProgress || Boolean(dashboardProgressMatch);
   const isStudentOtherDossierRoute = Boolean(
@@ -315,7 +324,11 @@ export default function App() {
     currentUser?.role === 'Office Staff/Admin'
     && (isSupervisorNewRoute || isSupervisorHistoryRoute || isSupervisorApplicationsRoute || isSupervisorResearchRoute);
 
-  const supervisorReturn = (parent: string, label: string) => recordReturn(location.state?.recordReturn, { path: parent + location.search, label }, APP_ROUTES.supervisorAppointments);
+  const attentionSource = currentUser?.role==='Office Staff/Admin' && typeof location.state?.recordReturn?.path==='string' && location.state.recordReturn.path.split('?')[0]===APP_ROUTES.dashboardAttention
+    ? recordReturn(location.state.recordReturn,{path:APP_ROUTES.dashboardAttention,label:'Needs attention'},APP_ROUTES.dashboardAttention) : null;
+  const returnToOfficeAttention = () => { if(attentionSource){const steps=recordBackSteps(window.history.state?.idx,attentionSource);if(steps)navigate(-steps);else navigate(attentionSource.path,{replace:true});}else navigate(APP_ROUTES.dashboard); };
+  const supervisorReturn = (parent: string, label: string) => attentionSource ?? recordReturn(location.state?.recordReturn, { path: parent + location.search, label }, APP_ROUTES.supervisorAppointments);
+  const studentSupervisorSource = studentSupervisorRequestReturn(pathname, location.search, location.state?.recordReturn, window.history.state?.idx);
   const officeSupervisorParent = isSupervisorSuperviseesRoute ? APP_ROUTES.supervisorAppointmentSupervisees : isSupervisorRequestsRoute ? APP_ROUTES.supervisorAppointmentRequests : APP_ROUTES.supervisorAppointments;
   const officeSupervisorLabel = isSupervisorSuperviseesRoute ? 'Supervisory teams' : isSupervisorRequestsRoute ? 'Appointment requests' : 'Needs attention';
   const openSupervisorRecord = (target: string, parent: string, label: string) => {
@@ -324,14 +337,17 @@ export default function App() {
       : supervisorReturn(parent, label);
     navigate(target + location.search, { state: { recordReturn: source } });
   };
+  const dashboardWorkloadOrigin = currentUser?.role==='Office Staff/Admin' && location.state?.officeDashboardOrigin===true && (isSupervisorWorkloadRoute || pathname===APP_ROUTES.panelAppointmentWorkload);
+  const navigateOfficeRoute = (route:string) => navigate(route, {state:officeWorkloadNavigationState(route)});
   const returnToSupervisorList = (parent: string, label: string) => {
+    if (dashboardWorkloadOrigin) { navigate(APP_ROUTES.dashboard); return; }
     const source = supervisorReturn(parent, label);
     const steps = recordBackSteps(window.history.state?.idx, source);
     if (steps) navigate(-steps); else navigate(source.path, { replace: true });
   };
   const dossierReturn = recordReturn(location.state?.dossierReturn, { path: APP_ROUTES.dashboard, label: 'Dashboard' }, '');
   const openDossier = (studentId: string) => navigate(routeForStudentProgress(studentId), { state: {
-    dossierReturn: { path: pathname + location.search, label: currentUser?.role==='Office Staff/Admin'&&pathname===APP_ROUTES.supervisorAppointments?'Needs attention':recordSourceLabel(pathname), historyIndex: window.history.state?.idx },
+    dossierReturn: { path: pathname + location.search, label: currentUser?.role==='Office Staff/Admin'&&pathname===APP_ROUTES.dashboardReports?'Reports':currentUser?.role==='Office Staff/Admin'&&pathname===APP_ROUTES.supervisorAppointments?'Needs attention':recordSourceLabel(pathname), historyIndex: window.history.state?.idx },
     recordReturn: location.state?.recordReturn,
   } });
   const returnFromDossier = () => {
@@ -339,14 +355,15 @@ export default function App() {
     if (steps) navigate(-steps); else navigate(dossierReturn.path, { replace: true, state: {recordReturn: location.state?.recordReturn} });
   };
   const panelSourcePath = location.state?.recordReturn?.path;
-  const panelReturnTarget = recordReturn(location.state?.recordReturn, {path: APP_ROUTES.panelAppointments + location.search, label: 'Panel Appointments'}, typeof panelSourcePath === 'string' && panelSourcePath.startsWith(APP_ROUTES.supervisorAppointmentSupervisees + '/') ? APP_ROUTES.supervisorAppointmentSupervisees : APP_ROUTES.panelAppointments);
+  const panelReturnTarget = attentionSource ?? recordReturn(location.state?.recordReturn, {path: APP_ROUTES.panelAppointments + location.search, label: 'Panel Appointments'}, typeof panelSourcePath === 'string' && panelSourcePath.startsWith(APP_ROUTES.supervisorAppointmentSupervisees + '/') ? APP_ROUTES.supervisorAppointmentSupervisees : APP_ROUTES.panelAppointments);
   const returnToPanelList = () => {
+    if (dashboardWorkloadOrigin) { navigate(APP_ROUTES.dashboard); return; }
     const source = panelReturnTarget;
     const steps = recordBackSteps(window.history.state?.idx, source);
     if (steps) navigate(-steps); else navigate(source.path, {replace: true});
   };
-  const openPanelRecord = (path: string) => navigate(path + location.search, { state: {
-    recordReturn: { path: pathname + location.search, label: recordSourceLabel(pathname), historyIndex: window.history.state?.idx },
+  const openPanelRecord = (path: string) => navigate(recordPathWithSearch(path, location.search), { state: {
+    recordReturn: { path: pathname + location.search, label: recordSourceLabel(pathname, location.search), historyIndex: window.history.state?.idx },
   } });
   const isUnauthorizedSupervisorRequirementsRoute = Boolean(
     isSupervisorRequirementsRoute
@@ -592,6 +609,7 @@ export default function App() {
           setActiveModal={setActivePortalModal}
         >
           <React.Suspense fallback={<ModuleLoadingFallback />}>
+            <OfficeDashboardLayout enabled={isOfficeDashboardPresentation(pathname, currentUser.role)}>
             {activeSidebarItem === SIDEBAR_ITEMS.MARKS_ENTRY ? (
               isLecturerWorkspace ? (
                 <LecturerMarksEntry
@@ -601,23 +619,27 @@ export default function App() {
                 />
               ) : isMarksConfigRoute ? (
                 <MarkEntryPeriodConfig
+                  contextSearch={location.search}
                   onBack={() => navigate(APP_ROUTES.marks)}
                   onManageSemesters={() => navigate(APP_ROUTES.dashboardSemesters)}
+                  onManageTimeline={(period) => navigate(officeMarksDeadlineRoute(period))}
                 />
               ) : isMarksRubricsRoute ? (
                 <RubricsManagementView onBack={() => navigate(APP_ROUTES.marks)} />
               ) : isMarksTasksRoute ? (
-                <EvaluationTaskAssignment onBack={() => navigate(APP_ROUTES.marks)} />
+                <EvaluationTaskAssignment onBack={() => navigate(APP_ROUTES.marks)} onManageTimeline={(period) => navigate(officeMarksDeadlineRoute(period))} />
               ) : isMarksRecordsRoute ? (
                 <MarkEntryRecords 
-                  onBack={() => navigate(APP_ROUTES.marks)}
+                  onBack={()=>attentionSource?returnToOfficeAttention():navigate(APP_ROUTES.marks)}
+                  backLabel={attentionSource?'Back to Needs attention':undefined}
                   initialStatusTab={marksRecordStatusTab}
                   onViewRecordDetail={(recordId) => navigate(routeForMarkRecord(recordId), { state: { recordReturn: { path: pathname + location.search, label: 'Mark Entry Records', historyIndex: window.history.state?.idx } } })}
                   onNavigateToDossier={openDossier}
                 />
               ) : markRecordId ? (
                 <MarkEntryRecordDetail
-                  onBack={() => { const source = recordReturn(location.state?.recordReturn, { path: APP_ROUTES.marksRecords, label: 'Mark Entry Records' }, APP_ROUTES.marks); const steps = recordBackSteps(window.history.state?.idx, source); if (steps) navigate(-steps); else navigate(source.path, { replace: true }); }}
+                  backLabel={attentionSource?'Back to Needs attention':undefined}
+                  onBack={() => { const source = attentionSource ?? recordReturn(location.state?.recordReturn, { path: APP_ROUTES.marksRecords, label: 'Mark Entry Records' }, APP_ROUTES.marks); const steps = recordBackSteps(window.history.state?.idx, source); if (steps) navigate(-steps); else navigate(source.path, { replace: true }); }}
                   recordId={markRecordId}
                 />
               ) : (
@@ -738,11 +760,13 @@ export default function App() {
                   onNavigateToList={returnToPanelList}
                   onNavigateToSubmitted={() => navigate(routeForPanelSubmittedRecommendations())}
                   onNavigateToReviewed={() => navigate(routeForPanelReviewedRequests())}
-                  onNavigateToAssignment={(studentId) => openPanelRecord(routeForPanelAssignment(studentId))}
+                  onNavigateToAssignment={(studentId,appointmentId) => openPanelRecord(`${routeForPanelAssignment(studentId)}${appointmentId?`?appointment=${appointmentId}`:""}`)}
+                  onNavigateToMarks={()=>navigate(APP_ROUTES.marks)}
                   onNavigateToDossier={openDossier}
                 />
               ) : (
                 <PanelAppointmentManagement
+                  workloadBackLabel={dashboardWorkloadOrigin ? 'Back to Dashboard' : undefined}
                   detailBackLabel={`Back to ${panelReturnTarget.label}`}
                   routeView={
                     pathname === APP_ROUTES.panelAppointmentWorkload
@@ -753,7 +777,7 @@ export default function App() {
                   }
                   routeRecordId={panelRecordId}
                   onNavigateToList={returnToPanelList}
-                  onNavigateToWorkload={() => navigate(routeForPanelWorkload())}
+                  onNavigateToWorkload={(lecturerId)=>navigate(`${routeForPanelWorkload()}${lecturerId?`?lecturer=${encodeURIComponent(lecturerId)}`:""}`)}
                   onNavigateToRecord={(recordId) => openPanelRecord(routeForPanelRecord(recordId))}
                   onNavigateToDossier={openDossier}
                   onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
@@ -782,10 +806,11 @@ export default function App() {
                   lifecycleStatus={currentUser.participantLifecycleStatus}
                   onShowFAQChatbot={() => navigate(APP_ROUTES.faq)}
                   initialApplicationId={supervisorApplicationId}
+                  backLabel={`Back to ${studentSupervisorSource.label}`}
                   routeView={isSupervisorNewRoute ? 'newApplication' : isSupervisorResearchRoute ? 'research' : isSupervisorApplicationsRoute || supervisorApplicationId ? 'applications' : 'overview'}
                   onNavigateToList={() => returnToSupervisorList(APP_ROUTES.supervisorAppointmentApplications, 'Applications')}
                   onNavigateToNewApplication={() => openSupervisorRecord(routeForSupervisorNewApplication(), APP_ROUTES.supervisorAppointmentApplications, 'Applications')}
-                  onNavigateToApplication={(applicationId) => openSupervisorRecord(routeForSupervisorApplication(applicationId), APP_ROUTES.supervisorAppointmentApplications, 'Applications')}
+                  onNavigateToApplication={(applicationId) => navigate(routeForSupervisorApplication(applicationId) + location.search, { state: { recordReturn: studentSupervisorSource } })}
                   researchView={supervisorResearchView}
                   researchRequestId={supervisorResearchRequestId}
                   onNavigateToResearchList={() => returnToSupervisorList(APP_ROUTES.supervisorResearchChanges, 'Research changes')}
@@ -859,7 +884,7 @@ export default function App() {
                   onNavigateToPastRecord={(id)=>openSupervisorRecord(routeForSupervisorApplication(id),APP_ROUTES.supervisorAppointmentSupervisees,'Past appointments')}
                   supportingRequestId={supportingRequestId}
                   onNavigateToSupporting={(id)=>openSupervisorRecord(routeForSupportingSupervisorRequest(id),officeSupervisorParent,officeSupervisorLabel)}
-                  backLabel={`Back to ${supervisorReturn(APP_ROUTES.supervisorAppointments,'Needs attention').label}`}
+                  backLabel={dashboardWorkloadOrigin ? 'Back to Dashboard' : `Back to ${supervisorReturn(APP_ROUTES.supervisorAppointments,'Needs attention').label}`}
                   routeRecordId={supervisorApplicationId}
                   routeTeamStudentId={supervisorSuperviseeStudentId}
                   onNavigateToPanelRequest={(id,key) => openPanelRecord(routeForPanelRecord(key ?? `recommendation-${id}`))}
@@ -893,15 +918,30 @@ export default function App() {
                   currentUser={currentUser}
                   onNavigate={(route, state) => navigate(route, state ? { state } : undefined)}
                 />
+              ) : isDashboardMyAvailabilityRoute && !isLecturerWorkspace ? (
+                <Navigate to={APP_ROUTES.dashboard} replace />
+              ) : isDashboardMyAvailabilityRoute ? (
+                <LecturerAvailabilityPage onBack={()=>navigate(APP_ROUTES.dashboard)}/>
+              ) : isDashboardAttentionRoute && currentUser.role !== 'Office Staff/Admin' ? (
+                <Navigate to={APP_ROUTES.dashboard} replace />
+              ) : isDashboardAttentionRoute ? (
+                <OfficeAttentionPage onBack={()=>navigate(APP_ROUTES.dashboard)} onOpen={route=>navigate(route,{state:{recordReturn:{path:pathname+location.search,label:'Needs attention',historyIndex:window.history.state?.idx}}})}/>
+              ) : isDashboardPeriodsRoute && currentUser.role !== 'Office Staff/Admin' ? (
+                <Navigate to={APP_ROUTES.dashboard} replace />
+              ) : isDashboardPeriodsRoute ? (
+                <OfficePeriodsManagement onBack={() => navigate(APP_ROUTES.dashboard)} onManageSemesters={() => navigate(APP_ROUTES.dashboardSemesters)} />
+              ) : isDashboardTimelineRoute && /^#(?:operational-period|marks-period)-\d+$/.test(location.hash) && currentUser.role === 'Office Staff/Admin' ? (
+                <Navigate to={`${APP_ROUTES.dashboardPeriods}${location.search}${location.hash}`} replace />
               ) : isDashboardLecturerCapacityRoute && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
               ) : isDashboardLecturerCapacityRoute ? (
-                <LecturerCapacityManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
+                <LecturerCapacityManagement onBack={returnToOfficeAttention} backLabel={attentionSource?'Back to Needs attention':undefined} />
               ) : isDashboardWorkflowReconciliationRoute && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
               ) : isDashboardWorkflowReconciliationRoute ? (
                 <WorkflowReconciliationCentre
-                  onBack={() => navigate(APP_ROUTES.dashboard)}
+                  onBack={returnToOfficeAttention}
+                  backLabel={attentionSource?'Back to Needs attention':undefined}
                   onNavigateToRoute={navigate}
                   onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
@@ -929,6 +969,7 @@ export default function App() {
               ) : isDashboardReportsRoute ? (
                 <WorkflowReports
                   currentUserRole={currentUser.role}
+                  onOpenDossier={openDossier}
                   onBack={() => navigate(APP_ROUTES.dashboard)}
                   onNavigateToRoute={navigate}
                   onOpenReconciliation={() => navigate(APP_ROUTES.dashboardWorkflowReconciliation)}
@@ -960,11 +1001,12 @@ export default function App() {
                   onBack={() => navigate(APP_ROUTES.dashboard)}
                   onManageParticipants={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
                   onOpenReconciliation={() => navigate(APP_ROUTES.dashboardWorkflowReconciliation)}
-                  onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
+                  onOpenCapacity={(semesterId) => navigate(`${APP_ROUTES.dashboardLecturerCapacity}${semesterId ? `?semester=${semesterId}` : ''}`)}
                 />
               ) : isDashboardTimelineRoute ? (
                 <TimelineManagement
-                  onBack={() => navigate(APP_ROUTES.dashboard)}
+                  onBack={returnToOfficeAttention}
+                  backLabel={attentionSource?'Back to Needs attention':undefined}
                   onManageSemesters={() => navigate(APP_ROUTES.dashboardSemesters)}
                 />
               ) : (
@@ -972,7 +1014,7 @@ export default function App() {
                   onNavigateToTab={(tab) => {
                     navigate(routeForSidebarItem(tab));
                   }}
-                  onNavigateToRoute={navigate}
+                  onNavigateToRoute={navigateOfficeRoute}
                   onNavigateToMarksRecords={openMarkRecords}
                   onNavigateToTimeline={() => navigate(routeForDashboardTimeline())}
                 />
@@ -1079,6 +1121,7 @@ export default function App() {
                 </button>
               </div>
             )}
+            </OfficeDashboardLayout>
           </React.Suspense>
         </AppLayout>
       </NotificationsProvider>

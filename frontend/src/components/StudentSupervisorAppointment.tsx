@@ -9,7 +9,6 @@ import { RecordPage } from './RecordPage';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { 
-  Users, 
   Eye, 
   Plus, 
 } from 'lucide-react';
@@ -32,6 +31,7 @@ import { SupervisorAppointmentGuidance } from './StudentAppointmentGuidance';
 import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { StudentSupervisorApplications } from './StudentSupervisorApplications';
 import { partitionSupervisorApplications, supervisorResearchPage } from '../utils/supervisorWorkspace';
+import { OperationalIntakeFeedback, useOperationalIntake } from './OperationalIntakeFeedback';
 
 interface StudentSupervisorAppointmentProps {
   onShowFAQChatbot?: () => void;
@@ -40,6 +40,7 @@ interface StudentSupervisorAppointmentProps {
   onNavigateToList?: () => void;
   onNavigateToNewApplication?: () => void;
   onNavigateToApplication?: (applicationId: string) => void;
+  backLabel?: string;
   lifecycleStatus?: string | null;
   researchView?: 'list' | 'detail' | 'profile' | 'new';
   researchRequestId?: string;
@@ -72,6 +73,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   onNavigateToList,
   onNavigateToNewApplication,
   onNavigateToApplication,
+  backLabel = 'Back to Applications',
   lifecycleStatus,
   researchView = 'list', researchRequestId,
   onNavigateToResearchRequest, onNavigateToResearchList, onNavigateToResearchProfile, onNavigateToResearchNew,
@@ -83,10 +85,12 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   const [researchRefreshVersion, setResearchRefreshVersion] = useState(0);
   const [researchMetadata, setResearchMetadata] = useState<React.ReactNode>(null);
   const [researchDetailTitle, setResearchDetailTitle] = useState<string | null>(null);
-  const [replacementApplication, setReplacementApplication] = useState<SupervisorApplicationRecord | null>(null);
   const [loadingApplications, setLoadingApplications] = useState(true);
   const [applicationsError, setApplicationsError] = useState<string | null>(null);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
+  const showApplicationAvailability = !initialApplicationId && (routeView === 'overview' || routeView === 'applications')
+    && !approvedApplication && workflowEligible && !(routeView === 'applications' && params.get('view') === 'history');
+  const intake = useOperationalIntake('SUPERVISOR_APPLICATION', undefined, showApplicationAvailability && !loadingApplications && !applicationsError);
 
   const loadApplications = useCallback((strict=false) => {
     setLoadingApplications(true);
@@ -186,7 +190,6 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
           setApplications(prev => [newApp, ...prev]);
           onNavigateToList?.();
         }}
-        replacementApplication={replacementApplication}
       />
     );
   }
@@ -195,10 +198,13 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   const researchPage = routeView === 'research' && researchView !== 'list' ? supervisorResearchPage(researchView) : null;
   const pageHeader = <>
     <PageHeader title={initialApplicationId ? 'Appointment request' : researchPage?.title ?? 'Supervisor Appointments'} subtitle={researchPage?.subtitle ?? (routeView === 'research' ? 'Review your research profile and manage permitted research changes.' : routeView === 'applications' ? 'Track pending requests and review completed applications.' : 'Your current supervisory team and appointment status.')}
-      backLabel={initialApplicationId ? 'Back to Applications' : researchPage ? 'Back to research changes' : undefined} onBack={initialApplicationId ? onNavigateToList : researchPage ? onNavigateToResearchList : undefined}
+      backLabel={initialApplicationId ? backLabel : researchPage ? 'Back to research changes' : undefined} onBack={initialApplicationId ? onNavigateToList : researchPage ? onNavigateToResearchList : undefined}
       actions={!initialApplicationId && !researchPage ? <>
 
-        {routeView !== 'research' && !approvedApplication && workflowEligible ? <PortalButton variant="primary" icon={Plus} disabled={loadingApplications || workspaceBusy || pending.length > 0} onClick={() => { setReplacementApplication(null); handleCreateNewApplication(); }}>New application</PortalButton> : null}
+        {routeView !== 'research' && !approvedApplication && workflowEligible ? <div className="flex min-w-0 flex-col items-start gap-3 sm:items-end">
+          {showApplicationAvailability && !loadingApplications && !applicationsError ? <OperationalIntakeFeedback {...intake} onRetry={() => void intake.refresh()} /> : null}
+          <PortalButton variant="primary" icon={Plus} disabled={loadingApplications || workspaceBusy || pending.length > 0} onClick={handleCreateNewApplication}>New application</PortalButton>
+        </div> : null}
       </> : undefined} />
     {!researchPage && !initialApplicationId ? <SupervisorWorkspaceNavigation role="Student" /> : null}
   </>;
@@ -235,7 +241,6 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
       {routeView === 'overview' && <>
         <SupervisoryTeamManagement role="Student" view="studentOverview" showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={researchRefreshVersion} studentActions={approvedApplication ? <>
           <PortalButton size="sm" variant="primary" icon={Eye} onClick={() => onNavigateToApplication?.(String(approvedApplication.id))}>View request</PortalButton>
-          <PortalButton size="sm" icon={Users} disabled={!workflowEligible || workspaceBusy || pending.length > 0} onClick={() => { setReplacementApplication(approvedApplication); onNavigateToNewApplication?.(); }}>Change Supervisor</PortalButton>
         </> : undefined} />
         {pending.length > 0 && <StudentSupervisorApplications applications={applications} compact onViewApplication={onNavigateToApplication} />}
         <SupervisorAppointmentGuidance hasSupervisor={!!approvedApplication} onShowFAQChatbot={onShowFAQChatbot} />
@@ -250,10 +255,10 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
       {/* ========================================================================= */}
       {/* REQUEST RECORD                                                        */}
       {/* ========================================================================= */}
-      {activeDetailAp ? <RecordPage navigationComplete={navigationComplete} title="Appointment request" backLabel="Back to Applications" onBack={closeActiveDetail} pageKey={initialApplicationId ? undefined : `student-application:${activeDetailAp.id}`} dirty={!!cancellationReason.trim()} busy={isCancelling} metadata={<RequestMetadata {...supervisorRequestMetadata(toStudentSupervisorRequestPresentation(activeDetailAp))} />}>
+      {activeDetailAp ? <RecordPage navigationComplete={navigationComplete} title="Appointment request" backLabel={backLabel} onBack={closeActiveDetail} pageKey={initialApplicationId ? undefined : `student-application:${activeDetailAp.id}`} dirty={!!cancellationReason.trim()} busy={isCancelling} metadata={<RequestMetadata {...supervisorRequestMetadata(toStudentSupervisorRequestPresentation(activeDetailAp))} />}>
         <SupervisorRequestDetail request={toStudentSupervisorRequestPresentation(activeDetailAp)} actions={activeDetailAp.workflowStatus
                   && workflowEligible
-                  && canStudentCancelSupervisorApplication(activeDetailAp.workflowStatus) && (
+                  && canStudentCancelSupervisorApplication(activeDetailAp.workflowStatus, activeDetailAp.initiatedByOffice) && (
                   <PortalButton type="button" onClick={handleCancelRequest} disabled={isCancelling} variant="danger">Cancel request</PortalButton>
                 )} /></RecordPage> : null}
 

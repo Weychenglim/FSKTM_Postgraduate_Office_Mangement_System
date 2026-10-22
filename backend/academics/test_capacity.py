@@ -2604,6 +2604,12 @@ class CapacityLifecycleTests(TestCase):
             reason="Panel leave cancelled.",
         )
 
+        unused_draft = create_capacity_plan(semester=self.semester, actor=self.office)
+        capacity_services.discard_capacity_plan(
+            unused_draft, actor=self.office, reason="Duplicate draft discarded.",
+            expected_fingerprint=capacity_plan_content_fingerprint(unused_draft),
+        )
+
         audits = LecturerCapacityAudit.objects.all()
         self.assertEqual(
             set(audits.values_list("action", flat=True)),

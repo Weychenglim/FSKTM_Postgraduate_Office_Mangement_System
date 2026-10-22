@@ -1,6 +1,6 @@
-# Panel Appointments consistency: design for review
+# Panel Appointments consistency: approved design
 
-Prepared 15 October 2026, Malaysia time. **Proposed; implementation has not started.**
+Prepared 15 October 2026, Malaysia time. **Approved by the user; implemented on the current feature branch.** Final automated evidence and browser coverage limits are recorded in PROJECT_STATUS.md.
 
 ## Objective
 

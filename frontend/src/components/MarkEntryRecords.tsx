@@ -1,3 +1,4 @@
+import { PortalSelect } from './PortalSelect';
 import { useListState } from './ListState';
 /**
  * @license
@@ -20,10 +21,10 @@ import {
   MarkRecordStatusTab,
 } from '../utils/markRecords';
 import { formatDeadlineText } from '../utils/workflowAgeing';
-import { Select } from './Select';
 
 interface MarkEntryRecordsProps {
   onBack: () => void;
+  backLabel?: string;
   onViewRecordDetail: (recordId: string) => void;
   onNavigateToDossier?: (studentId: string) => void;
   initialStatusTab?: MarkRecordStatusTab;
@@ -31,6 +32,7 @@ interface MarkEntryRecordsProps {
 
 export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
   onBack,
+  backLabel = 'Back to Marks & Evaluation Management',
   onViewRecordDetail,
   onNavigateToDossier,
   initialStatusTab = 'All Records',
@@ -185,7 +187,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
       <PageHeader
         title="Mark Entry Records"
         subtitle="Search and monitor mark entry records by student, panel member, semester, and status."
-        backLabel="Back to Marks & Evaluation Management"
+        backLabel={backLabel}
         onBack={onBack}
         subtitleClassName="leading-relaxed"
       />
@@ -280,7 +282,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
             <label className="form-label">
               Programme
             </label>
-            <Select
+            <PortalSelect
               value={programmeFilter}
               onChange={(e) => setProgrammeFilter(e.target.value)}
               className="form-control form-control-md cursor-pointer"
@@ -289,7 +291,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
               {programmeOptions.map((programme) => (
                 <option key={programme} value={programme}>{programme}</option>
               ))}
-            </Select>
+            </PortalSelect>
           </div>
 
           {/* Semester dropdown selector */}
@@ -297,7 +299,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
             <label className="form-label">
               Semester
             </label>
-            <Select
+            <PortalSelect
               value={semesterFilter}
               onChange={(e) => setSemesterFilter(e.target.value)}
               className="form-control form-control-md cursor-pointer"
@@ -306,7 +308,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
               {semesterOptions.map((semester) => (
                 <option key={semester} value={semester}>{semester}</option>
               ))}
-            </Select>
+            </PortalSelect>
           </div>
         </div>
 
@@ -316,7 +318,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
             <label className="form-label">
               Status
             </label>
-            <Select
+            <PortalSelect
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="form-control form-control-md cursor-pointer"
@@ -326,7 +328,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
               <option value="Draft">Draft Saved</option>
               <option value="Not Started">Not Started</option>
               <option value="Overdue">Overdue</option>
-            </Select>
+            </PortalSelect>
           </div>
 
           {/* Panel Member select */}
@@ -334,7 +336,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
             <label className="form-label">
               Panel Member
             </label>
-            <Select
+            <PortalSelect
               value={panelFilter}
               onChange={(e) => setPanelFilter(e.target.value)}
               className="form-control form-control-md cursor-pointer"
@@ -343,7 +345,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
               {evaluatorOptions.map((member) => (
                 <option key={member} value={member}>{member}</option>
               ))}
-            </Select>
+            </PortalSelect>
           </div>
 
           {/* Core Apply Filters Action Trigger */}

@@ -1,246 +1,84 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, ChevronRight, Gauge, ShieldAlert, UsersRound } from 'lucide-react';
-import { DashboardTimeline } from './DashboardTimeline';
-import { MonitoringTasksCard } from './MonitoringTasksCard';
-import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
-import { getDashboardSummary, getPanelWorkloads } from '../services';
-import { DashboardAttentionRow, DashboardSummary, DashboardTask } from '../types';
-import { APP_ROUTES, sidebarItemForPath } from '../constants/routes';
-import { MarkRecordStatusTab } from '../utils/markRecords';
-import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
-import { ActiveSemesterContext } from './ActiveSemesterContext';
+/** @license SPDX-License-Identifier: Apache-2.0 */
+import React from 'react';
+import {UsersRound,ChevronRight,CalendarDays,Gauge,FileChartColumn,BarChart3} from 'lucide-react';
+import {PageHeader,PortalButton,PortalCard} from './PortalPrimitives';
+import {EmptyState,ErrorState,LoadingState} from './StateViews';
+import {APP_ROUTES,sidebarItemForPath} from '../constants/routes';
+import {getDashboardSummary,getPanelWorkloads} from '../services';
+import {getOfficeAttention,type OfficeAttentionSummary} from '../services/officeAttentionApi';
+import {officeAttentionPreview,officeAttentionCategoryRoute} from '../utils/officeAttention';
+import {useOfficeRead} from './useOfficeRead';
+import {OfficeSemesterContext} from './OfficeSemesterContext';
+import {OfficeCalendarPreview} from './OfficeCalendarPreview';
+import type {MarkRecordStatusTab} from '../utils/markRecords';
 
 interface AdministrationDashboardProps {
-  onNavigateToTab: (tabName: string) => void;
-  onNavigateToRoute?: (route: string) => void;
-  onNavigateToMarksRecords?: (statusTab?: MarkRecordStatusTab) => void;
-  onNavigateToTimeline?: () => void;
+  onNavigateToTab:(tabName:string)=>void;
+  onNavigateToRoute?:(route:string)=>void;
+  onNavigateToMarksRecords?:(statusTab?:MarkRecordStatusTab)=>void;
+  onNavigateToTimeline?:()=>void;
 }
 
-export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = ({ 
-  onNavigateToTab,
-  onNavigateToRoute,
-  onNavigateToMarksRecords,
-  onNavigateToTimeline
-}) => {
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+const toolGroups=[
+  {name:'Semester and dates',icon:CalendarDays,items:[
+    {label:'Academic semesters',detail:'Prepare, activate and close semesters.',route:APP_ROUTES.dashboardSemesters},
+    {label:'Academic calendar',detail:'Manage research dates and events.',route:APP_ROUTES.dashboardTimeline},
+    {label:'Periods and extensions',detail:'Set submission windows and extra time.',route:APP_ROUTES.dashboardPeriods},
+  ]},
+  {name:'Capacity and workload',icon:Gauge,items:[
+    {label:'Lecturer capacity',detail:'Set Supervisor and Panel limits.',route:APP_ROUTES.dashboardLecturerCapacity},
+    {label:'Supervisor workload',detail:'Review active supervision commitments.',route:APP_ROUTES.supervisorAppointmentWorkload},
+    {label:'Panel workload',detail:'Review Panel assignments and limits.',route:APP_ROUTES.panelAppointmentWorkload},
+  ]},
+  {name:'Reports and checks',icon:FileChartColumn,items:[
+    {label:'Reconciliation',detail:'Investigate inconsistent records.',route:APP_ROUTES.dashboardWorkflowReconciliation},
+  ]},
+];
 
-  const triggerToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 4000);
+export const AdministrationDashboard:React.FC<AdministrationDashboardProps>=({onNavigateToTab,onNavigateToRoute,onNavigateToMarksRecords,onNavigateToTimeline})=>{
+  const attention=useOfficeRead(getOfficeAttention),summary=useOfficeRead(getDashboardSummary),workload=useOfficeRead(getPanelWorkloads);
+  const preview=officeAttentionPreview(attention.data?.summary??[]);
+  const groups={review:preview.filter(row=>row.responsibility==='review'),waiting:preview.filter(row=>row.responsibility==='waiting')};
+  const navigate=(route:string)=>{
+    if(onNavigateToRoute)onNavigateToRoute(route);
+    else if(route===APP_ROUTES.dashboardTimeline&&onNavigateToTimeline)onNavigateToTimeline();
+    else if(route===APP_ROUTES.marksRecords&&onNavigateToMarksRecords)onNavigateToMarksRecords('All Records');
+    else onNavigateToTab(sidebarItemForPath(route));
   };
-
-  const [panelWorkloadCount, setPanelWorkloadCount] = useState<number | null>(null);
-  const [panelWorkloadLoadFailed, setPanelWorkloadLoadFailed] = useState(false);
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    Promise.all([getPanelWorkloads(), getDashboardSummary()])
-      .then(([records, dashboardSummary]) => {
-        if (!active) return;
-        const attentionCount = records.filter((record) =>
-          record.availability === 'Near Limit' || record.availability === 'Full Load'
-        ).length;
-        setPanelWorkloadCount(attentionCount);
-        setSummary(dashboardSummary);
-        setPanelWorkloadLoadFailed(false);
-      })
-      .catch(() => {
-        if (!active) return;
-        setPanelWorkloadCount(null);
-        setPanelWorkloadLoadFailed(true);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const attentionRows = useMemo<DashboardAttentionRow[]>(() => [
-    {
-      id: 'pending-supervisor',
-      type: 'Pending supervisor requests',
-      count: summary === null ? 'Loading...' : String(summary.pendingSupervisorRequests),
-      targetTab: 'Supervisor Appointments',
-      detail: 'Opening supervisor appointment records requiring review.',
-    },
-    {
-      id: 'pending-panel',
-      type: 'Pending panel approvals',
-      count: summary === null ? 'Loading...' : String(summary.pendingPanelApprovals),
-      targetTab: 'Panel Appointments',
-      detail: 'Opening panel recommendations awaiting final confirmation.',
-    },
-    {
-      id: 'incomplete-marks',
-      type: 'Incomplete mark entries',
-      count: summary === null ? 'Loading...' : String(summary.incompleteMarkEntries),
-      targetTab: 'Marks Entry',
-      markStatusTab: 'All Records',
-      detail: summary === null
-        ? 'Opening mark entries that have not been submitted.'
-        : `Opening ${summary.supervisorMarkTasks ?? 0} supervisor and ${summary.panelMarkTasks ?? 0} panel mark tasks that require monitoring.`,
-    },
-    {
-      id: 'backup-marks',
-      type: 'Backup evaluator assignments',
-      count: summary === null ? 'Loading...' : String(summary.backupMarkTasks ?? 0),
-      targetTab: 'Marks Entry',
-      markStatusTab: 'All Records',
-      detail: 'Opening exception/manual override mark assignments.',
-    },
-    {
-      id: 'panel-workload',
-      type: 'Lecturers near panel workload limit',
-      count: panelWorkloadLoadFailed
-        ? 'Unavailable'
-        : panelWorkloadCount === null
-        ? 'Loading...'
-        : String(panelWorkloadCount),
-      targetTab: 'Panel Appointments',
-      detail: 'Opening panel workload monitoring.',
-    },
-  ], [panelWorkloadCount, panelWorkloadLoadFailed, summary]);
-
-  const navigateToAction = (task: DashboardTask) => {
-    const route = resolveDashboardTaskRoute(task);
-    if (onNavigateToRoute) {
-      onNavigateToRoute(route);
-      return;
-    }
-    if (task.targetModule === 'DASHBOARD' && onNavigateToTimeline) {
-      onNavigateToTimeline();
-      return;
-    }
-    onNavigateToTab(sidebarItemForPath(route));
-  };
-
-  return (
-    <div id="admin-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
-      
-      <PortalToast message={toastMessage} />
-
-      {/* Header Title & Actions section */}
-      <PageHeader
-        title="Administration Dashboard"
-        subtitle="Overview administrative status, timeline intervals, and records requiring office review."
-        actions={(
-          <>
-            <PortalButton
-              variant="secondary"
-              icon={Gauge}
-              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardLecturerCapacity)}
-            >
-              Lecturer Capacity
-            </PortalButton>
-            <PortalButton
-              variant="secondary"
-              icon={ShieldAlert}
-              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardWorkflowReconciliation)}
-            >
-              Reconcile Workflows
-            </PortalButton>
-            <PortalButton
-              variant="secondary"
-              icon={UsersRound}
-              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardParticipantLifecycle)}
-            >
-              Manage Participants
-            </PortalButton>
-            <PortalButton
-              variant="secondary"
-              icon={BarChart3}
-              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
-            >
-              View Workflow Reports
-            </PortalButton>
-          </>
-        )}
-      />
-
-      <ActiveSemesterContext
-        onManage={() => onNavigateToRoute?.(APP_ROUTES.dashboardSemesters)}
-      />
-
-      {/* 1. Semester Timeline Section */}
-      <DashboardTimeline onTimelineUpdate={triggerToast} onManageTimeline={onNavigateToTimeline} />
-
-      {/* 2. Lower Content Workflows Layout Grid */}
-      <div id="dashboard-lower-layout" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* Left (65% approx): Records Needing Attention Table */}
-        <div className="lg:col-span-8 bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm space-y-4">
-          <div className="space-y-1 block text-left">
-            <h3 className="section-label">
-              Records Needing Attention
-            </h3>
-            <p className="card-description">
-              Records that may require office review or follow-up.
-            </p>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="data-table mt-2">
-              <thead>
-                <tr className="data-thead">
-                  <th className="data-th text-left">Record Type</th>
-                  <th className="data-th text-left">Impact Count</th>
-                  <th className="data-th text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attentionRows.map((row) => (
-                  <tr key={row.id} className="data-row">
-                    {/* Record type text */}
-                    <td className="data-td-strong max-w-[280px]">
-                      {row.type}
-                    </td>
-
-                    {/* Impact amount count */}
-                    <td className="data-td">
-                      {row.count}
-                    </td>
-
-                    {/* Trigger Navigation callback action */}
-                    <td className="data-td text-right">
-                      <button
-                        onClick={() => {
-                          triggerToast(row.detail);
-                          setTimeout(() => {
-                            if (row.targetTab === 'Marks Entry' && onNavigateToMarksRecords) {
-                              onNavigateToMarksRecords(row.markStatusTab);
-                            } else {
-                              onNavigateToTab(row.targetTab);
-                            }
-                          }, 1000);
-                        }}
-                        className="text-[#2563eb] hover:text-[#1d4ed8] font-black text-xs hover:underline cursor-pointer flex items-center justify-end gap-1 ml-auto"
-                      >
-                        <span>Open</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+  const link=(route:string)=>({href:route,onClick:(event:React.MouseEvent<HTMLAnchorElement>)=>{
+    if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+    event.preventDefault();navigate(route);
+  }});
+  const monitoringItem=(label:string,count:number,route:string)=><a key={label} {...link(route)} className="home-monitoring-item" aria-label={`${count} ${label}`}>
+    <span>{label}</span><span className={`home-monitoring-count${count>0?' home-monitoring-nonzero':''}`}>{count}</span><span className="home-monitoring-action" aria-hidden="true">View<ChevronRight size={15}/></span>
+  </a>;
+  const attentionRows=(rows:OfficeAttentionSummary[],label:string)=>rows.length>0&&<div className={`home-attention-section${label==='Waiting on others'?' home-waiting':''}`}><h3>{label}</h3>{rows.map(row=><a key={row.id} {...link(officeAttentionCategoryRoute(row))} className="home-attention-link" data-office-attention={row.id}><div><span>{row.title}</span><small className={row.urgency!=='normal'?`home-${row.urgency}`:undefined}>{row.urgency!=='normal'&&<i aria-hidden="true"/>}{row.detail}</small></div><ChevronRight size={15} aria-hidden="true"/></a>)}</div>;
+  return <div id="admin-dashboard-container" className="office-home text-left pb-12">
+    <div><PageHeader title="Dashboard" actions={<div className="home-heading-actions"><PortalButton variant="secondary" icon={BarChart3} onClick={()=>navigate(APP_ROUTES.dashboardReports)}>View Workflow Reports</PortalButton><PortalButton data-office-preserve variant="secondary" icon={UsersRound} onClick={()=>navigate(APP_ROUTES.dashboardParticipantLifecycle)}>Manage Participants</PortalButton></div>}/></div><OfficeSemesterContext compact onNavigate={navigate}/>
+    <div className="home-layout-container"><div className="home-overview-grid">
+      <PortalCard padding="none" id="office-needs-attention" className="home-attention" role="region" aria-label="Needs attention">
+        <header><h2 className="section-heading">Needs attention</h2></header>
+        {attention.loading?<LoadingState message="Loading attention records…" className="home-state"/>:attention.error?<ErrorState message={attention.error} onRetry={attention.reload} className="home-state"/>:!groups.review.length&&!groups.waiting.length?<EmptyState title="No outstanding attention records" description="Office tools remain available below." className="home-state"/>:<>
+          {attentionRows(groups.review,'For Office review')}{attentionRows(groups.waiting,'Waiting on others')}
+        </>}
+        <div className="home-attention-footer"><PortalButton size="sm" variant="ghost" onClick={()=>navigate(`${APP_ROUTES.dashboardAttention}?view=all`)}>View all attention</PortalButton></div>
+      </PortalCard>
+      <OfficeCalendarPreview onOpen={()=>navigate(APP_ROUTES.dashboardTimeline)}/>
+    </div></div>
+    <section className="home-tools" aria-labelledby="office-tools-title"><div className="home-tools-heading"><h2 className="section-heading" id="office-tools-title">Office tools</h2><p>Open the workspace for the task you need.</p></div>
+      <div className="home-tool-groups">{toolGroups.map(group=><section className="home-tool-group" key={group.name}><h3><group.icon size={17} aria-hidden="true"/>{group.name}</h3><ul>{group.items.map(item=><li key={item.route}><a {...link(item.route)} data-office-tool={item.route} className="home-tool-link"><div><span>{item.label}</span><small>{item.detail}</small></div><ChevronRight size={15} aria-hidden="true"/></a></li>)}</ul></section>)}</div>
+      <section className="home-monitoring" aria-label="Monitoring counts">
+        <div className="home-monitoring-heading"><h3 className="section-label">Monitoring</h3><span>Count</span></div>
+        <div className="home-monitoring-grid">
+          {summary.loading?<span role="status">Loading monitoring counts…</span>:summary.error?<div role="alert">{summary.error} <PortalButton size="sm" onClick={summary.reload}>Retry counts</PortalButton></div>:summary.data&&<>
+            {monitoringItem('Pending Supervisor requests',summary.data.pendingSupervisorRequests,APP_ROUTES.supervisorAppointments)}
+            {monitoringItem('Pending Panel approvals',summary.data.pendingPanelApprovals,APP_ROUTES.panelAppointments)}
+            {monitoringItem('Incomplete evaluations',summary.data.incompleteMarkEntries,APP_ROUTES.marksRecords)}
+            {monitoringItem('Backup evaluator assignments',summary.data.backupMarkTasks??0,APP_ROUTES.marksRecords)}
+          </>}
+          {workload.loading?<span role="status">Loading Panel workload summary…</span>:workload.error?<div role="alert">Panel workload summary unavailable. <PortalButton size="sm" onClick={workload.reload}>Retry workload</PortalButton></div>:monitoringItem('Lecturers at or over their configured Panel limit',workload.data?.filter(row=>row.capacityState==='OVER_CAPACITY'||row.capacityState==='FULL').length??0,APP_ROUTES.panelAppointmentWorkload)}
         </div>
-
-        {/* Right (35% approx): persisted role-scoped action centre */}
-        <div className="lg:col-span-4">
-          <MonitoringTasksCard onTaskClick={navigateToAction} />
-        </div>
-
-      </div>
-    </div>
-  );
+      </section>
+    </section>
+  </div>;
 };

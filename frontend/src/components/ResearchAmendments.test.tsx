@@ -85,7 +85,7 @@ assert.match(lecturerDetail, />Approve request</);
 assert.doesNotMatch(lecturerDetail, />Endorse request</);
 assert.ok(lecturerCard.indexOf('Student One') < lecturerCard.indexOf('Abstract change'), 'Research summaries lead with the student, then the request type');
 assert.match(lecturerCard, /09 Oct 2026/);
-assert.match(lecturerCard, /Awaiting your review/);
+assert.match(lecturerCard, /Awaiting Supervisor review/);
 assert.match(lecturerCard, /Review request/);
 assert.doesNotMatch(lecturerCard, /Waiting at this stage:/);
 
@@ -93,13 +93,20 @@ assert.ok('ResearchAmendmentRouteContent' in research, 'Routed research content 
 const renderRoute = (overrides: Partial<React.ComponentProps<typeof research.ResearchAmendmentRouteContent>> = {}) => renderToStaticMarkup(React.createElement(research.ResearchAmendmentRouteContent, {
   routeView: 'list', role: 'Student', options: formOptions, rows: [historyRow, { ...historyRow, id: 2, reason: 'Other request reason' }], revisions: [initialRevision], busy: false, onAction: () => {}, onNavigateToRequest: () => {}, onNavigateToProfile: () => {}, onNavigateToNew: () => {}, requestForm: <p>Permitted request form</p>, ...overrides,
 }));
-for (const value of ['Current title', 'View research profile', 'Request research change']) assert.ok(renderRoute().includes(value), `List includes ${value}`);
+assert.doesNotMatch(renderRoute(), /Current research profile|Current title|View research profile|Request research change/, 'Request results exclude the separate current-profile card');
+const profileCard=renderToStaticMarkup(<research.StudentResearchProfileCard options={formOptions} hasPending={false} onNavigateToProfile={()=>{}} onNavigateToNew={()=>{}}/>);
+for (const value of ['Current title','View research profile','Request research change']) assert.ok(profileCard.includes(value),`Separate profile retains ${value}`);
+assert.doesNotMatch(profileCard,/Current abstract|Find a request|No research change requests/);
+const pendingProfileCard=renderToStaticMarkup(<research.StudentResearchProfileCard options={{...formOptions,canSubmitResearch:false}} hasPending/>);
+assert.match(pendingProfileCard,/research change awaiting a decision/);
+assert.doesNotMatch(pendingProfileCard,/>Request research change</);
 assert.doesNotMatch(renderRoute(), /Current abstract|Original abstract|Old abstract|New abstract|Submitted explanation/);
 const requestDetail = renderRoute({ routeView: 'detail', routeRequestId: '1' });
 for (const value of ['Old abstract', 'New abstract', 'Approval progress', 'Submitted explanation']) assert.ok(requestDetail.includes(value), `Request detail includes ${value}`);
 assert.doesNotMatch(requestDetail, /Other request reason|>Original abstract<\/dd>|Request research change/);
 assert.match(renderRoute({ routeView: 'detail', routeRequestId: '999' }), /Request not found/);
-for (const value of ['Current abstract', 'Original abstract', 'Research profile history']) assert.ok(renderRoute({ routeView: 'profile' }).includes(value), `Profile includes ${value}`);
+assert.ok(renderRoute({ routeView: 'profile' }).includes('Current abstract'), 'Current profile remains visible');
+assert.doesNotMatch(renderRoute({ routeView: 'profile' }), /Original abstract|Research profile history/, 'History is separate from the current-profile content');
 assert.doesNotMatch(renderRoute({ routeView: 'profile' }), /Submitted explanation|Other request reason/);
 assert.match(renderRoute({ routeView: 'new' }), /Permitted request form/);
 assert.doesNotMatch(renderRoute({ routeView: 'new', options: { ...formOptions, canSubmitResearch: false } }), /Permitted request form/);

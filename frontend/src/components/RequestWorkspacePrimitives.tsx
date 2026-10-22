@@ -1,10 +1,11 @@
+import { PortalSelect } from './PortalSelect';
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { requestStatusLabel, type RequestGroup } from '../utils/lecturerRequests';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { formatRequestStageWaiting } from '../utils/requestStageWaiting';
-import { Select } from './Select';
+import { RequestStatusBadge } from './RequestStatusBadge';
 
 export function WorkspaceSectionHeader({ title, description, actions }: { title?: string; description?: string; actions?: React.ReactNode }) {
   return <header className="flex flex-wrap items-center justify-between gap-3">
@@ -14,11 +15,33 @@ export function WorkspaceSectionHeader({ title, description, actions }: { title?
 }
 
 export type RequestListView = 'requests' | 'history';
+export function AppointmentViewSwitch({view, onChange, label = 'Appointment views', currentLabel = 'Current appointments', pastLabel = 'Past appointments'}: {
+  view: 'current' | 'past'; onChange: (value: 'current' | 'past') => void; label?: string; currentLabel?: string; pastLabel?: string;
+}) {
+  return <div role="group" aria-label={label} className="flex w-fit flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
+    {([['current', currentLabel], ['past', pastLabel]] as const).map(([value, text]) => <button type="button" key={value} aria-pressed={view === value} onClick={() => onChange(value)}
+      className={`card-value rounded-md px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${view === value ? 'bg-white text-brand-navy shadow-sm' : 'text-slate-600 hover:bg-white/60'}`}>{text}</button>)}
+  </div>;
+}
+export function WorkspaceFilterActions({ onReset, children }: { onReset: () => void; children?: React.ReactNode }) {
+  return <div className={`mt-4 flex flex-wrap items-start gap-3 border-t border-slate-200 pt-3 ${children ? 'justify-between' : 'justify-end'}`}>
+    <PortalButton size="sm" onClick={onReset}>Clear filters</PortalButton>
+    {children ? <div className="flex min-w-0 flex-wrap items-start gap-2">{children}</div> : null}
+  </div>;
+}
+export function WorkspaceFilterCard({ children, onReset, actions, fieldsClassName = 'grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-4' }: {
+  children: React.ReactNode; onReset: () => void; actions?: React.ReactNode; fieldsClassName?: string;
+}) {
+  return <div data-workspace-filter-card className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+    <div className={fieldsClassName}>{children}</div>
+    <WorkspaceFilterActions onReset={onReset}>{actions}</WorkspaceFilterActions>
+  </div>;
+}
 export const WORKSPACE_PAGE_SIZE = 10;
 export function workspacePageSize(value: unknown) { return [10, 25, 50].includes(Number(value)) ? Number(value) : WORKSPACE_PAGE_SIZE; }
 export function WorkspacePagination({ page, pageCount, total, noun, onPage, pageSize = WORKSPACE_PAGE_SIZE, onPageSize }: { page: number; pageCount: number; total: number; noun: string; onPage: (page: number) => void; pageSize?: number; onPageSize?: (size: number) => void }) {
   return total > 0 && (pageCount > 1 || onPageSize) ? <div className="flex flex-wrap items-center justify-between gap-3">
-    {onPageSize ? <label className="card-description flex items-center gap-2">Rows per page<Select className="form-control form-control-sm w-20" value={pageSize} onChange={event => onPageSize(Number(event.target.value))}>{[10, 25, 50].map(size => <option key={size} value={size}>{size}</option>)}</Select></label> : null}
+    {onPageSize ? <label className="card-description flex items-center gap-2">Rows per page<PortalSelect className="form-control form-control-sm w-20" value={pageSize} onChange={event => onPageSize(Number(event.target.value))}>{[10, 25, 50].map(size => <option key={size} value={size}>{size}</option>)}</PortalSelect></label> : null}
     <p className="card-description">Page {page} of {pageCount} · {total} {total === 1 && noun.endsWith('s') ? noun.slice(0, -1) : noun}</p>
     {pageCount > 1 ? <div className="flex gap-2"><PortalButton size="sm" disabled={page === 1} onClick={() => onPage(page - 1)}>Previous</PortalButton><PortalButton size="sm" disabled={page === pageCount} onClick={() => onPage(page + 1)}>Next</PortalButton></div> : null}
   </div> : null;
@@ -33,9 +56,9 @@ export function WorkspaceRecordTable({ rows, label, roster = false, identityLabe
     <tbody role="rowgroup" className="block space-y-3 lg:table-row-group lg:space-y-0">{rows.map(row => {
       const cells: React.ReactNode[] = [<><p className="[overflow-wrap:anywhere]">{row.studentName}</p>{row.matricNo ? <p className="card-caption mt-1 [overflow-wrap:anywhere]">{row.matricNo}</p> : null}</>];
       if (roster) cells.push(row.programme || 'Not recorded', row.role || 'Not recorded');
-      else cells.push(...(!hideRequestType ? [row.kind] : []), row.submittedAt ? formatMalaysiaDate(row.submittedAt) : 'Not recorded', row.status, formatRequestStageWaiting(row.workflowStatus ?? row.status, row.waitingDays, row.waitingApplicable));
+      else cells.push(...(!hideRequestType ? [row.kind] : []), row.submittedAt ? formatMalaysiaDate(row.submittedAt) : 'Not recorded', row.status ? <RequestStatusBadge status={row.workflowStatus ?? row.status} label={row.status}/> : null, formatRequestStageWaiting(row.workflowStatus ?? row.status, row.waitingDays, row.waitingApplicable));
       cells.push(<PortalButton size="sm" className="whitespace-nowrap" variant={row.actionLabel === 'Review request' ? 'primary' : 'secondary'} disabled={row.disabled} aria-label={row.actionAriaLabel} onClick={row.onOpen}>{row.actionLabel}</PortalButton>);
-      return <tr key={row.key} role="row" className="data-row grid grid-cols-2 rounded-xl border border-slate-200 py-2 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0 lg:py-0">{cells.map((cell, index) => <td key={columns[index]} role="cell" className={`${index === 0 ? 'data-td-strong' : 'data-td'} block min-w-0 px-3 py-2 align-middle [overflow-wrap:anywhere] lg:table-cell lg:px-5 lg:py-4 ${index === 0 || index === cells.length - 1 || roster ? 'col-span-2' : ''} ${index === cells.length - 1 ? 'text-right' : ''}`}>
+      return <tr key={row.key} role="row" className="data-row grid grid-cols-2 rounded-xl border border-slate-200 py-2 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0 lg:py-0">{cells.map((cell, index) => <td key={columns[index]} role="cell" className={`${index === 0 ? 'data-td-strong' : 'data-td'} block min-w-0 px-3 py-2 align-middle [overflow-wrap:anywhere] lg:table-cell lg:px-5 lg:py-4 ${index === 0 || index === cells.length - 1 || roster ? 'col-span-2' : ''} ${index === cells.length - 1 ? 'text-left' : ''}`}>
         {index > 0 && index < cells.length - 1 ? <span className="card-label mb-1 block lg:hidden">{columns[index]}</span> : null}{cell}
       </td>)}</tr>;
     })}</tbody>
@@ -55,20 +78,20 @@ export function RequestViewSwitch({ view, reviewCount, onChange }: { view: Reque
   </div>;
 }
 
-export function RequestFilters({ search, onSearch, type, onType, status = '', onStatus, statuses = [], semester = '', semesters = [], onSemester, from = '', onFrom, searchLabel = 'Find a request', searchPlaceholder = 'Student name, matric number or request', children }: {
+export function RequestFilters({ search, onSearch, type, onType, status = '', onStatus, statuses = [], semester = '', semesters = [], onSemester, from = '', onFrom, onReset, searchLabel = 'Find a request', searchPlaceholder = 'Student name, matric number or request', children }: {
   search: string; onSearch: (value: string) => void; type?: string; onType?: (value: string) => void;
   status?: string; onStatus?: (value: string) => void; statuses?: string[];
   semester?: string; semesters?: string[]; onSemester?: (value: string) => void; from?: string; onFrom?: (value: string) => void;
-  searchLabel?: string; searchPlaceholder?: string; children?: React.ReactNode;
+  onReset?: () => void; searchLabel?: string; searchPlaceholder?: string; children?: React.ReactNode;
 }) {
-  return <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+  return <WorkspaceFilterCard fieldsClassName="flex flex-wrap items-end gap-3" onReset={onReset ?? (()=>{onSearch('');onType?.('all');onStatus?.('');onSemester?.('');onFrom?.('');})}>
     <label className="form-label min-w-48 flex-1">{searchLabel}<input className="form-control form-control-sm mt-1" type="search" value={search} placeholder={searchPlaceholder} onChange={event => onSearch(event.target.value)} /></label>
     {children}
-    {onType ? <label className="form-label">Request type<Select className="form-control form-control-sm mt-1" value={type} onChange={event => onType(event.target.value)}><option value="all">All types</option><option value="primary">Primary supervisor</option><option value="supporting">Supporting supervisor</option></Select></label> : null}
-    {onStatus ? <label className="form-label">Status<Select className="form-control form-control-sm mt-1" value={status} onChange={event => onStatus(event.target.value)}><option value="">All statuses</option>{statuses.map(value => <option key={value} value={value}>{requestStatusLabel(value)}</option>)}</Select></label> : null}
-    {onSemester ? <label className="form-label">Semester<Select className="form-control form-control-sm mt-1" value={semester} onChange={event => onSemester(event.target.value)}><option value="">All semesters</option>{semesters.map(value => <option key={value}>{value}</option>)}</Select></label> : null}
+    {onType ? <label className="form-label">Request type<PortalSelect className="form-control form-control-sm mt-1" value={type} onChange={event => onType(event.target.value)}><option value="all">All types</option><option value="primary">Primary supervisor</option><option value="supporting">Supporting supervisor</option></PortalSelect></label> : null}
+    {onStatus ? <label className="form-label">Status<PortalSelect className="form-control form-control-sm mt-1" value={status} onChange={event => onStatus(event.target.value)}><option value="">All statuses</option>{statuses.map(value => <option key={value} value={value}>{requestStatusLabel(value)}</option>)}</PortalSelect></label> : null}
+    {onSemester ? <label className="form-label">Semester<PortalSelect className="form-control form-control-sm mt-1" value={semester} onChange={event => onSemester(event.target.value)}><option value="">All semesters</option>{semesters.map(value => <option key={value}>{value}</option>)}</PortalSelect></label> : null}
     {onFrom ? <label className="form-label">Submitted on or after<input className="form-control form-control-sm mt-1" type="date" value={from} onChange={event => onFrom(event.target.value)} /></label> : null}
-  </div>;
+  </WorkspaceFilterCard>;
 }
 
 export function RequestGroupSection({ group, count, children }: { group: RequestGroup; count: number; children: React.ReactNode }) {

@@ -15,7 +15,7 @@ export function SupervisorAppointmentGuidanceView({ requirements, loading, error
     <ul className="space-y-1">{active.map(row => <li key={row.id}>{row.label} <span className="card-label">({row.isRequired ? 'Required' : 'Optional'})</span></li>)}</ul>
     <p>PDF or DOCX. Up to {SUPERVISOR_DOCUMENT_MAX_FILES} files, {formatSupervisorDocumentSize(SUPERVISOR_DOCUMENT_MAX_TOTAL_BYTES)} combined.</p>
   </> : <p>Document requirements are not configured. Contact the Postgraduate Office before applying.</p> }];
-  if (hasSupervisor) cards.push({ title: 'Changing your supervisor', content: <p>Provide a replacement reason and fresh supporting documents. Your current supervisor remains assigned until the replacement is approved.</p> });
+  if (hasSupervisor) cards.push({ title: 'Changing your supervisor', content: <p>Contact the Postgraduate Office if exceptional circumstances require a supervisor change.</p> });
   return <StudentAppointmentGuidance cards={cards} onShowFAQChatbot={onShowFAQChatbot} />;
 }
 

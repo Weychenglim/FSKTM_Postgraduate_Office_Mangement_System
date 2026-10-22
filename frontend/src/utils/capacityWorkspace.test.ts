@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import {capacityPlanningBaseline, capacityWorkspaceRows, capacityComparisonRows, capacityRowIssues,capacityHasRole} from './capacityWorkspace';
+import type {SemesterCapacityPlan} from '../types';
+import type {CapacityWorkspaceLecturer} from '../services/capacityWorkspaceApi';
+
+const roster=[{id:1,lecturerId:1,staffNo:'STAFF-1',lecturerName:'Lecturer One',participantLifecycle:'ACTIVE',supervisorLimit:5,panelLimit:10,supervisor:{limit:5,activeLoad:3,reservedLoad:0,state:'AVAILABLE'},panel:{limit:10,activeLoad:2,reservedLoad:1,state:'AVAILABLE'},activeStudentCount:5,primaryStudentCount:2,supportingStudentCount:1,panelStudentCount:2}] as CapacityWorkspaceLecturer[];
+const draft={entries:[],readinessErrors:['STAFF-1: capacity entry is required for this Lecturer.']} as SemesterCapacityPlan;
+const missing=capacityWorkspaceRows(roster,draft);
+assert.equal(missing.length,1,'A blank draft must include configurable lecturer rows');
+assert.equal(missing[0].supervisorLimit,null,'Published limits must not masquerade as saved draft limits');
+assert.equal(missing[0].supervisor?.limit,5,'Operational resolution remains published');
+assert.equal(capacityRowIssues(missing[0],draft).length,1);
+const saved={...draft,entries:[{...roster[0],supervisorLimit:0,panelLimit:4}]} as unknown as SemesterCapacityPlan;
+assert.equal(capacityWorkspaceRows(roster,saved)[0].supervisorLimit,0,'Zero is a valid saved limit');
+assert.equal(capacityWorkspaceRows(roster,null)[0].activeStudentCount,5);
+const comparison={...draft,entries:[{...roster[0],id:2,lecturerId:2,staffNo:'RETIRED',lecturerName:'Historical lecturer',participantLifecycle:'RETIRED'}]} as unknown as SemesterCapacityPlan;
+const historical=capacityComparisonRows(roster,draft,comparison).find(row=>row.lecturerId===2);
+assert.ok(historical,'Comparison must include lecturers present only in the comparison version');
+assert.equal(historical.supervisorLimit,null,'A lecturer absent from selected version must not inherit comparison limits');
+assert.equal(historical.activeStudentCount,null,'Unknown historical counts must not be fabricated as zero');
+const removedRole={...roster[0],supervisor:null,supervisorLimit:0};
+assert.equal(capacityHasRole(removedRole,'SUPERVISOR',false),false);
+assert.equal(capacityHasRole(removedRole,'SUPERVISOR',true),true,'Historical role filters must retain recorded zero limits');
+assert.equal(capacityPlanningBaseline({activeStudents:12,eligibleLecturers:5,studentsPerLecturer:2.4}),'2.4');
+assert.equal(capacityPlanningBaseline({activeStudents:0,eligibleLecturers:0,studentsPerLecturer:null}),'Unavailable');
+console.log('Capacity roster merging, missing-entry editing, published authority, zero limits and planning baseline passed');

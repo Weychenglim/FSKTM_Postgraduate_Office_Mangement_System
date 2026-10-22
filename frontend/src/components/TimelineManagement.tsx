@@ -1,4 +1,6 @@
+import { PortalSelect } from './PortalSelect';
 import { DecisionDialog } from './DecisionDialog';
+import { LinkedPeriodStatus } from './LinkedPeriodStatus';
 import { completeDecision } from '../utils/decisionSubmission';
 /**
  * @license
@@ -15,6 +17,9 @@ import {
   Upload
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
+import { APP_ROUTES } from '../constants/routes';
+import { useListState } from './ListState';
 import {
   createTimelineEntry,
   deleteTimelineEntry,
@@ -30,17 +35,20 @@ import { AcademicSemester, ActiveSemesterTimeline, TimelineAuditLog, TimelineEnt
 import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
 import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import {OfficeToolContext, OfficeToolViews} from './OfficeToolPrimitives';
 import { SemesterTimeline } from './SemesterTimeline';
 import { ErrorState, LoadingState } from './StateViews';
 import { UploadTimelineDrawer } from './UploadTimelineDrawer';
+import { InformationalEventExtension } from './InformationalEventExtension';
 import { clampPage, paginate, paginationRange } from '../utils/pagination';
 import { formatSemesterLifecycle } from '../utils/academicSemesters';
-import { Select } from './Select';
+import { canManagePeriodSemester, canEditTimelineSemester, loadPeriodTimeline } from '../utils/operationalPeriodAccess';
 
 // TimelineEntry now lives in src/types.
 
 interface TimelineManagementProps {
   onBack: () => void;
+  backLabel?: string;
   onManageSemesters: () => void;
 }
 
@@ -65,6 +73,8 @@ const actionLabel = (action: TimelineAuditLog['action']) => {
       return 'Added entry';
     case 'EDIT_ENTRY':
       return 'Edited entry';
+    case 'EXTEND':
+      return 'Extended deadline';
     case 'DELETE_ENTRY':
       return 'Deleted entry';
     default:
@@ -80,6 +90,7 @@ const actionColor = (action: TimelineAuditLog['action']) => {
     case 'ADD_ENTRY':
       return 'text-[#16a34a]';
     case 'EDIT_ENTRY':
+    case 'EXTEND':
       return 'text-[#d97706]';
     case 'DELETE_ENTRY':
       return 'text-[#dc2626]';
@@ -98,8 +109,12 @@ const initials = (name: string) =>
 
 export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   onBack,
+  backLabel = 'Back to Office Dashboard',
   onManageSemesters,
 }) => {
+  const [searchParams,setSearchParams] = useSearchParams();
+  const [view,setView] = useListState<'calendar'|'entries'|'history'>('OfficeCalendar','view','calendar');
+  const [extensionId,setExtensionId] = useState<number|null>(null);
   // Toast overlay
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
@@ -118,7 +133,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [timeline, setTimeline] = useState<ActiveSemesterTimeline | null>(null);
   const [semesters, setSemesters] = useState<AcademicSemester[]>([]);
-  const [selectedSemesterId, setSelectedSemesterId] = useState<number | null>(null);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<number | null>(()=>{const value=Number(searchParams.get('semester')); return Number.isInteger(value)&&value>0?value:null;});
   const [auditLogs, setAuditLogs] = useState<TimelineAuditLog[]>([]);
   const [auditPage, setAuditPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -139,6 +154,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   }, [auditLogs.length]);
 
   const selectedSemester = semesters.find((semester) => semester.id === selectedSemesterId) ?? null;
+  const calendarEditable = canEditTimelineSemester(selectedSemester?.lifecycleStatus);
+  const selectedSemesterLifecycleRef = useRef(selectedSemester?.lifecycleStatus);
+  selectedSemesterLifecycleRef.current = selectedSemester?.lifecycleStatus;
 
   const loadEntries = useCallback((propagateError = false) => {
     const semesterId = selectedSemesterRef.current;
@@ -155,14 +173,11 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
     setTimeline(null);
     setEntries([]);
     setAuditLogs([]);
-    return Promise.all([
-      getActiveTimeline(semesterId),
-      getTimelineAuditLogs(semesterId),
-    ])
+    return loadPeriodTimeline(semesterId, selectedSemesterLifecycleRef.current ?? 'CLOSED', getActiveTimeline, getTimelineAuditLogs)
       .then(([activeTimeline, logs]) => {
         if (version !== loadVersion.current) return;
         setTimeline(activeTimeline);
-        setEntries(activeTimeline.available
+        setEntries(activeTimeline?.available
           ? activeTimeline.levels.flatMap((group) => group.entries.map(timelineEntryToLegacy))
           : []);
         setAuditLogs(logs);
@@ -182,7 +197,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       .then((rows) => {
         if (version !== semesterLoadVersion.current) return;
         const editable = rows.filter((semester) => (
-          semester.lifecycleStatus === 'DRAFT' || semester.lifecycleStatus === 'ACTIVE'
+          canManagePeriodSemester(semester.lifecycleStatus)
         ));
         setSemesters(editable);
         setSelectedSemesterId((current) => (
@@ -207,9 +222,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   }, [loadSemesters]);
 
   useEffect(() => {
-    if (selectedSemesterId !== null) loadEntries();
+    if (selectedSemesterId !== null && selectedSemester) loadEntries();
     return () => { loadVersion.current += 1; };
-  }, [loadEntries, selectedSemesterId]);
+  }, [loadEntries, selectedSemesterId, selectedSemester?.lifecycleStatus]);
 
   const handleRetry = () => {
     if (selectedSemesterRef.current === null) loadSemesters();
@@ -307,7 +322,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
   const handleDownloadTemplate = () => {
     triggerToast('Generating Excel master schedule template...');
-    downloadTimelineTemplate()
+    downloadTimelineTemplate(selectedSemesterId ?? undefined)
       .then((blob) => {
         saveBlob(blob, 'FSKTM_Semester_Timeline_Template.xlsx');
         triggerToast('Success! FSKTM_Semester_Timeline_Template.xlsx downloaded.');
@@ -329,7 +344,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
   const getStatusTone = (status: TimelineEntry['status']) => {
     switch (status) {
-      case 'Completed':
+      case 'Ended':
         return 'neutral';
       case 'Active':
         return 'info';
@@ -349,101 +364,52 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
       {/* Head section title with actions buttons Row */}
       <PageHeader
-        title="Timeline Management"
-        subtitle="View, upload, and manage semester timeline entries."
-        backLabel="Back to Office Dashboard"
+        className="office-tool-heading"
+        title="Calendar"
+        subtitle="Plan and communicate semester events. Submission windows and extra time are managed in Periods & deadlines."
+        backLabel={backLabel}
         onBack={onBack}
         actions={(
           <>
-            <PortalButton variant="secondary" size="md" icon={Download} onClick={handleDownloadTemplate}>
+            <details className="office-tool-import relative"><summary className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-extrabold uppercase tracking-wider">Import & template</summary><div className="absolute right-0 top-full z-20 mt-2 flex w-56 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <PortalButton variant="secondary" size="md" icon={Download} disabled={!calendarEditable} onClick={handleDownloadTemplate}>
               Download Template
             </PortalButton>
-            <PortalButton variant="soft" size="md" icon={Plus} onClick={handleOpenAddModal}>
-              Add Timeline Entry
-            </PortalButton>
-            <PortalButton variant="primary" size="md" icon={Upload} onClick={handleUploadTimeline}>
+            <PortalButton variant="secondary" size="md" icon={Upload} disabled={!calendarEditable} onClick={handleUploadTimeline}>
               Upload Timeline
             </PortalButton>
+            </div></details>
+            <PortalButton variant="primary" size="sm" icon={Plus} disabled={!calendarEditable} onClick={handleOpenAddModal}>Add event</PortalButton>
           </>
         )}
       />
 
-      <div className="flex flex-wrap items-end justify-between gap-3 border-y border-slate-200 bg-white px-4 py-3">
-        <label className="form-label min-w-[260px]">
-          Timeline semester
-          <Select
+      <OfficeToolContext>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <label className="form-label min-w-0 w-full sm:max-w-sm">
+          Academic semester
+          <PortalSelect
+            disabled={extensionId!==null || savingEntry || deletingEntry || uploadDrawerOpen || addDrawerOpen || editDrawerOpen}
             value={selectedSemesterId ?? ''}
-            onChange={(event) => setSelectedSemesterId(Number(event.target.value))}
+            onChange={(event) => {const id=Number(event.target.value);setSelectedSemesterId(id);setSearchParams({semester:String(id)},{replace:true});}}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
           >
-            {!semesters.length ? <option value="">No Draft or Active semesters</option> : null}
+            {!semesters.length ? <option value="">No Draft, Active or Closed semesters</option> : null}
             {semesters.map((semester) => (
               <option key={semester.id} value={semester.id}>
                 {semester.label} - {formatSemesterLifecycle(semester.effectiveStatus)}
               </option>
             ))}
-          </Select>
+          </PortalSelect>
         </label>
-        <PortalButton
-          variant="secondary"
-          onClick={onManageSemesters}
-        >
-          Manage semesters
-        </PortalButton>
+        <div className="flex flex-wrap items-center gap-3 pb-2"><p className="card-description">{loading ? 'Loading calendar…' : `${entries.length} events`}</p>{selectedSemester && <StatusBadge tone={selectedSemester.effectiveStatus==='ACTIVE'?'success':'neutral'}>{formatSemesterLifecycle(selectedSemester.effectiveStatus)}</StatusBadge>}</div>
       </div>
+      </OfficeToolContext>
 
-      {/* Grid: Four Top Summary Cards matching mock parameters exactly */}
-      <div id="timeline-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        
-        {/* Card 1: Selected Semester */}
-        <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 text-left shadow-3xs">
-          <span className="card-label block">
-            SELECTED SEMESTER
-          </span>
-          <span className="card-value block mt-3">
-            {selectedSemester?.label ?? 'No semester selected'}
-          </span>
-        </div>
-
-        {/* Card 2: Timeline Status with live active indicator */}
-        <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 text-left shadow-3xs">
-          <span className="card-label block">
-            SEMESTER STATUS
-          </span>
-          <div className="flex items-center gap-2 mt-3.5">
-            <StatusBadge tone={selectedSemester?.effectiveStatus === 'ACTIVE' ? 'success' : 'neutral'} className="text-[11px]">
-              {selectedSemester ? formatSemesterLifecycle(selectedSemester.effectiveStatus) : '-'}
-            </StatusBadge>
-          </div>
-        </div>
-
-        {/* Card 3: Last Updated tracking */}
-        <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 text-left shadow-3xs">
-          <span className="card-label block">
-            LAST UPDATED
-          </span>
-          <span className="card-value block mt-3">
-            {!loading && !error && timeline?.available ? formatDisplayDate(timeline.uploadedAt) : '-'}
-          </span>
-        </div>
-
-        {/* Card 4: Total events counting */}
-        <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 text-left shadow-3xs">
-          <span className="card-label block">
-            TOTAL EVENTS
-          </span>
-          <span className="card-metric block mt-2.5">
-            {loading || error ? '-' : entries.length}
-          </span>
-        </div>
-
-      </div>
-
-      {/* Interactive visual Gantt timeline charts */}
-      <SemesterTimeline timeline={timeline} loading={loading} error={error} onRetry={handleRetry} />
-
+      <OfficeToolViews<typeof view> label="Calendar views" value={view} onChange={setView} options={[{value:'calendar',label:'Calendar'},{value:'entries',label:'Entries'},{value:'history',label:'History'}]}/>
+      {view==='calendar' && <SemesterTimeline timeline={timeline} loading={loading} error={error} onRetry={handleRetry} />}
       {/* 2. Timeline Entries Table Section */}
-      <div id="timeline-records-box" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-6 text-left">
+      <div hidden={view!=='entries'} id="timeline-records-box" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-6 text-left">
         
         <div className="space-y-1 block text-left">
           <h2 className="section-label">
@@ -468,7 +434,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
           {/* Select filter 1: Category */}
           <div className="md:col-span-2 relative">
-            <Select
+            <PortalSelect
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="form-control form-control-sm appearance-none cursor-pointer"
@@ -476,27 +442,27 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
               <option value="All">Category: All</option>
               <option value="Research Project (P1)">Research Project (P1)</option>
               <option value="Research Project (P2)">Research Project (P2)</option>
-            </Select>
+            </PortalSelect>
           </div>
 
           {/* Select filter 2: Status */}
           <div className="md:col-span-2 relative">
-            <Select
+            <PortalSelect
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="form-control form-control-sm appearance-none cursor-pointer"
             >
               <option value="All">Status: All</option>
-              <option value="Completed">Completed</option>
+              <option value="Ended">Ended</option>
               <option value="Active">Active</option>
               <option value="Deadline">Deadline</option>
               <option value="Upcoming">Upcoming</option>
-            </Select>
+            </PortalSelect>
           </div>
 
           {/* Select filter 3: Target Role */}
           <div className="md:col-span-2 relative">
-            <Select
+            <PortalSelect
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
               className="form-control form-control-sm appearance-none cursor-pointer"
@@ -504,7 +470,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
               <option value="All">Target Role: All</option>
               <option value="STUDENT">Student</option>
               <option value="LECTURER">Lecturer</option>
-            </Select>
+            </PortalSelect>
           </div>
 
           {/* Action Trigger Filter criteria */}
@@ -597,22 +563,27 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
                     {/* Status indicator pill with colored bullet code */}
                     <td className="data-td text-center">
-                      <StatusBadge tone={getStatusTone(ent.status)} dot pulse={ent.status === 'Deadline'}>
+                      {ent.linkedPeriodStatus?<LinkedPeriodStatus status={ent.linkedPeriodStatus}/>:<StatusBadge tone={getStatusTone(ent.status)} dot pulse={ent.status === 'Deadline'}>
                         {ent.status}
-                      </StatusBadge>
+                      </StatusBadge>}
                     </td>
 
                     {/* Manage row edit handler link */}
                     <td className="data-td text-right">
                       <div className="flex items-center justify-end gap-2.5">
-                        <button
+                        {ent.operationalPeriodId || ent.marksPeriodId ? <Link
+                          to={`${APP_ROUTES.dashboardPeriods}?semester=${selectedSemesterId}${ent.operationalPeriodId ? `#operational-period-${ent.operationalPeriodId}` : `#marks-period-${ent.marksPeriodId}`}`}
+                          className="text-[#2563eb] hover:underline font-bold text-xs"
+                        >Manage period</Link> : <><button
+                          disabled={!calendarEditable}
                           onClick={() => handleOpenEditModal(ent)}
                           className="text-[#2563eb] hover:text-[#1d4ed8] font-bold text-xs hover:underline cursor-pointer"
                         >
                           Edit
-                        </button>
+                        </button><button type="button" disabled={!calendarEditable} onClick={()=>setExtensionId(Number(ent.id))} className="text-blue-700 hover:underline text-xs">Extend date</button></>}
                         <span className="card-description text-slate-300">|</span>
                         <button
+                          disabled={!calendarEditable}
                           onClick={() => handleDeleteEntry(ent.id, ent.event)}
                           className="text-slate-400 hover:text-red-600 transition"
                           title="Delete Timeline Step"
@@ -632,7 +603,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       </div>
 
       {/* 3. Recent Updates Track Section */}
-      <div id="recent-timeline-updates-card" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-4 text-left">
+      <div hidden={view!=='history'} id="recent-timeline-updates-card" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-4 text-left">
         <h3 className="section-label">
           Recent Timeline Updates
         </h3>
@@ -691,6 +662,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
                   {/* Details summary */}
                   <td className="data-td">
                     {log.summary}
+                    {typeof log.before?.deadlineEnd === 'string' && typeof log.after?.deadlineEnd === 'string' ? <p className="card-description mt-1">Deadline: {formatDisplayDate(log.before.deadlineEnd)} → {formatDisplayDate(log.after.deadlineEnd)}</p> : null}
+                    {log.reason ? <p className="card-description mt-1 whitespace-pre-wrap">Reason: {log.reason}</p> : null}
                   </td>
                 </tr>
               ))}
@@ -746,9 +719,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
         isOpen={addDrawerOpen}
         onClose={() => setAddDrawerOpen(false)}
         onSave={handleAddEntry}
-        timelineLabel={timeline?.available
-          ? `${timeline.semester} ${timeline.session}`
-          : 'the active timeline'}
+        timelineLabel={selectedSemester?.label ?? 'the active timeline'}
       />
 
       {/* Edit Timeline Slide-in Drawer */}
@@ -761,9 +732,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
         }}
         entry={editingEntry}
         onSave={handleEditEntry}
-        timelineLabel={timeline?.available
-          ? `${timeline.semester} ${timeline.session}`
-          : 'the active timeline'}
+        timelineLabel={selectedSemester?.label ?? 'the active timeline'}
       />
 
       {/* Upload Timeline Slide-in Drawer */}
@@ -776,6 +745,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       />
 
       {/* Delete Confirmation Modal */}
+      <InformationalEventExtension entry={timeline?.levels.flatMap(group=>group.entries).find(entry=>entry.id===extensionId)??null} onClose={()=>setExtensionId(null)} onReload={async()=>{await loadEntries(true);}}/>
       <DecisionDialog kind="confirmation" tone="danger" decisionKey={entryToDelete?.id} successMessage="Timeline entry deleted." onReload={async () => { await loadEntries(true); }} isOpen={!!entryToDelete} title="Delete Timeline Entry?" message={<>Permanently remove <strong>{entryToDelete?.name}</strong> from the postgraduate timeline? This action cannot be undone.</>} confirmLabel="Delete Entry" busy={deletingEntry} onConfirm={confirmDeleteEntry} onClose={() => { if (!deletingEntryRef.current) setEntryToDelete(null); }} />
 
     </div>

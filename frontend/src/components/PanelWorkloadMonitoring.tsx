@@ -1,150 +1,122 @@
+/** @license SPDX-License-Identifier: Apache-2.0 */
+import { PortalSelect } from './PortalSelect';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, Eye, Gauge } from 'lucide-react';
 import { RecordPage } from './RecordPage';
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  CheckSquare,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Eye,
-  Gauge,
-  Search,
-  SlidersHorizontal,
-  X,
-} from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
-import {
-  PageHeader,
-  PortalButton,
-  PortalToast,
-  ProgressBar,
-  BadgeTone,
-  StatusBadge,
-  StatusDot,
-  getStatusBadgeTone,
-} from './PortalPrimitives';
-import { ErrorState, LoadingState } from './StateViews';
+import { PortalButton, PortalToast, ProgressBar, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
+import { ErrorState, LoadingState, EmptyState } from './StateViews';
 import { getPanelWorkloads } from '../services';
-import { PanelWorkloadRecord } from '../types';
-import { downloadCsv } from '../utils/csvExport';
-import { getPanelWorkloadSummary, getPanelWorkloadUtilization } from '../utils/panelWorkloadRecords';
+import type { PanelWorkloadRecord } from '../types';
+import { useExcelExport } from '../utils/useExcelExport';
+import { getPanelWorkloadUtilization } from '../utils/panelWorkloadRecords';
 import { capacityStateLabel } from '../utils/lecturerCapacity';
-import { Select } from './Select';
+import { useReturnToFocusReload } from '../utils/returnToFocus';
+import { useListState } from './ListState';
+import { CoordinatorDataTable } from './CoordinatorBrowsePrimitives';
+import { WorkspacePagination, WorkspaceSectionHeader, workspacePageSize } from './RequestWorkspacePrimitives';
+import { appointmentDetailTypography as typography } from './AppointmentPrimitives';
+import { RequestDetailCard, RequestSection } from './RequestDetailPrimitives';
 
 interface PanelWorkloadMonitoringProps {
   onBack: () => void;
   onOpenCapacity?: () => void;
+  initialLecturerId?: string;
+  backLabel?: string;
 }
 
-const itemsPerPage = 5;
-const distributionRows: Array<{ label: string; tone: BadgeTone; key: 'available' | 'nearLimit' | 'fullLoad' }> = [
-  { label: 'Available', tone: 'success', key: 'available' },
-  { label: 'Near Limit', tone: 'warning', key: 'nearLimit' },
-  { label: 'Full Load', tone: 'danger', key: 'fullLoad' },
-];
+type WorkloadFilters = { search: string; department: string; status: string };
+const stateOf = (record: PanelWorkloadRecord) => record.capacityState || record.availability;
+const labelOf = (record: PanelWorkloadRecord) => record.capacityState ? capacityStateLabel(record.capacityState) : record.availability;
+const configured = (record: PanelWorkloadRecord) => record.capacityState !== 'NOT_CONFIGURED' && Boolean(record.semesterCode) && record.capacityPlanVersion != null;
 
-export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = ({ onBack, onOpenCapacity }) => {
+export function getPanelWorkloadPage(records: PanelWorkloadRecord[], filters: WorkloadFilters, requestedPage: number, requestedSize: number) {
+  const search = filters.search.trim().toLowerCase();
+  const filtered = records.filter(record => (!search || [record.name, record.id, record.department].some(value => value.toLowerCase().includes(search)))
+    && (!filters.department || record.department === filters.department) && (!filters.status || stateOf(record) === filters.status));
+  const size = workspacePageSize(requestedSize);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / size));
+  const page = Math.min(Math.max(1, Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1), pageCount);
+  return { filtered, rows: filtered.slice((page - 1) * size, page * size), total: filtered.length, page, pageCount, size };
+}
+
+function WorkloadFact({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="min-w-0"><dt className={typography.label}>{label}</dt><dd className={`${typography.body} mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]`}>{children}</dd></div>;
+}
+
+export function PanelWorkloadDetails({ record }: { record: PanelWorkloadRecord }) {
+  const hasConfiguration = configured(record);
+  return <RequestDetailCard padding="lg">
+    <RequestSection title="Lecturer and current semester" headingClassName={typography.heading}>
+      <div className="flex flex-wrap items-start justify-between gap-3"><h3 className={`${typography.name} [overflow-wrap:anywhere]`}>{record.name}</h3><StatusBadge tone={getStatusBadgeTone(stateOf(record))}>{labelOf(record)}</StatusBadge></div>
+      <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <WorkloadFact label="Department">{record.department || 'Not recorded'}</WorkloadFact>
+        <WorkloadFact label="Effective semester">{record.semesterCode || 'Not configured'}</WorkloadFact>
+        <WorkloadFact label="Published policy">{record.capacityPlanVersion != null ? `Version ${record.capacityPlanVersion}` : 'Not configured'}</WorkloadFact>
+        <WorkloadFact label="Panel capacity">{hasConfiguration ? record.workloadLimit : 'Not configured'}</WorkloadFact>
+        {record.unavailableUntil ? <WorkloadFact label="Unavailable until">{record.unavailableUntil}</WorkloadFact> : null}
+      </dl>
+    </RequestSection>
+    <RequestSection title="Current workload" headingClassName={typography.heading}>
+      <p className={typography.body}>Active appointments and pending nominations across semesters both occupy Panel capacity. Final approval converts a reservation to an active appointment without adding another occupied seat.</p>
+      <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <WorkloadFact label="Active appointments">{record.confirmedAppointments}</WorkloadFact>
+        <WorkloadFact label="Pending reservations">{record.pendingNominations}</WorkloadFact>
+        <WorkloadFact label="Active + reserved">{record.currentStudents}</WorkloadFact>
+        <WorkloadFact label="Available slots">{hasConfiguration ? record.availableSlots ?? 'Not recorded' : 'Not configured'}</WorkloadFact>
+      </dl>
+      {hasConfiguration ? <div className="space-y-2"><p className={typography.body}>Capacity utilization: {getPanelWorkloadUtilization(record)}%</p><ProgressBar value={record.currentStudents} max={record.workloadLimit} tone={getStatusBadgeTone(stateOf(record))} /></div>
+        : <p className={typography.body}>Current semester capacity is not configured. Availability and utilization cannot be determined from a missing plan.</p>}
+    </RequestSection>
+    <RequestSection title="Workload items" headingClassName={typography.heading}>
+      {record.workloadItems.length ? <CoordinatorDataTable label="Lecturer Panel workload items" columns={['Student', 'Research title', 'Workload type', 'Recorded date']} rows={record.workloadItems.map((item, index) => ({ key: `${item.type}:${item.studentId}:${index}`, cells: [<><p className={typography.name}>{item.studentName}</p><p className={typography.body}>{item.studentId}</p></>, <p className={`${typography.name} whitespace-pre-wrap [overflow-wrap:anywhere]`}>{item.researchTitle || 'Not recorded'}</p>, <StatusBadge tone={item.type === 'Confirmed Appointment' ? 'success' : 'warning'}>{item.type === 'Confirmed Appointment' ? 'Active appointment' : 'Pending reservation'}</StatusBadge>, <p className={typography.body}>{item.date || 'Not recorded'}</p>] }))} />
+        : <p className={typography.body}>No active appointments or pending nominations for this lecturer.</p>}
+    </RequestSection>
+  </RequestDetailCard>;
+}
+
+export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = ({ onBack, onOpenCapacity, initialLecturerId, backLabel = 'Back to Panel Appointments' }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [records, setRecords] = useState<PanelWorkloadRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedLecturer, setSelectedLecturer] = useState<PanelWorkloadRecord | null>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('All Departments');
-  const [statusFilter, setStatusFilter] = useState('All Statuses');
-  const [appliedFilters, setAppliedFilters] = useState({
-    search: '',
-    department: 'All Departments',
-    status: 'All Statuses',
-  });
-  const [currentPage, setCurrentPage] = useState(1);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
+  const queryLecturer = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('lecturer') || '';
+  const [selectedId, setSelectedId] = useState(initialLecturerId || queryLecturer);
+  const [search, setSearch] = useListState('PanelWorkloadMonitoring', 'search', '');
+  const [department, setDepartment] = useListState('PanelWorkloadMonitoring', 'department', '');
+  const [status, setStatus] = useListState('PanelWorkloadMonitoring', 'status', '');
+  const [page, setPage] = useListState('PanelWorkloadMonitoring', 'page', 1);
+  const [pageSize, setPageSize] = useListState('PanelWorkloadMonitoring', 'size', 10);
+  const generation = useRef(0);
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMessage(null), 2500);
   };
-
-  const loadWorkloads = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    getPanelWorkloads()
-      .then(setRecords)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load panel workload records.'))
-      .finally(() => setLoading(false));
+  const loadWorkloads = useCallback(async () => {
+    const token = ++generation.current;
+    setLoading(true); setError(null);
+    try { const data = await getPanelWorkloads(); if (token === generation.current) setRecords(data); }
+    catch (reason) { if (token === generation.current) setError(reason instanceof Error ? reason.message : 'Failed to load panel workload records.'); }
+    finally { if (token === generation.current) setLoading(false); }
   }, []);
-
-  useEffect(() => {
-    loadWorkloads();
-  }, [loadWorkloads]);
-
-  const departmentOptions = useMemo(
-    () => ['All Departments', ...Array.from(new Set(records.map((record) => record.department).filter(Boolean)))],
-    [records],
-  );
-
-  const filteredLecturers = useMemo(() => {
-    return records.filter((record) => {
-      const searchLower = appliedFilters.search.toLowerCase();
-      const matchSearch = !searchLower ||
-        record.name.toLowerCase().includes(searchLower) ||
-        record.id.toLowerCase().includes(searchLower) ||
-        record.department.toLowerCase().includes(searchLower);
-      const matchDept = appliedFilters.department === 'All Departments' ||
-        record.department === appliedFilters.department;
-      const matchStatus = appliedFilters.status === 'All Statuses' ||
-        record.availability === appliedFilters.status;
-      return matchSearch && matchDept && matchStatus;
-    });
-  }, [records, appliedFilters]);
-
-  const paginatedLecturers = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredLecturers.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredLecturers, currentPage]);
-
-  const totalPages = Math.ceil(filteredLecturers.length / itemsPerPage) || 1;
-  const summary = useMemo(() => getPanelWorkloadSummary(filteredLecturers), [filteredLecturers]);
-  const availablePercentage = summary.totalPanels > 0
-    ? Math.round((summary.available / summary.totalPanels) * 100)
-    : 0;
-
-  const handleApplyFilters = () => {
-    setAppliedFilters({
-      search: searchQuery,
-      department: departmentFilter,
-      status: statusFilter,
-    });
-    setCurrentPage(1);
-    showToast('Workload filters applied.');
-  };
-
-  const handleResetFilters = () => {
-    setSearchQuery('');
-    setDepartmentFilter('All Departments');
-    setStatusFilter('All Statuses');
-    setAppliedFilters({
-      search: '',
-      department: 'All Departments',
-      status: 'All Statuses',
-    });
-    setCurrentPage(1);
-    showToast('Workload filters reset.');
-  };
-
-  const handleExportCSV = () => {
-    if (filteredLecturers.length === 0) {
+  useEffect(() => { void loadWorkloads(); return () => { generation.current += 1; if (toastTimer.current) clearTimeout(toastTimer.current); }; }, [loadWorkloads]);
+  useEffect(() => { if (initialLecturerId || queryLecturer) setSelectedId(initialLecturerId || queryLecturer); }, [initialLecturerId, queryLecturer]);
+  useReturnToFocusReload(() => { void loadWorkloads(); }, !loading);
+  const browse = useMemo(() => getPanelWorkloadPage(records, { search, department, status }, page, pageSize), [records, search, department, status, page, pageSize]);
+  const departments = Array.from(new Set(records.map(record => record.department).filter(Boolean))).sort();
+  const states = Array.from(new Map(records.map(record => [stateOf(record), labelOf(record)]))).sort((a, b) => a[1].localeCompare(b[1]));
+  const selected = records.find(record => record.id === selectedId);
+  const actions = onOpenCapacity ? <PortalButton icon={Gauge} onClick={onOpenCapacity}>Manage Capacity</PortalButton> : undefined;
+  const change = (setter: (value: string) => void) => (value: string) => { setter(value); setPage(1); };
+  const excel = useExcelExport();
+  const handleExportExcel = async () => {
+    if (browse.filtered.length === 0) {
       showToast('No panel workload records match the current filters.');
       return;
     }
 
-    downloadCsv('panel_workload_monitoring_report.csv', filteredLecturers, [
+    const exported = await excel.download('panel_workload_monitoring_report.xlsx', browse.filtered, [
       { header: 'Staff ID', value: (record) => record.id },
       { header: 'Lecturer Name', value: (record) => record.name },
       { header: 'Department', value: (record) => record.department },
@@ -153,12 +125,12 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
       { header: 'Capacity State', value: (record) => record.capacityState ?? '' },
       { header: 'Active Load', value: (record) => record.confirmedAppointments },
       { header: 'Reserved Load', value: (record) => record.pendingNominations },
-      { header: 'Available Slots', value: (record) => record.availableSlots ?? 0 },
+      { header: 'Available Slots', value: (record) => configured(record) ? record.availableSlots ?? '' : '' },
       { header: 'Unavailable Until', value: (record) => record.unavailableUntil ?? '' },
       { header: 'Reserved Panel Seats', value: (record) => record.currentStudents },
-      { header: 'Workload Limit', value: (record) => record.workloadLimit },
-      { header: 'Utilization Percent', value: (record) => getPanelWorkloadUtilization(record) },
-      { header: 'Availability', value: (record) => record.availability },
+      { header: 'Workload Limit', value: (record) => configured(record) ? record.workloadLimit : '' },
+      { header: 'Utilization Percent', value: (record) => configured(record) ? getPanelWorkloadUtilization(record) : '' },
+      { header: 'Availability', value: (record) => labelOf(record) },
       { header: 'Confirmed Appointments', value: (record) => record.confirmedAppointments },
       { header: 'Pending Nominations', value: (record) => record.pendingNominations },
       {
@@ -168,411 +140,32 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
           .join(' | '),
       },
     ]);
-    showToast(`Downloaded panel_workload_monitoring_report.csv with ${filteredLecturers.length} lecturers.`);
+    if (!exported) { showToast('Excel export could not be completed. Try again.'); return; }
+    showToast(`Downloaded panel_workload_monitoring_report.xlsx with ${browse.filtered.length} lecturers.`);
   };
 
-  return (
-    <div id="panel-workload-viewport" className="space-y-8 animate-fade-in text-left font-sans">
-      <PortalToast message={toastMessage} />
+  if (selectedId) return <RecordPage title="Panel workload details" backLabel={initialLecturerId || queryLecturer ? backLabel : 'Back to Panel Workload Monitoring'} onBack={() => { setSelectedId(''); if (initialLecturerId || queryLecturer) onBack(); }} pageKey={initialLecturerId || queryLecturer ? undefined : `panel-workload:${selectedId}`} actions={actions}>
+    {loading ? <LoadingState message="Loading panel workload records..." /> : error ? <ErrorState message={error} onRetry={() => void loadWorkloads()} /> : selected ? <PanelWorkloadDetails record={selected} /> : <EmptyState title="Lecturer workload not found" description="This lecturer is not present in the current authorised workload records." />}
+  </RecordPage>;
 
-      <PageHeader
-        title="Panel Workload Monitoring"
-        subtitle="Monitor lecturer panel workload using confirmed active appointments plus active pending nominations."
-        backLabel="Back to Panel Appointment Management"
-        onBack={onBack}
-        subtitleClassName="leading-relaxed max-w-3xl"
-        actions={onOpenCapacity ? <PortalButton icon={Gauge} onClick={onOpenCapacity}>Manage Capacity</PortalButton> : undefined}
-      />
-
-      <div id="workload-vitals-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-3xs">
-          <span className="card-label block">
-            Total Panel Lecturers
-          </span>
-          <span className="card-metric text-brand-navy block mt-3">{summary.totalPanels}</span>
+  return <RecordPage title="Panel Workload Monitoring" subtitle="Current effective semester capacity, active appointments and pending reservations." backLabel={backLabel} onBack={onBack} actions={actions}>
+    <PortalToast message={toastMessage} />
+    <section aria-label="Panel workload workspace" className="office-workload-records min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+      {excel.error?<p role="alert" className="card-description text-rose-700">{excel.error}</p>:null}
+      <WorkspaceSectionHeader title="Panel workload records" description="Filters update immediately. Counts and exports cover all matching lecturers across pages." actions={<PortalButton onClick={()=>void handleExportExcel()} disabled={loading || !!error || excel.busy} isLoading={excel.busy} variant="primary" size="sm" icon={Download}>Export Excel</PortalButton>} />
+      <div className="office-tool-filters rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <label className="form-label min-w-0">Find a lecturer<input type="search" className="form-control form-control-sm mt-1" placeholder="Name, staff ID or department" value={search} onChange={event => change(setSearch)(event.target.value)} /></label>
+          <label className="form-label min-w-0">Department<PortalSelect className="form-control form-control-sm mt-1" value={department} onChange={event => change(setDepartment)(event.target.value)}><option value="">All departments</option>{departments.map(value => <option key={value}>{value}</option>)}</PortalSelect></label>
+          <label className="form-label min-w-0">Capacity state<PortalSelect className="form-control form-control-sm mt-1" value={status} onChange={event => change(setStatus)(event.target.value)}><option value="">All states</option>{states.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</PortalSelect></label>
         </div>
-
-        <div className="bg-white border-l-4 border-l-emerald-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs">
-          <span className="card-label block">
-            Available
-          </span>
-          <div className="flex items-baseline gap-2 mt-3">
-            <span className="card-metric text-slate-850">{summary.available}</span>
-            <span className="card-value text-emerald-600">{availablePercentage}%</span>
-          </div>
-        </div>
-
-        <div className="bg-white border-l-4 border-l-amber-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs">
-          <span className="card-label block">
-            Near Limit
-          </span>
-          <span className="card-metric text-amber-500 block mt-3">{summary.nearLimit}</span>
-        </div>
-
-        <div className="bg-white border-l-4 border-l-red-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs">
-          <span className="card-label block">
-            Full Load
-          </span>
-          <span className="card-metric text-red-600 block mt-3">{summary.fullLoad}</span>
-        </div>
+        <div className="mt-3 flex justify-end"><PortalButton size="sm" onClick={() => { setSearch(''); setDepartment(''); setStatus(''); setPage(1); }}>Clear filters</PortalButton></div>
       </div>
-
-      <div id="operations-layout-grid" className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start text-xs font-sans">
-        <div className="lg:col-span-8 bg-white border border-slate-200 p-6 rounded-2xl shadow-3xs space-y-5">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-3.5">
-            <SlidersHorizontal className="w-4 h-4 text-slate-400" />
-            <span className="card-label">
-              Filter Panel Workload
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label htmlFor="search-input" className="form-label block">Search</label>
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  id="search-input"
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Lecturer, ID, department"
-                  className="form-control form-control-sm pl-10 pr-4"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="dept-selection" className="form-label block">Department</label>
-              <div className="relative">
-                <Select
-                  id="dept-selection"
-                  value={departmentFilter}
-                  onChange={(e) => setDepartmentFilter(e.target.value)}
-                  className="form-control form-control-sm appearance-none pr-9"
-                >
-                  {departmentOptions.map((department) => (
-                    <option key={department}>{department}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="status-selection" className="form-label block">Workload Status</label>
-              <div className="relative">
-                <Select
-                  id="status-selection"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="form-control form-control-sm appearance-none pr-9"
-                >
-                  <option>All Statuses</option>
-                  <option>Available</option>
-                  <option>Near Limit</option>
-                  <option>Full Load</option>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-            <PortalButton variant="secondary" size="md" onClick={handleResetFilters}>
-              Reset
-            </PortalButton>
-            <PortalButton variant="primary" size="md" icon={CheckSquare} onClick={handleApplyFilters}>
-              Apply Filters
-            </PortalButton>
-          </div>
-        </div>
-
-        <div className="lg:col-span-4 bg-white border border-slate-200 p-6 rounded-2xl shadow-3xs">
-          <span className="card-label block border-b border-slate-100 pb-3">
-            Workload Distribution
-          </span>
-          <div className="space-y-4 pt-5">
-            {distributionRows.map(({ label, tone, key }) => (
-              <div key={label} className="space-y-1">
-                <div className="flex justify-between items-center text-[11px] font-bold">
-                  <div className="flex items-center gap-1.5">
-                    <StatusDot tone={tone} />
-                    <span className="card-description">{label}</span>
-                  </div>
-                  <span className="card-value">{summary[key]}</span>
-                </div>
-                <ProgressBar value={summary[key]} max={summary.totalPanels} tone={tone} trackClassName="h-2 bg-slate-105" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div id="workload-records-card" className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs text-left">
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-          <span className="card-label">
-            Panel Workload Records
-          </span>
-          <PortalButton onClick={handleExportCSV} variant="secondary" size="sm" icon={Download}>
-            Export CSV
-          </PortalButton>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="data-table min-w-[900px] text-xs">
-            <thead>
-              <tr className="data-thead bg-slate-50 select-none">
-                <th className="data-th">Lecturer ID</th>
-                <th className="data-th">Lecturer Name</th>
-                <th className="data-th">Department</th>
-                <th className="data-th text-center">Reserved Workload</th>
-                <th className="data-th text-center">Confirmed</th>
-                <th className="data-th text-center">Pending</th>
-                <th className="data-th text-center">Limit</th>
-                <th className="data-th text-center">Availability</th>
-                <th className="data-th text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-sans text-slate-700">
-              {loading ? (
-                <tr>
-                  <td colSpan={9} className="p-0 text-xs font-semibold">
-                    <LoadingState message="Loading panel workload records..." />
-                  </td>
-                </tr>
-              ) : error ? (
-                <tr>
-                  <td colSpan={9} className="p-0 text-xs font-semibold">
-                    <ErrorState message={error} onRetry={loadWorkloads} />
-                  </td>
-                </tr>
-              ) : paginatedLecturers.length > 0 ? (
-                paginatedLecturers.map((record) => (
-                  <tr key={record.id} className="hover:bg-slate-55 transition-colors">
-                    <td className="data-td text-slate-500 font-mono">{record.id}</td>
-                    <td className="data-td">
-                      <div className="flex items-center gap-3 text-left">
-                        <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-extrabold tracking-wider text-[11px]">
-                          {record.initials}
-                        </div>
-                        <span className="card-value">{record.name}</span>
-                      </div>
-                    </td>
-                    <td className="data-td-strong text-slate-600">{record.department || 'Not recorded'}</td>
-                    <td className="data-td-strong text-center text-brand-navy">{record.currentStudents}</td>
-                    <td className="data-td-strong text-center text-emerald-600">{record.confirmedAppointments}</td>
-                    <td className="data-td-strong text-center text-amber-600">{record.pendingNominations}</td>
-                    <td className="data-td-strong text-center text-slate-400">{record.workloadLimit}</td>
-                    <td className="data-td">
-                      <div className="flex items-center justify-center">
-                        <StatusBadge tone={getStatusBadgeTone(record.capacityState ?? record.availability)} dot className="text-[9px] px-2.5 py-0.5">
-                          {record.capacityState ? capacityStateLabel(record.capacityState) : record.availability}
-                        </StatusBadge>
-                      </div>
-                    </td>
-                    <td className="data-td text-right">
-                      <PortalButton
-                        onClick={() => {
-                          setSelectedLecturer(record);
-                          setIsDrawerOpen(true);
-                        }}
-                        variant="soft"
-                        size="sm"
-                        icon={Eye}
-                      >
-                        View
-                      </PortalButton>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-450 whitespace-nowrap text-xs font-semibold">
-                    No lecturer panel workload records match the applied filters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="bg-slate-50/50 p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 font-sans text-xs">
-          <span className="card-description">
-            Showing {filteredLecturers.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredLecturers.length)} of {filteredLecturers.length} panel lecturers
-          </span>
-          <div className="flex items-center gap-1.5 select-none">
-            <PortalButton
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              variant="secondary"
-              size="icon"
-              icon={ChevronLeft}
-              className="w-8 h-8"
-              aria-label="Previous page"
-            />
-            {Array.from({ length: totalPages }).map((_, index) => {
-              const page = index + 1;
-              return (
-                <PortalButton
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  variant={currentPage === page ? 'primary' : 'secondary'}
-                  size="sm"
-                  className="w-8 h-8 p-0 text-xs"
-                >
-                  {page}
-                </PortalButton>
-              );
-            })}
-            <PortalButton
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-              variant="secondary"
-              size="icon"
-              icon={ChevronRight}
-              className="w-8 h-8"
-              aria-label="Next page"
-            />
-          </div>
-        </div>
-      </div>
-
-      {isDrawerOpen && selectedLecturer ? <RecordPage title="Panel workload details" backLabel="Back to Panel Workload Monitoring" onBack={() => setIsDrawerOpen(false)} pageKey={`panel-workload:${selectedLecturer.id}`}><section className="space-y-5">
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-3xs space-y-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-16 h-16 rounded-xl bg-blue-50 text-blue-650 flex items-center justify-center font-black text-lg border border-blue-100 uppercase">
-                      {selectedLecturer.initials}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <h4 className="section-label truncate leading-tight">
-                          {selectedLecturer.name}
-                        </h4>
-                        <StatusBadge tone={getStatusBadgeTone(selectedLecturer.capacityState ?? selectedLecturer.availability)} dot className="text-[8px] px-2 py-0.5">
-                          {selectedLecturer.capacityState ? capacityStateLabel(selectedLecturer.capacityState) : selectedLecturer.availability}
-                        </StatusBadge>
-                      </div>
-                      <div className="mt-3 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
-                        <div className="flex justify-between gap-3"><span className="card-description">Semester</span><strong className="card-value">{selectedLecturer.semesterCode ?? 'Not configured'}</strong></div>
-                        <div className="mt-1.5 flex justify-between gap-3"><span className="card-description">Capacity plan</span><strong className="card-value">{selectedLecturer.capacityPlanVersion ? `v${selectedLecturer.capacityPlanVersion}` : 'Not configured'}</strong></div>
-                        {selectedLecturer.unavailableUntil && <div className="mt-1.5 flex justify-between gap-3"><span className="card-description">Unavailable until</span><strong className="card-value">{selectedLecturer.unavailableUntil}</strong></div>}
-                      </div>
-                      <div className="mt-2.5 space-y-1.5 text-[11px] font-semibold text-slate-500">
-                        <div className="flex justify-between">
-                          <span className="card-description">ID</span>
-                          <span className="font-mono text-brand-navy font-bold">{selectedLecturer.id}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="card-description">Dept.</span>
-                          <span className="card-description truncate max-w-[260px] text-right">{selectedLecturer.department}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-3xs space-y-4">
-                  <div className="flex justify-between items-center pb-2.5 border-b border-slate-100">
-                    <span className="card-label">
-                      Reserved Workload Summary
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md">
-                      Confirmed + Pending
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-2.5 text-center">
-                    <div className="p-2 border-r border-slate-100">
-                      <span className="card-metric text-brand-navy block leading-none">
-                        {selectedLecturer.currentStudents}
-                      </span>
-                      <span className="card-label block mt-1.5">
-                        Reserved
-                      </span>
-                    </div>
-                    <div className="p-2 border-r border-slate-100">
-                      <span className="card-metric text-emerald-600 block leading-none">
-                        {selectedLecturer.confirmedAppointments}
-                      </span>
-                      <span className="card-label block mt-1.5">
-                        Confirmed
-                      </span>
-                    </div>
-                    <div className="p-2 border-r border-slate-100">
-                      <span className="card-metric text-amber-600 block leading-none">
-                        {selectedLecturer.pendingNominations}
-                      </span>
-                      <span className="card-label block mt-1.5">
-                        Pending
-                      </span>
-                    </div>
-                    <div className="p-2">
-                      <span className="card-metric text-blue-600 block leading-none">
-                        {Math.max(0, selectedLecturer.workloadLimit - selectedLecturer.currentStudents)}
-                      </span>
-                      <span className="card-label block mt-1.5">
-                        Slots
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 pt-1.5">
-                    <div className="flex justify-between items-center text-[11px] font-semibold text-slate-500">
-                      <span className="card-description">Capacity Utilization</span>
-                      <span className="card-value">{getPanelWorkloadUtilization(selectedLecturer)}%</span>
-                    </div>
-                    <ProgressBar
-                      value={getPanelWorkloadUtilization(selectedLecturer)}
-                      max={100}
-                      tone={getStatusBadgeTone(selectedLecturer.availability)}
-                      trackClassName="h-2 bg-slate-110"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <span className="card-label block text-left">
-                    Workload Items
-                  </span>
-                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-3xs">
-                    <table className="data-table text-[11px]">
-                      <thead>
-                        <tr className="data-thead bg-slate-50">
-                          <th className="data-th w-5/12">Student & ID</th>
-                          <th className="data-th w-5/12">Research Topic</th>
-                          <th className="data-th w-2/12 text-right">Type</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {selectedLecturer.workloadItems.length > 0 ? (
-                          selectedLecturer.workloadItems.map((item) => (
-                            <tr key={`${item.type}-${item.studentId}`} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="data-td">
-                                <div className="card-value break-words">{item.studentName}</div>
-                                <div className="text-[10px] font-bold text-slate-400 font-mono mt-0.5">{item.studentId}</div>
-                              </td>
-                              <td className="data-td text-slate-600 leading-relaxed break-words py-2.5">
-                                {item.researchTitle}
-                              </td>
-                              <td className="data-td text-right">
-                                <StatusBadge tone={item.type === 'Confirmed Appointment' ? 'success' : 'warning'} className="text-[8px] px-2 py-0.5">
-                                  {item.type === 'Confirmed Appointment' ? 'Confirmed' : 'Pending'}
-                                </StatusBadge>
-                                <span className="card-caption block mt-1">{item.date}</span>
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={3} className="py-6 text-center text-slate-400 text-xs font-semibold">
-                              No confirmed appointments or pending nominations for this lecturer.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </section></RecordPage> : null}
-    </div>
-  );
+      {loading ? <LoadingState message="Loading panel workload records..." /> : error ? <ErrorState message={error} onRetry={() => void loadWorkloads()} /> : <>
+        <div aria-label="Workload distribution" className="flex flex-wrap gap-x-5 gap-y-2 rounded-xl bg-slate-50 p-3"><p className="card-description">{browse.total} matching of {records.length} lecturers</p>{Array.from(new Map(browse.filtered.map(record => [stateOf(record), labelOf(record)]))).map(([state, label]) => <p className="card-description" key={state}>{label}: {browse.filtered.filter(record => stateOf(record) === state).length}</p>)}</div>
+        {browse.rows.length ? <CoordinatorDataTable label="Panel workload records" columns={['Lecturer', 'Department', 'Semester', 'Active + reserved', 'Capacity', 'Availability', 'Action']} rows={browse.rows.map(record => ({ key: record.id, cells: [<p className="[overflow-wrap:anywhere]">{record.name}</p>, record.department || 'Not recorded', record.semesterCode || 'Not configured', <><p>{record.currentStudents} total</p><p className="card-caption">{record.confirmedAppointments} active · {record.pendingNominations} reserved</p></>, configured(record) ? record.workloadLimit : 'Not configured', <StatusBadge tone={getStatusBadgeTone(stateOf(record))}>{labelOf(record)}</StatusBadge>, <PortalButton variant="secondary" size="sm" icon={Eye} aria-label={`View workload for ${record.name}`} onClick={() => setSelectedId(record.id)}>View</PortalButton>] }))} /> : <EmptyState title="No matching lecturers" description="No lecturer Panel workload records match the visible filters." />}
+        <WorkspacePagination page={browse.page} pageCount={browse.pageCount} total={browse.total} pageSize={browse.size} noun="lecturers" onPage={setPage} onPageSize={size => { setPageSize(size); setPage(1); }} />
+      </>}
+    </section>
+  </RecordPage>;
 };

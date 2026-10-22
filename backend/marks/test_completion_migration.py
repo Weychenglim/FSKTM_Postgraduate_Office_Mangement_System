@@ -24,8 +24,11 @@ class CompletionMigrationTests(APITransactionTestCase):
                   'appointments.StudentResearchProfile', 'marks.EvaluationPeriod',
                   'marks.EvaluationTask', 'marks.MarkEntry', 'marks.MarkScore')
         try:
+            # Historical Marks targets can unapply newer dependent app migrations.
+            # Build model state from the actual applied graph, not requested leaves.
             executor.migrate(before_target)
-            apps = executor.loader.project_state(before_target).apps
+            executor = MigrationExecutor(connection)
+            apps = executor.loader.project_state(list(executor.loader.applied_migrations)).apps
             Entry = apps.get_model('marks', 'MarkEntry')
             Task = apps.get_model('marks', 'EvaluationTask')
             Score = apps.get_model('marks', 'MarkScore')
@@ -39,7 +42,8 @@ class CompletionMigrationTests(APITransactionTestCase):
             before = {label: list(apps.get_model(label).objects.order_by('pk').values()) for label in labels}
             executor = MigrationExecutor(connection)
             executor.migrate(latest)
-            apps = executor.loader.project_state(latest).apps
+            executor = MigrationExecutor(connection)
+            apps = executor.loader.project_state(list(executor.loader.applied_migrations)).apps
             for label, rows in before.items():
                 if rows:
                     self.assertEqual(list(apps.get_model(label).objects.order_by('pk').values(*rows[0])), rows)

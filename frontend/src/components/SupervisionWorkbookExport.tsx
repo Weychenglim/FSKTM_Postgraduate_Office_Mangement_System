@@ -28,10 +28,9 @@ export function SupervisionWorkbookExport({ role, params, disabled = false, lect
     }
   };
   return <div className="max-w-sm space-y-1">
-    <PortalButton size="sm" icon={Download} disabled={disabled || busy} isLoading={busy} onClick={() => void exportRecords()}>
-      {lecturer ? 'Export this lecturer’s students' : 'Export supervision list'}
+    <PortalButton variant="primary" size="sm" icon={Download} aria-description="Includes all filtered records across every page" title={lecturer ? 'Download this lecturer’s matching students across every page as Excel' : 'Download all matching supervision records across every page as Excel'} disabled={disabled || busy} isLoading={busy} onClick={() => void exportRecords()}>
+      Export Excel
     </PortalButton>
-    <p className="card-caption">Excel · All matching records across every page</p>
     {error ? <p role="alert" className="card-description text-rose-700">{error}</p> : null}
     {notice ? <p role="status" className="card-description">{notice}</p> : null}
   </div>;

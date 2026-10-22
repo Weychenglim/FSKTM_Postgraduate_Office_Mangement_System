@@ -12,7 +12,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from academics.models import AcademicSemester
-from accounts.models import Lecturer
+from accounts.models import Lecturer, Student
 from appointments.models import StudentResearchProfile
 from dashboard.models import SemesterTimeline, SemesterTimelineEntry
 from marks.models import EvaluationPeriod, EvaluationTask, MarkEntry, Rubric
@@ -190,6 +190,8 @@ class DeadlineReminderTests(TestCase):
         profiles = []
         for index in range(3):
             student = make_user(f"evaluated{index}@example.test")
+            Student.objects.create(user=student, matric_no=f"REM-S{index}",
+                                   programme="MASTER OF DATA SCIENCE (COURSEWORK)")
             profiles.append(
                 StudentResearchProfile.objects.create(
                     student=student, matric_no=f"REM-S{index}", student_name=f"Student {index}",

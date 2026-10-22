@@ -1,7 +1,7 @@
-from . import coordinator_workspace_views
+from . import coordinator_workspace_views, panel_workspace
 from django.urls import include, path
 
-from . import views, co_supervision_views
+from . import views, co_supervision_views, section_a_views, supervisor_replacement_views, research_intent_views
 
 urlpatterns = [
     path("coordinator-workspace/", include("appointments.coordinator_workspace_views")),
@@ -27,6 +27,7 @@ urlpatterns = [
         views.own_supervisor_workload_view,
     ),
     path("supervisor/candidates/", views.supervisor_candidates_view),
+    path("supervisor/appointments/<int:pk>/replacement/", supervisor_replacement_views.replacement_view),
     path(
         "supervisor/document-requirements/active/",
         views.active_supervisor_document_requirements_view,
@@ -44,6 +45,11 @@ urlpatterns = [
         views.supervisor_document_requirement_detail_view,
     ),
     path("supervisor/applications/", views.supervisor_applications_view),
+    path("supervisor/application-prefill/", section_a_views.application_prefill_view),
+    path("supervisor/application-contact/", section_a_views.application_contact_view),
+    path("supervisor/application-draft/", research_intent_views.application_draft_view),
+    path("supervisor/applications/<int:pk>/research-intent/", research_intent_views.application_research_intent_view),
+    path("supervisor/applications/<int:pk>/section-a/", section_a_views.application_section_a_view),
     path(
         "supervisor/appointments/<int:pk>/end/",
         views.end_supervisor_appointment_view,
@@ -83,10 +89,14 @@ urlpatterns = [
         views.supervisor_coordinator_reject_view,
     ),
     path("panel/", views.panel_records_view),
+    path("panel/records/<str:record_id>/", views.panel_record_detail_view),
+    path("panel/attention/summary/", panel_workspace.summary_view),
+    path("panel/attention/", panel_workspace.attention_view),
     path(
         "panel/appointments/<int:pk>/end/",
         views.end_panel_appointment_view,
     ),
+    path("panel/appointments/<int:pk>/", views.panel_appointment_detail_view),
     path("panel/workload/", views.panel_workload_view),
     path("panel/my-workload/", views.own_panel_workload_view),
     path("panel/eligible-supervisees/", views.eligible_supervisees_view),

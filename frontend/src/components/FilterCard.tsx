@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { PortalSelect } from './PortalSelect';
 import React from 'react';
 import { Upload, CheckCircle2 } from 'lucide-react';
 import { PortalButton, StatusBadge } from './PortalPrimitives';
-import { Select } from './Select';
 
 interface FilterCardProps {
   semester: string;
@@ -46,7 +46,7 @@ export const FilterCard: React.FC<FilterCardProps> = ({
             Semester
           </label>
           <div className="relative">
-            <Select
+            <PortalSelect
               value={semester}
               onChange={(e) => setSemester(e.target.value)}
               className="form-control form-control-md appearance-none pr-10 cursor-pointer"
@@ -56,7 +56,8 @@ export const FilterCard: React.FC<FilterCardProps> = ({
                   {opt.label}
                 </option>
               ))}
-            </Select>
+            </PortalSelect>
+
           </div>
         </div>
 
@@ -66,7 +67,7 @@ export const FilterCard: React.FC<FilterCardProps> = ({
             Evaluation Stage
           </label>
           <div className="relative">
-            <Select
+            <PortalSelect
               value={stage}
               onChange={(e) => setStage(e.target.value)}
               className="form-control form-control-md appearance-none pr-10 cursor-pointer"
@@ -76,7 +77,8 @@ export const FilterCard: React.FC<FilterCardProps> = ({
                   {opt.label}
                 </option>
               ))}
-            </Select>
+            </PortalSelect>
+
           </div>
         </div>
       </div>

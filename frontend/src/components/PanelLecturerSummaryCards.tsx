@@ -1,0 +1,18 @@
+import React from 'react';
+import type {PanelWorkloadSummary} from '../types';
+import {AppointmentSummaryCard} from './AppointmentPrimitives';
+import {capacityStateLabel} from '../utils/lecturerCapacity';
+import {formatMalaysiaDate} from '../utils/malaysiaDateTime';
+
+export function PanelLecturerSummaryCards({workload,reviewCount,awaitingCoordinatorCount}:{workload:PanelWorkloadSummary;reviewCount:number;awaitingCoordinatorCount:number}) {
+  const count=workload.workloadCount??workload.currentStudents;
+  const configured=!!workload.capacityState&&workload.capacityState!=='NOT_CONFIGURED';
+  const description=[workload.semesterCode??'No active semester',workload.capacityPlanVersion!=null?`Plan v${workload.capacityPlanVersion}`:null,
+    `${workload.confirmedAppointments} active ${workload.confirmedAppointments===1?'appointment':'appointments'} + ${workload.pendingNominations} reserved ${workload.pendingNominations===1?'nomination':'nominations'}.`,
+    workload.capacityState==='TEMPORARILY_UNAVAILABLE'&&workload.unavailableUntil?`Unavailable through ${formatMalaysiaDate(workload.unavailableUntil)}.`:null].filter(Boolean).join(' · ');
+  return <div className="grid gap-4 md:grid-cols-3">
+    <AppointmentSummaryCard title="Panel workload" value={count} progress={configured&&workload.workloadLimit>0?{current:count,max:workload.workloadLimit}:undefined} badge={workload.capacityState?capacityStateLabel(workload.capacityState):'Not configured'} tone={workload.selectable?'success':'warning'} description={description}/>
+    <AppointmentSummaryCard title="Needs your review" value={reviewCount} description="Incoming nominations awaiting your decision."/>
+    <AppointmentSummaryCard title="Awaiting Coordinator" value={awaitingCoordinatorCount} description="Nominations you accepted that are awaiting final approval."/>
+  </div>;
+}

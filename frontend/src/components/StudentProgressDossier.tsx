@@ -86,13 +86,22 @@ const statusTone = (status: string | null | undefined) => {
   return getStatusBadgeTone(normalized);
 };
 
-const AuditTrail: React.FC<{ events?: SupervisorWorkflowEvent[] }> = ({ events = [] }) => {
+export function DossierCalendarStatus({ currentUserRole, status }: { currentUserRole: UserRole; status: string }) {
+  const ended = currentUserRole === 'Office Staff/Admin' && status === 'COMPLETED';
+  return <StatusBadge tone={ended ? 'neutral' : statusTone(status)}>{ended ? 'Ended' : formatProgressStatus(status)}</StatusBadge>;
+}
+
+export function DossierRecordDisclosure({ office, current, title, children }: { office: boolean; current: boolean; title: string; children: React.ReactNode }) {
+  return office && !current ? <details className="rounded-lg border border-slate-200 bg-white p-4"><summary className="card-value cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-blue-600">{title}</summary><div className="mt-4">{children}</div></details> : <>{children}</>;
+}
+
+const AuditTrail: React.FC<{ events?: SupervisorWorkflowEvent[]; collapsible?: boolean; label?: string }> = ({ events = [], collapsible = false, label = 'Workflow audit' }) => {
   if (events.length === 0) return null;
-  return (
+  const content = (
     <div className="mt-4 border-t border-slate-100 pt-4">
       <p className="section-label mb-3 flex items-center gap-2 uppercase text-slate-500">
         <History className="h-3.5 w-3.5" />
-        Workflow audit
+        {label}
       </p>
       <div className="space-y-3 border-l-2 border-slate-200 pl-4">
         {events.map((event) => (
@@ -116,19 +125,22 @@ const AuditTrail: React.FC<{ events?: SupervisorWorkflowEvent[] }> = ({ events =
       </div>
     </div>
   );
+  return collapsible ? <details className="mt-4 rounded-lg border border-slate-200 p-4"><summary className="card-value cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-blue-600">{label} · {events.length} events</summary>{content}</details> : content;
 };
 
 const RecordAction: React.FC<{
   target: StudentProgressTarget;
   onNavigate: (route: string) => void;
-}> = ({ target, onNavigate }) => (
+  label?: string;
+  route?: string;
+}> = ({ target, onNavigate, label = 'Open record', route }) => (
   <PortalButton
     size="sm"
     variant="ghost"
     icon={ArrowUpRight}
-    onClick={() => onNavigate(resolveStudentProgressRecordRoute(target))}
+    onClick={() => onNavigate(route ?? resolveStudentProgressRecordRoute(target))}
   >
-    Open record
+    {label}
   </PortalButton>
 );
 
@@ -136,8 +148,9 @@ const SupervisorRecord: React.FC<{
   record: SupervisorDossierRecord;
   isCurrent: boolean;
   internal: boolean;
+  office?: boolean;
   onNavigate: (route: string) => void;
-}> = ({ record, isCurrent, internal, onNavigate }) => (
+}> = ({ record, isCurrent, internal, office = false, onNavigate }) => (
   <PortalCard padding="md" className={isCurrent ? 'border-l-4 border-l-blue-600' : ''}>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
@@ -153,7 +166,7 @@ const SupervisorRecord: React.FC<{
           Research area: {record.researchArea || 'Not recorded'}
         </p>
       </div>
-      {internal && <RecordAction target={record} onNavigate={onNavigate} />}
+      {internal && <RecordAction target={record} onNavigate={onNavigate} label={office ? 'Open Supervisor record' : undefined} />}
     </div>
     <div className="card-description mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
       <p><span className="card-label">Submitted:</span> {dateText(record.submittedAt)}</p>
@@ -170,8 +183,8 @@ const SupervisorRecord: React.FC<{
         {formatProgressStatus(record.appointment.endOutcome || 'ENDED')}: {record.appointment.endReason}
       </p>
     )}
-    <AuditTrail events={record.workflow} />
-    {internal && <AuditTrail events={record.appointment?.lifecycle} />}
+    <AuditTrail events={record.workflow} collapsible={office} />
+    {internal && <AuditTrail events={record.appointment?.lifecycle} collapsible={office} label={office ? 'Appointment history' : undefined} />}
   </PortalCard>
 );
 
@@ -179,8 +192,9 @@ const PanelRecord: React.FC<{
   record: PanelDossierRecord;
   isCurrent: boolean;
   internal: boolean;
+  office?: boolean;
   onNavigate: (route: string) => void;
-}> = ({ record, isCurrent, internal, onNavigate }) => (
+}> = ({ record, isCurrent, internal, office = false, onNavigate }) => (
   <PortalCard padding="md" className={isCurrent ? 'border-l-4 border-l-cyan-600' : ''}>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
@@ -196,7 +210,7 @@ const PanelRecord: React.FC<{
             : 'Panel appointment is being processed by the faculty.'}
         </p>
       </div>
-      {internal && record.recordId && <RecordAction target={record} onNavigate={onNavigate} />}
+      {internal && record.recordId && <RecordAction target={record} onNavigate={onNavigate} label={office ? 'Open Panel record' : undefined} />}
     </div>
     <div className="card-description mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
       <p><span className="card-label">Submitted:</span> {dateText(record.submittedAt)}</p>
@@ -213,10 +227,43 @@ const PanelRecord: React.FC<{
         {formatProgressStatus(record.appointment.endOutcome || 'ENDED')}: {record.appointment.endReason}
       </p>
     )}
-    <AuditTrail events={record.workflow} />
-    {internal && <AuditTrail events={record.appointment?.lifecycle} />}
+    <AuditTrail events={record.workflow} collapsible={office} />
+    {internal && <AuditTrail events={record.appointment?.lifecycle} collapsible={office} label={office ? 'Appointment history' : undefined} />}
   </PortalCard>
 );
+
+export function StudentPanelAppointmentSummary({records}:{records:PanelDossierRecord[]}) {
+  const appointments=records.filter(record=>record.appointment
+    && ['CONFIRMED','APPROVED','ACTIVE','ENDED','COMPLETED'].includes(record.status)
+    && ['ACTIVE','ENDED','COMPLETED'].includes(record.appointment.status));
+  const current=appointments.find(record=>record.appointment!.status==='ACTIVE');
+  const history=appointments.filter(record=>record.appointment!.status!=='ACTIVE');
+  const processing=!current&&records.some(record=>record.status==='FACULTY_PROCESSING');
+  const appointmentCard=(record:PanelDossierRecord,index:number)=>{
+    const appointment=record.appointment!;
+    const active=appointment.status==='ACTIVE';
+    return <PortalCard key={`${appointment.appointmentDate}-${appointment.panelMember}-${index}`} padding="md" className={active?'border-l-4 border-l-cyan-600':undefined}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="card-value">{appointment.panelMember}</h3>
+        <StatusBadge tone={active?'success':'neutral'}>{active?'Confirmed':formatProgressStatus(appointment.status)}</StatusBadge>
+      </div>
+      <dl className="card-description mt-4 flex flex-wrap gap-x-8 gap-y-3">
+        <div><dt className="card-label">Appointed on</dt><dd className="mt-1">{dateText(appointment.appointmentDate)}</dd></div>
+        {!active&&appointment.endedAt?<div><dt className="card-label">{appointment.status==='COMPLETED'?'Completed on':'Ended on'}</dt><dd className="mt-1">{dateText(appointment.endedAt)}</dd></div>:null}
+      </dl>
+    </PortalCard>;
+  };
+  return <div className="space-y-4">
+    {current?appointmentCard(current,0):processing?<PortalCard padding="md">
+      <StatusBadge tone="warning">Processing</StatusBadge>
+      <p className="card-description mt-3">Your Panel appointment is being processed.</p>
+    </PortalCard>:<EmptyState title="No Panel appointment yet" description="Your appointed Panel member will appear here once confirmed."/>}
+    {history.length?<section className="space-y-4" aria-label="Previous Panel appointments">
+      <h3 className="section-label">Previous Panel appointments</h3>
+      {history.map(appointmentCard)}
+    </section>:null}
+  </div>;
+}
 
 export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
   studentId,
@@ -283,6 +330,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
   }
 
   const internal = dossier.visibility === 'INTERNAL';
+  const office = internal && currentUserRole === 'Office Staff/Admin';
   const statusItems = [
     { section: 'SUPERVISOR', label: 'Supervisor', value: dossier.overview.supervisorStatus, icon: UserRound },
     { section: 'PANEL', label: 'Panel', value: dossier.overview.panelStatus, icon: PanelTop },
@@ -300,7 +348,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
         backLabel={backLabel}
         onBack={onBack}
         actions={internal && currentUserRole === 'Office Staff/Admin' ? (
-          <PortalButton icon={UsersRound} onClick={() => onNavigateToRoute(APP_ROUTES.dashboardParticipantLifecycle)}>
+          <PortalButton data-office-preserve icon={UsersRound} onClick={() => onNavigateToRoute(APP_ROUTES.dashboardParticipantLifecycle)}>
             Manage Participant
           </PortalButton>
         ) : undefined}
@@ -340,7 +388,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
         {!internal && <StudentLifecycleSummary lifecycle={dossier.student.lifecycle} internal={false} />}
       </PortalCard>
 
-      {internal && <StudentLifecycleSummary lifecycle={dossier.student.lifecycle} internal />}
+      {internal && (office ? <div data-office-preserve><StudentLifecycleSummary lifecycle={dossier.student.lifecycle} internal /></div> : <StudentLifecycleSummary lifecycle={dossier.student.lifecycle} internal />)}
 
       {internal && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {statusItems.map(({ label, value, icon: Icon }) => (
@@ -414,7 +462,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
                     </div>
                   </div>
                   {(internal || item.targetModule !== 'MARKS') && (
-                    <RecordAction target={item} onNavigate={onNavigateToRoute} />
+                    <RecordAction target={item} onNavigate={onNavigateToRoute} route={office && item.targetModule === 'MARKS' ? APP_ROUTES.marksTasks : undefined} label={office ? item.targetModule === 'SUPERVISOR_APPOINTMENTS' ? 'Open Supervisor record' : item.targetModule === 'PANEL_APPOINTMENTS' ? 'Open Panel record' : item.targetModule === 'MARKS' ? 'Open evaluation tasks' : 'Open calendar' : undefined} />
                   )}
                 </div>
               ))}
@@ -428,21 +476,22 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
           {dossier.supervisoryTeam ? <PortalCard padding="md">
             <h2 className="section-label">Supervisory team</h2>
             <p className="card-description mt-2"><span className="card-label">Primary:</span> <span className="card-value">{dossier.supervisoryTeam.primarySupervisor?.name ?? 'Awaiting primary appointment'}</span></p>
-            <div className="mt-3 space-y-2">{dossier.supervisoryTeam.appointments.map(appointment => <div key={appointment.id} className="card-description rounded-lg border border-slate-200 p-3">
+            <div className="mt-3 space-y-2">{dossier.supervisoryTeam.appointments.map(appointment => <DossierRecordDisclosure key={appointment.id} office={office} current={appointment.status === 'ACTIVE'} title={`Co-supervisor · ${appointment.supervisor.name} · ${formatProgressStatus(appointment.status)}`}><div className="card-description rounded-lg border border-slate-200 p-3">
               <span className="card-value">{appointment.supervisor.name}</span> · Co-supervisor · {formatProgressStatus(appointment.status)}
               <p className="card-description mt-1">Since {dateText(appointment.appointmentDate)}{appointment.endedAt ? ` · Ended ${dateText(appointment.endedAt)} · ${appointment.endReason}` : ''}</p>
-            </div>)}</div>
+            </div></DossierRecordDisclosure>)}</div>
             {dossier.supervisoryTeam.nominations.length ? <p className="card-description mt-3">{dossier.supervisoryTeam.nominations.filter(nomination => ['SUBMITTED_TO_CO_SUPERVISOR', 'PENDING_COORDINATOR'].includes(nomination.status)).length} pending supporting nominations</p> : null}
             <PortalButton size="sm" className="mt-3" onClick={() => onNavigateToRoute(APP_ROUTES.supervisorAppointments)}>View team and history</PortalButton>
           </PortalCard> : null}
           {dossier.researchAmendments?.length ? <PortalCard padding="md">
             <h2 className="section-label">Research amendments and programme transfers</h2>
-            <div className="mt-3 space-y-3">{dossier.researchAmendments.map(row => <div key={row.id} className="card-description border-b border-slate-100 pb-3">
+            <div className="mt-3 space-y-3">{dossier.researchAmendments.map(row => <DossierRecordDisclosure key={row.id} office={office} current={false} title={`${row.kind === 'TRANSFER' ? 'Programme transfer' : 'Research amendment'} · ${row.stageLabel} · ${dateText(row.updatedAt)}`}><div className="card-description border-b border-slate-100 pb-3">
               <p className="card-value">{row.kind === 'TRANSFER' ? 'Programme transfer' : 'Research amendment'} · {row.stageLabel}</p>
               <p>{row.before.title} → {row.after.title}</p>
               {row.kind === 'TRANSFER' ? <p>{row.sourceProgramme} → {row.destinationProgramme}</p> : null}
               <p className="card-description mt-1">{dateText(row.updatedAt)} · {row.reason}</p>
-            </div>)}</div>
+              {office && <RecordAction target={{ targetModule: 'SUPERVISOR_APPOINTMENTS', recordType: 'RESEARCH_AMENDMENT', recordId: String(row.id) }} label="Open amendment record" onNavigate={onNavigateToRoute} />}
+            </div></DossierRecordDisclosure>)}</div>
             <PortalButton size="sm" className="mt-3" onClick={() => onNavigateToRoute(APP_ROUTES.supervisorAppointments)}>View amendment history</PortalButton>
           </PortalCard> : null}
           <h2 className="section-label">{internal ? 'Supervisor lifecycle' : 'Supervision history'}</h2>
@@ -452,23 +501,27 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
               description={internal ? 'No Supervisor applications are available.' : 'Your supervisor applications and appointment history will appear here. Use Supervisor Appointments to submit an application.'}
             />
           ) : dossier.supervisor.records.map((record, index) => (
+            <DossierRecordDisclosure key={record.recordId} office={office} current={record.recordId === dossier.supervisor?.currentRecordId} title={`Supervisor record · ${formatProgressStatus(record.status)} · ${dateText(record.submittedAt)}`}>
             <SupervisorRecord
               key={record.recordId}
               record={record}
               isCurrent={record.recordId === dossier.supervisor?.currentRecordId || (!internal && index === 0)}
               internal={internal}
+              office={office}
               onNavigate={onNavigateToRoute}
             />
+            </DossierRecordDisclosure>
           ))}
         </section>
       )}
 
       {activeTab === 'PANEL' && dossier.panel && (
         <section className="space-y-4">
-          <h2 className="section-label">{internal ? 'Panel lifecycle' : 'Panel appointment history'}</h2>
-          {dossier.panel.records.length === 0 ? (
+          <h2 className="section-label">{internal ? 'Panel lifecycle' : 'Panel appointment'}</h2>
+          {!internal?<StudentPanelAppointmentSummary records={dossier.panel.records}/>:dossier.panel.records.length === 0 ? (
             <EmptyState title="No panel history yet" description="Panel appointment records will appear here when the faculty processes your appointment." />
           ) : dossier.panel.records.map((record, index) => (
+            <DossierRecordDisclosure key={record.recordId ?? `${record.status}-${record.submittedAt}-${index}`} office={office} current={record.recordId ? record.recordId === dossier.panel?.currentRecordId : index === 0} title={`Panel record · ${formatProgressStatus(record.status)} · ${dateText(record.submittedAt)}`}>
             <PanelRecord
               key={record.recordId ?? `${record.status}-${record.submittedAt}-${index}`}
               record={record}
@@ -476,8 +529,10 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
                 ? record.recordId === dossier.panel?.currentRecordId
                 : index === 0}
               internal={internal}
+              office={office}
               onNavigate={onNavigateToRoute}
             />
+            </DossierRecordDisclosure>
           ))}
         </section>
       )}
@@ -515,7 +570,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
                       <td className="data-td">{dateText(task.dueAt)}<span className="card-caption block text-slate-400">{formatProgressStatus(task.deadlineState)}</span></td>
                       {internal && (
                         <td className="data-td text-right">
-                          <RecordAction target={task} onNavigate={onNavigateToRoute} />
+                          <RecordAction target={task} onNavigate={onNavigateToRoute} route={office ? APP_ROUTES.marksTasks : undefined} label={office ? 'Open evaluation tasks' : undefined} />
                         </td>
                       )}
                     </tr>
@@ -530,7 +585,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
       {activeTab === 'TIMELINE' && dossier.timeline && (
         <section className="space-y-4">
           <div>
-            <h2 className="section-label">{internal ? 'Active Timeline milestones' : 'Semester milestones'}</h2>
+            <h2 className="section-label">{office ? 'Calendar milestones' : internal ? 'Active Timeline milestones' : 'Semester milestones'}</h2>
             <p className="card-description mt-1">
               {dossier.timeline.semester && dossier.timeline.session
                 ? `${dossier.timeline.semester} · ${dossier.timeline.session}`
@@ -543,7 +598,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
             <div className="space-y-0 border-y border-slate-200">
               {dossier.timeline.entries.map((entry) => (
                 <div key={entry.recordId} className="grid gap-3 border-b border-slate-100 py-4 last:border-b-0 sm:grid-cols-[90px_1fr_auto] sm:items-center">
-                  <StatusBadge tone={statusTone(entry.status)}>{formatProgressStatus(entry.status)}</StatusBadge>
+                  <DossierCalendarStatus currentUserRole={currentUserRole} status={entry.status} />
                   <div>
                     <p className="card-value text-brand-navy">{entry.title}</p>
                     <p className="card-description mt-1">{entry.detail}</p>

@@ -1,8 +1,327 @@
 # Project Requirements
 
-## Panel Appointments consistency request (2026-10-15, design proposed)
+## Supervisor application draft controls polish (2026-10-21)
 
-The user requests Supervisor-style structure, typography, spacing and reusable table/card/progress/decision components across Office Staff, Lecturer (nominating Supervisor and selected Panel) and Programme Coordinator Panel Appointments. Office must open on records needing attention. Align every permitted list/detail/history/assignment/form and workload page while retaining role-specific actions, programme/delegation access, current capacity policy, replacement continuity and Student pending-Panel privacy. Use shared renderers for common staff content. The reviewable design and role/page/action matrix are in `docs/superpowers/specs/2026-10-15-panel-appointments-consistency-design.md`; proposed staff redesign is not implemented yet.
+Confirm successful draft saves through the existing dismissible success toast, without adding a save-confirmation paragraph to the form. Keep the sticky intake/Save draft toolbar borderless. In Draft details, distinguish the labelled last-saved timestamp from help text and use full-width primary Resume and destructive Discard buttons. Preserve explicit resume/discard safeguards and inline failure guidance.
+
+## Supervisor application layout refinement (2026-10-21)
+
+Keep four sequential steps and the existing academic rules. Place Save draft at the top right in a compact sticky toolbar; move draft help, saved timestamp and resume/discard actions into an accessible disclosure. Show current draft state accurately without suggesting that an unresumed server draft is already applied. Use connected numbered desktop steps with completion ticks and return navigation to completed earlier steps; use compact current-step progress on mobile.
+
+Within Research intent, use five expanded cards: Project details (optional project course codes, research area, research title, title source); Background and purpose; Questions and objectives; Research plan; Research summary (short abstract). Place errors directly below the associated field, choice, upload or declaration and associate them accessibly. Preserve unrelated field errors during editing, focus the first invalid control and retain incomplete save/resume and safe final submission. Bottom navigation contains Back and Continue/Submit only. Preserve shared portal primitives, reviewer views, APIs and data contracts.
+
+## Supervisor application Research Intent (2026-10-21)
+
+All new student Supervisor applications, across all programmes and courses, require structured Research Intent: Introduction, Statement of aim, Research questions, Research objectives, Significance of the research, Methodology, Expected outcomes, Skills needed and Timeline. Reuse authoritative student particulars and shared research title, area, short abstract and proposed Supervisor; never ask students to enter them again in a second document form. Keep proposal uploads as a separate existing requirement.
+
+Use four sequential steps: Your details; Research intent; Supervisor and documents; Review and submit. Validate each step, show the actual written content before the declaration and preserve entered content after failures. Support explicit account-based save/resume of incomplete text and selections; drafts have no workflow status, capacity reservation or declaration. Clearly state that files must be selected again after resuming. Submission requires all nine nonempty text sections (10,000 characters each maximum), enforced by the server. Authorised exact request readers see the submitted snapshot; historical applications remain readable with an explicit missing-intent explanation. Existing approval, Office replacement, intake, capacity and private upload rules remain intact.
+
+## Submission form structure correction (2026-10-21)
+
+Use a single timeline selector whose popup contains both search and matching results; show no disconnected search field. Selecting an event must not alter the schedule. Use these dates copies only calendar days directly into the main Opens/Closes date fields, preserving entered times and requiring missing times before save. Confirm before replacing different entered dates. Do not show a second import form or duplicate schedule controls.
+
+Use an approximately 880px desktop modal, clear Window details / Semester timeline / Submission schedule sections, readable darker labels and paired fields that stack on mobile. Keep the title and save/cancel footer visible while only the body scrolls. Display event details once and reserve an amber warning for actual date replacement. Preserve date ownership, dirty/busy protections, revision checks and all access policies.
+
+## Linked window date ownership and impact (2026-10-21)
+
+- Event selection must remain bounded and searchable by title, phase or dates, with readable dates in results and explicit unlinked creation.
+- Selecting an event does not overwrite form dates. Offer Use these dates before the schedule; fill calendar days directly into its main date inputs, preserve entered clock times and require missing times before save. Confirm replacement of different entered dates.
+- Explain: “After linking, manage dates through this submission window. The timeline follows automatically.” Show the affected event and date-change impact before draft saves and common extensions. Personal extra time leaves common dates and timeline unchanged.
+- Distinguish Draft/Published/Closed/Archived lifecycle from Upcoming/Open/Ended date status and activity date enforcement. A draft never controls intake. Publishing while restrictions are enabled must explain its access impact. A valid common extension that reopens an expired enforced window must say so before confirmation.
+- Preserve existing backend authority, eligibility, revision/audit rules, atomic creation/linking and review of existing requests after submission deadlines.
+
+## Periods layout polish (2026-10-21)
+
+Centre the semester lifecycle badge vertically beside the selection control, with its label above the control row. Use a single divider between the empty submission-window guidance and the reviewability note.
+
+## Submission window modal and linking during creation (2026-10-21)
+
+Office Add/Edit submission window uses the shared modal while retaining the activity overview behind it. Creation optionally selects an existing unlinked event from the same semester's active timeline before saving. Save the draft and link atomically; reject stale, replaced, foreign-semester or already-owned events without leaving a draft. Linked event dates follow the window, retaining its title, phase and audience. An absent or unavailable timeline must not prevent explicitly unlinked creation. Preserve entered details on failure and allow an explicit unlinked retry after a link conflict, even if calendar reload fails. Publishing and enabling date restrictions remain separate actions. Retain audit reasons/revision checks for edits, dirty-change confirmation, busy guards and focus restoration. Show each saved window's timeline connection in its row. Append clearly labelled demo application/recommendation events to the existing local demo timeline without replacing existing events or creating/publishing submission windows.
+
+## Periods and deadlines clarity (2026-10-21)
+
+Office reviews Supervisor applications, Panel recommendations and Marks evaluations in a shared activity overview. A plain semester dropdown scopes the page. Use Add submission window for application/recommendation intake; these are not meeting slots. Clearly distinguish publishing a schedule from enabling date restrictions. Existing requests remain reviewable after submission deadlines. Enabling restrictions requires reason and explicit acknowledgement of published dates and programme gaps. Each window has one Manage window entry for dates, scope, lifecycle controls, calendar connection and history. Show missing timeline setup, explicit existing-event linking and atomic linked-event creation when an editable timeline exists. Marks configuration remains in Marks Entry with explanatory context and exact semester/optional period navigation; invalid context must not fall back. Preserve audited extensions, Closed-semester selected-task recovery and current authorisation rules.
+
+## Capacity lecturer row modals (2026-10-21)
+
+Lecturer roster View and Edit limits open centred shared modals while retaining the table, filters, pagination, scroll and useful focus on return. View shows workload, limits and read-only availability. Edit shows draft context, published reference limits and held-role input fields with Cancel and Save limits. Unsaved edits require confirmation before dismissal or route navigation; saving blocks dismissal, navigation and duplicate submission. Existing validation and concurrency rules remain.
+
+
+## Capacity version metadata spacing (2026-10-21)
+
+Created by and Created on need a larger visual gap on desktop, with headings aligned to values. Retain the current column widths and mobile card layout.
+
+
+## Compact capacity version action (2026-10-21)
+
+Use Edit draft for the editable version-row action. Move its Action column slightly right while retaining direct Discard, aligned row controls and responsive wrapping.
+
+
+## Capacity attention filtering and direct discard (2026-10-21)
+
+Draft publication warnings explain issues and point to highlighted table rows without applying filters. A labelled Show dropdown alongside search and role selects All lecturers or Lecturers needing attention without clearing either field. A result summary counts lecturers, including the page size, independently of publication issue totals. Draft version rows expose a direct Discard action beside Edit draft; existing confirmation, reason, permissions and retained history apply.
+
+
+## Capacity back navigation (2026-10-21)
+
+Lecturer capacity shows one back control in the shared page header. The overview returns to Dashboard (or its existing caller); draft editing, version inspection, history and availability views return to the capacity overview. Remove the duplicate link below semester selection.
+
+
+## Capacity preparation and draft discard (2026-10-21)
+
+Preparation is one form with a Continue existing / Start new radio choice, one applicable shared dropdown and one primary action. Existing drafts show creation information and remaining readiness issues. New drafts can start from current published limits, the eligible previous published semester or blank. Validate any previous source before enabling creation; creating a draft opens it for editing.
+
+Versions use consistent Version, Status, Created by, Created on and Action columns, with status filtering and pagination. Drafts can be continued or discarded by Office only within writable semesters. Discard requires a confirmation identifying the semester/version, a reason and explicit consent. Retain the discarded plan, entries, version number and immutable before/after audit; exclude it from active draft choices and reject editing, publishing, cloning or repeated discard. Preserve published policy, concurrency guards and protected participant/delegation areas.
+
+## Capacity overview grouping (2026-10-21)
+
+Keep Versions and history with the current-version heading as a separate compact history control. Draft continuation and preparation form their own action row below; history must not appear as a third draft action.
+
+Present Academic semester as a clearly labelled standalone shared dropdown, with lifecycle status alongside and dates directly below. Group current policy/version, draft preparation and continuation, history, planning baseline and expandable policy issues in one section. Prioritise continuing an existing draft. Preserve semester scope, calculations, readiness details, mutation guards and all protected participant/delegation areas.
+
+## Lecturer capacity overview and lecturer-owned availability (2026-10-20)
+
+Office capacity opens on a readable workload overview, with distinct active student totals and primary/supporting/Panel breakdowns. Pending Panel recommendations reserve capacity but are separate from active students. Retain lecturers with policy history or ongoing work even when retired/disabled; such rows cannot configure limits. Unlinked legacy Panel identities make unique student totals unavailable, not an invented zero or one. Show the recommended planning baseline as enabled lifecycle-active students divided by enabled lifecycle-active lecturers holding a Supervisor or Panel role across all faculties/programmes recorded in the portal. Show source counts and a decimal, handle zero lecturers explicitly, and never use this guidance as an enforced limit.
+
+Office prepares/revises/copies/publishes semester limits through an explicit draft flow. Creating a draft opens it immediately; existing drafts are visible before creating another. Missing lecturer entries remain configurable, zero remains valid, published values stay authoritative until publication, and all readiness errors remain accessible with affected-row filtering and a fresh-draft recovery for ineligible saved rows. History and comparisons remain read-only. Lecturer availability is self-managed in My availability, with held-role choices, inclusive dates, mandatory reason and an explicit confirmation of consequences before creation or cancellation. Confirmation saves without Office approval; future dates schedule effect. Existing appointments remain active. Preserve role/date/overlap rules, audited history, identity-scoped permissions, unsaved-draft navigation guards and all participant/delegation implementations. Office availability history is read-only; existing Office API contracts remain for compatibility.
+
+## Shared appointment filter cards and useful role filters (2026-10-20)
+
+Supervisor and Panel appointment lists use a shared filter-card container and Clear filters footer across Office, Coordinator, Lecturer and Student wherever a filter list exists. Retain the existing compact layout, field sizes and export position. Office/Coordinator retain authorised programme, semester, meaningful status/sort choices and Supervisor request type. Appointment lists use one accurately labelled lower-bound date; removed upper-bound values must not filter reads, exports or lecturer drilldown. Lecturer/Student retain smaller role-specific fields, with always-visible Clear filters. Clear resets applicable filters, sorting and page, retaining list view, page size and route/source context; Panel staff reset retains the established Current assignments default. Student Panel remains a single-record overview without invented filters. This extends the earlier redundant-control-only scope after the explicit follow-up.
+
+## Appointment filter simplification — minimal scope (2026-10-20)
+
+Preserve the existing Supervisor and Panel filter card grid, field widths, spacing, sorting position and Clear filters/export footer. Remove only redundant dropdowns: current Panel lifecycle status, ended Supervisor lifecycle status and single-option Supervisor student sorting. Retain useful request filters and visible dates without collapse. This supersedes the earlier proposal to move sorting and enlarge/rearrange the filter area, which the user rejected during implementation.
+
+## Needs attention filter card (2026-10-20)
+
+The Needs attention filters must appear as an inset card with a visible border on every side and rounded corners, matching the workload filter cards at desktop and phone widths.
+
+## Workload filter card borders (2026-10-20)
+
+Supervisor and Panel Workload Monitoring filter cards must retain visible borders on all four sides and rounded corners, consistent with the other filter cards.
+
+## Complete Office attention workspace (2026-10-20)
+
+Provide an Office-only Needs attention page with search, responsibility/category/programme filters and server pagination. Dashboard shows at most four category summaries, with accurate totals calculated before limiting, and View all attention opens the full list. Category entries open the corresponding filtered list; records open existing workspaces. Use existing Office headers, records sections, controls, tables, badges, state views and pagination. Preserve filters/page on return, existing eligibility and semester/carryover rules. Keep Reports and other-role dashboards unchanged. Participant lifecycle and Acting Coordinator Delegations remain protected.
+
+## Monitoring aligned list (2026-10-20)
+
+The Monitoring heading is 15px and Count heading is 13px, slightly larger than their previous sizes; entry typography and aligned columns remain unchanged.
+
+Replace the five shaded Monitoring entries with one list using subtle dividers, dark semibold labels, bold unboxed counts and a visible View action. Following the user's size correction, labels must match Academic semesters and the other Office tool names exactly: 13px, weight 600, line-height 1.45 and the same dark color. Counts and View actions also use 13px text. Keep label, Count and View columns aligned across every row and the heading, including wrapped phone labels. Retain all five metric definitions, destinations and independent loading/error/retry behavior. This supersedes the two-column badge presentation below; About these counts remains removed.
+
+## Monitoring entry affordance (2026-10-20)
+
+Remove About these counts and its explanation from Office home Monitoring. Each metric should clearly read as data and an entry point: subtle row surface, separate count badge, chevron and hover/focus feedback. Preserve all metric definitions and existing destinations; the Panel-limit metric opens Panel workload.
+
+## Office home monitoring clarity (2026-10-20)
+
+Office home monitoring presents its five existing counts as aligned label/value rows in a compact responsive grid within Office tools. Provide a Monitoring heading and an expandable About these counts explanation. Preserve all existing metric definitions, destinations, independent read/error/retry states and protected areas; zero counts do not imply an all-clear state.
+
+## Office tools navigation cleanup (2026-10-20)
+
+Manage Participants is available from Dashboard home only; remove its duplicate buttons from the Academic Semesters list and record views. Remove the Related tools rows introduced in the Office tools pages. This explicit user request supersedes the earlier requirement to retain these secondary shortcuts. The participant management workspace, routes, backend, permissions and data, and Acting Coordinator Delegations remain unchanged. No further page redesign is authorised by this cleanup request.
+
+The preceding local presentation pass introduced consistent semester context panels, section headings, filters attached to records, compact view controls, grouped capacity actions and expandable publication blockers across the Office tools. Those edits remain local pending user review.
+
+## Office timeline control spacing (2026-10-20)
+
+Reduced Office home timeline control padding and separated the phase switch onto its own row below the title and Manage Timeline action. Narrow phones stack the management action as well. Uses Office-scoped CSS; shared timeline implementation, other roles and protected areas remain unchanged.
+
+
+## Office reports entry placement (2026-10-20)
+
+Removed the duplicate Workflow reports link from the Office tools directory at the user’s request. Reports remain accessible through the top-right View Workflow Reports button. Reconciliation and all protected shortcuts remain unchanged. The directory now contains seven tools.
+
+
+## Shared Dashboard semester timeline (2026-10-20)
+
+Office home Semester Timeline must use the same timeline component and presentation as Lecturer, Coordinator and Student dashboards, adapting to the narrower column. Display all applicable phase events rather than an Office-only three-event preview; retain role-specific visibility rules.
+
+
+## Office Dashboard system design consistency (2026-10-20)
+
+Office Dashboard must follow the existing Lecturer/Coordinator design system for typography, uppercase action buttons, table/form labels and semester context. Preserve the approved home structure and all protected participant/delegation areas.
+
+
+## Office reports header shortcut (2026-10-20)
+
+Provide View Workflow Reports at the top right of the Office Dashboard, beside the existing Manage Participants button, using the Lecturer/Coordinator secondary-button style and existing reports destination. Preserve Manage Participants and the existing tool-directory link.
+
+## Office Dashboard home correction (2026-10-20, approved and implemented)
+
+After reviewing the isolated visual preview, the user authorised implementation. The graphical Semester Timeline stays on Dashboard home, with compact Needs attention beside it when actual content width permits. Narrow layouts stack attention before the timeline. Keep Research Project 1/2 selection inside the calendar and full-calendar access; remove Dashboard-level tabs, page-switch dropdowns and the hidden Administration menu.
+
+Expose eight existing tool destinations in three visible groups below the main row: Semester and dates, Capacity and workload, Reports and checks. Operational periods/extensions remain separate from Calendar. Keep routine monitoring as compact counts with accurate semester/carryover scope, rather than a competing card. Attention groups must distinguish Office review from waiting on others, retain every returned category, label capped-preview units honestly and keep Supervisor/Panel capacity entries separate. Show real deadline subset counts without inventing urgency or unique-person totals.
+
+Manage Participants/lifecycle management and Acting Coordinator Delegations retain their UI, shortcuts, placement, routes, permissions, APIs and data. Preserve shared defaults, sidebar, linked-tool business rules and source-aware return paths. This correction supersedes the earlier Dashboard navigation/agenda-only presentation described below. Plan and five critique passes: `docs/superpowers/plans/2026-10-20-office-dashboard-home-layout-correction.md`.
+
+## Office Dashboard structure and protected boundaries (2026-10-20, approved)
+
+Office Dashboard must prioritise actionable attention above a compact calendar preview, group repeated warnings without inventing totals or SLA deadlines, and use consistent permitted-page navigation and typography. Operational periods and extensions have a standalone Office-only home outside Calendar. Preserve semester/capacity/deadline/approval rules, audit history, role-scoped reporting and all existing linked tools. Manage Participants/lifecycle management and Acting Coordinator Delegations remain unchanged in UI, placement, routes, APIs, permissions and data; preserve their existing shortcuts and shared defaults. The Office sidebar and unrelated concurrent work remain outside scope. Proposal and twelve critique passes: `docs/OFFICE_DASHBOARD_UX_ENHANCEMENT_PLAN_2026-10-20.md`; implementation authorised in chat after the review.
+
+## Panel appointment filter and tools (2026-10-20, approved correction)
+
+Replace the staff Panel Current/Past switch with an Appointments dropdown inside the existing filter area, offering Current assignments and Past assignments. Apply this to Coordinator and Office lists and lecturer drilldowns, retain remembered selection and exact history/return context, and reset to Current assignments with Clear filters. Remove the duplicate Manage capacity/Configuration entry from the Office Panel Tools menu; retain Workload monitoring, Dashboard Lecturer Capacity and existing capacity enforcement/workload navigation. Supervisor controls remain unchanged. This supersedes the Panel switch requirement below.
+
+## Staff appointment workspace simplification (2026-10-19, approved correction)
+
+Supervisor retains the Current/Past switch below the main module navigation; Panel uses the Appointments dropdown specified above. Remove Panel By lecturer/By student controls and use lecturer grouping whenever no lecturer is selected, including when obsolete shell memory contains grouping=student. Search still finds students or lecturers; View students → View appointment retains inherited filters and exact return context. Retain existing primary/supporting counts and lifecycle/history semantics. Existing filters, 10/25/50 pagination, Excel exports, programme/delegation access, Needs attention and request decisions remain. Student/Lecturer navigation is unchanged. This supersedes the earlier Panel student-first mode; the rejected mockup remains historical, with the later explicit Panel dropdown correction authoritative.
+
+## Staff Panel assignment browsing (2026-10-19, revised by approved correction above)
+
+Coordinator and Office Staff Panel navigation uses Panel assignments beside Appointment requests, with Office Needs attention retained. Browse lecturers with unique active-student counts and View students → View appointment; no separate student browsing mode is provided. Separate Current assignments from Past assignments using confirmed appointment lifecycle, not request outcomes or semester changes. Pending nominations remain in Appointment requests and do not inflate assigned-student counts. Search by student/matric or lecturer/staff identifier, filter by authorised programme, semester, appointment status and start dates, paginate 10/25/50 and export every matching assignment to Excel. Preserve lecturer selection, filters and list return context while opening exact appointments. Coordinator uses only existing authorised programme/delegation records; Office retains its existing scope. Lecturer/Student navigation, decisions, Needs attention and dedicated capacity/workload tools retain their purpose.
+
+## Shared decision dialog presentation (2026-10-19, approved)
+
+The Review decision/Confirm your action header label uses dark slate 12px/700 text so it is slightly more prominent while remaining secondary to the dialog title.
+
+Keep approval/rejection and user-confirmation dialogs independent from ordinary forms while using the existing portal modal surface, padding, Inter family and shared action buttons. Provide a top-right accessible X and default Cancel action; preserve explicit secondary labels supplied by each workflow. X, Cancel, Escape and backdrop dismissal share the existing dirty-draft guard and cannot dismiss during saving. Decision headings use 18px/600, target context 14px/600, field labels 12px/600 in sentence case and explanatory text/entered reasons 12px/400. Scope field typography to decision dialogs. Preserve required reasons, role-specific consequences, duplicate prevention, failure input retention, stale-record blocking and single outcome feedback.
+
+## Workflow analytics filter sizing (2026-10-19)
+
+Dashboard → View workflow analytics uses compact filter buttons with single-line labels. Keep fields in the shaded panel and place actions in a separate footer below it: applied-filter summary on the left, Reset then Apply on the right. On mobile the summary precedes the actions. Preserve filter behaviour.
+
+## Research profile history disclosure (2026-10-19, approved)
+
+On the Research profile page, keep the current profile visible and place saved history in a separate card below it. History starts collapsed with a revision count. On expansion, list the newest revisions first; each revision initially shows only its type, actor and date, with its saved comparison/reason available on expansion. Switching students resets expanded history and revisions. Preserve all existing records and role permissions; history is not part of the request list.
+
+## Student Panel appointment results only (2026-10-19, approved)
+
+The Student academic record shows confirmed Panel appointment results and previous confirmed appointments, without faculty nomination attempts. Before confirmation, expose only generic processing when a real pending nomination exists; otherwise show no current appointment. An active incumbent remains visible while replacement review is pending. Rejected/cancelled attempts, reviewer feedback, nomination identifiers, internal workflow dates/ages, audit actors and staff closure explanations must not be sent to Students or rendered as history. Show only appointed member, public appointment status, appointment date and applicable end date. Previous appointments must not be labelled current. Authorised staff retain complete nomination/decision/lifecycle history and existing access rules. This supersedes earlier Student dossier exposure of terminal nomination attempts/reasons; distinct-attempt history remains a staff feature.
+
+## Student research profile placement (2026-10-19)
+
+On the Student Research changes list, show the current research profile in a separate compact card below the page tabs and above the Research change requests card. Keep the research title, View research profile and permitted Request research change action together. Requests/History, search and results belong inside the requests card; switching views or searching must not move or filter the profile. Keep full profile details on the existing profile page and preserve existing submission capabilities/pending-request guidance and portal typography.
+
+## Office-initiated primary Supervisor replacement (2026-10-19, approved)
+
+Recovery requirements from SR-01–SR-03: ambiguous case-insensitive lecturer staff IDs must produce an actionable conflict without partial changes. A blocked Office replacement form must support a draft-preserving availability recheck. After failed or unreadable submissions, reload authoritative eligibility before allowing another submission; if that read fails, remove stale submission controls and offer Retry while retaining the draft. Rechecking must never itself create a replacement.
+
+The Office Change supervisor entry uses the existing filled primary button style and a supervisor-edit icon so it is visually prominent beside the separate danger-styled End appointment action.
+
+Students submit ordinary first Supervisor applications and track decisions; they cannot initiate a replacement of an active primary Supervisor or cancel a replacement initiated by Office. Remove the Student Change Supervisor action, replacement form state and instructions inviting Student replacement submission. Direct API submissions and direct new-form prefill must enforce the same rule. Historical Student replacement requests and submitted evidence remain unchanged.
+
+Office Staff/Admin initiates exceptional primary Supervisor changes from Supervisory teams -> View supervision -> Appointment record -> Change supervisor. Require a different eligible proposed Supervisor and a reason. Carry current research details forward from server-owned records; record the Office submission actor and reason in immutable workflow history without fabricating a Student declaration, new Section A or reusing immutable document evidence. The proposed Supervisor accepts before Programme Coordinator final approval. The incumbent stays active through pending/rejected/cancelled requests; only final approval performs the atomic handover. Preserve current research revisions, active Panel appointments, supporting supervision and submitted Marks/history.
+
+Keep existing active-semester/intake, personal-deadline, lifecycle, pending-transfer, duplicate, role-separation, capacity and stale-predecessor checks. Office initiation does not bypass closed windows or final approval. A pending replacement replaces the creation action with its reviewer stage. End appointment remains a distinct immediate closure action. This supersedes the earlier Student-initiated replacement requirement in Appointment Closure and Reassignment and related historical acceptance notes.
+
+## Submission availability presentation (2026-10-19)
+
+Replace the large Submission period card everywhere it is used with the shared portal status badge and only the relevant date. Supervisor forms use Applications wording; Panel recommendation/replacement forms use Recommendations. Open periods show the closing time, upcoming periods the opening time, and expired periods a past-tense deadline. A personal extension replaces the general deadline. Unrestricted intake shows no invented deadline. Preserve a short reason and recheck action for unavailable states, and a concise Retry notice for failed checks.
+
+Remove current availability from the Student Applications records list and History. Show it beside New application when that action is present in My supervisors/Applications outside History. Existing requests, permissions, eligibility, approval and server-side period enforcement remain unchanged. Reuse existing Inter typography, StatusBadge and PortalButton styles. Office period management and Marks period configuration remain full management interfaces.
+
+## Supervisor application clarity (2026-10-19, revised after visual feedback)
+
+The declaration checkbox must align with the first text line on desktop and when its wording wraps on mobile.
+
+The Student application remains one scrollable page. Latest user feedback rejects the compact section-link strip and its separate font scale: remove the navigation strip entirely, keep six clearly numbered section headings and review Edit links, and reuse existing appointment typography and standard portal form controls/buttons. Remove the footer paragraphs about one pending request, the approval sequence and cancellation; do not replace them with another guidance card. Existing business rules remain enforced by the backend.
+
+Replace the routine submission-period card with compact factual availability/deadline information, retaining blocked/error notices and a way to recheck blocked availability without losing the draft. Keep comfortable input padding, contextual errors and an actual abstract word count; no unsupported minimum/maximum word instructions. The latest font correction supersedes the earlier proposed form-wide 14px overrides: use Inter, existing 16px/600 appointment headings, 12px/600 labels, 12px/400 detail values and the standard form/button styles.
+
+Project course codes remain optional manual Add/Remove entries, with case-insensitive duplicate detection and the existing combined 255-character text limit. Preserve legacy replacement values/API storage; no catalogue is introduced. Completed courses use an explicit Yes/No choice, bounded complete rows and visible Remove actions. Switching to No keeps local rows for Restore/Discard until leaving/submission; submit results or explicit none, never both. Keep free-text grades.
+
+Students may save their own phone/address within particulars. This supersedes the earlier instruction to leave the form for contact corrections; academic/identity fields and login email stay protected. Use shared phone validation and a 2,000-character address limit; save authoritative account/registry values before a subsequent application snapshot. Unsaved contact edits block submission and use the existing navigation guard.
+
+Keep title-source choice, conditional proposal/private-upload requirements, the concise review and exact server declaration wording beside one required checkbox. Draft or saved-particular changes clear acceptance. Preserve Student -> Supervisor -> Programme Coordinator approval, replacement rules and immutable submitted evidence.
+
+## Appointment workspace correction (2026-10-18, implemented)
+
+Incoming lecturer Panel Requests use the authenticated selected-Panel queue; History uses the authenticated review-history membership, including accepted nominations still awaiting Coordinator approval. Show the recorded Panel decision/date separately from current workflow stage, with No decision recorded for cancellation before review. Outgoing submitted recommendations remain a visible section under My supervisees and retain their own ongoing/final workflow grouping. Confirmed appointment current/past views follow lifecycle status, with ending dates/outcomes for past appointments.
+
+All Panel list consumers use visible shared Requests/History or Current appointments/Past appointments controls and common filters. Lecturer Requests has three summary cards using authoritative active-plus-reserved workload and unfiltered incoming counts; loading/errors do not fabricate zeros. Preserve existing role-specific tab wording, roster/current member identities, pending nomination guards, Student privacy and existing Supervisor final-outcome grouping. Explicit incoming History routes override remembered view state. Supervisor view changes clear incompatible statuses; Student exact requests return to their actual overview or Applications source using validated navigation state.
+
+Approved design and execution evidence: `docs/superpowers/specs/2026-10-18-appointment-workspace-correction.md` and `docs/superpowers/plans/2026-10-18-appointment-workspace-correction.md`. No backend workflow, permission, schema or Section A changes are part of this correction.
+
+## Lecturer Panel workspace structure (2026-10-18, authorized)
+
+Provide one lecturer navigation row: Appointment requests, My supervisees, and My Panel students. Use a consistent, concise language style across both appointment modules and all roles, while choosing clear labels for each role's actual task; identical wording across different responsibilities is not required. Use descriptions to explain ownership and scope. Replace the supervisee dropdown and automatic student selection with a searchable, paginated roster showing each student's current appointed Panel name/staff ID and nomination status. Opening a student shows their research context, appointed member, separately identified proposed member/replacement, permitted nomination action and student-specific recommendation records. Retain access to recommendations for former supervisees.
+
+Use the shared visible Requests/History controls for request lists and Current appointments/Past appointments for confirmed records, as specified by the approved correction above. Active assignments mean the lecturer currently serves as the student's Panel member, independent of semester boundaries. Assignment history includes recorded start/end dates and ending outcome. Pending nominations never become appointments before final approval; replacements leave the current member appointed until approval, and in-progress requests prevent additional nominations. Preserve Office/coordinator navigation, existing permissions and approval/capacity rules.
+
+## Digital Supervisor application Section A (2026-10-17, authorized)
+
+The Research Intent requirement dated 2026-10-21 above extends this scope. Section A compatibility for older clients does not waive mandatory Research Intent on new student applications; historical stored requests remain readable.
+
+The user requested a final critical review and immediate implementation after the reference-form audit and five critiques. This expands the historical 13 October course-code-only scope: the Student reviews system-sourced particulars, enters research details and title origin, declares completed course results or explicitly none, chooses a Supervisor, supplies existing configured private documents and confirms a declaration. Student-proposed titles require the active research-proposal document for version-1 submissions; all globally required documents remain required. Course results are student declarations, separate from project-assessment Marks. Course codes remain manual; no course catalogue, grade scale or Dean/Office approval gate is introduced.
+
+Resolve name/email/phone from User, ID/programme from Student, NRIC/passport/address from StudentRegistry and semester/session from the effective application semester. Missing data is shown honestly; the appointment form does not become an identity-editing route or claim a live Maya integration. New portal submissions retain server-owned particulars and declaration actor/time as part of an immutable submitted Section A. Exact authorized Student/Supervisor/Coordinator/Office views show that record; ordinary lists/exports do not gain sensitive particulars. Historical applications and older clients omitting the additive Section A contract remain explicitly legacy, without invented snapshots, results or declarations. Existing approval, lifecycle, capacity, replacements, cancellation and private-download protections remain authoritative.
+
+Design and field-by-field scope: `docs/superpowers/specs/2026-10-17-supervisor-section-a-design.md`; implementation/verification: `docs/superpowers/plans/2026-10-17-supervisor-section-a.md`. A declaration acknowledges the authenticated submission; this does not claim that the faculty has accepted it as a replacement for its paper signature. Printing remains outside this increment.
+
+## Connected operational periods approved and implemented (2026-10-16)
+
+The user approved implementation of docs/superpowers/plans/2026-10-16-connected-operational-periods.md and clarified that Office should use one main extension entry point in Timeline Management. This supersedes the pending proposal below. Timeline Management configures scoped Supervisor/Panel intake periods, explicitly enables their date rules per semester/activity, links calendar events and extends normal or selected-case/task deadlines through shared controls. Existing Marks period configuration, publication rules, rubric/targeting settings and completion windows remain authoritative; existing Marks screens route deadline management into the shared hub. Closed semesters retain selected Marks recovery access without reopening calendar edits or appointment intake.
+
+Only intake creation gains date guards; submitted requests remain reviewable under existing authority, lifecycle, capacity and conflict rules. Programme scope follows the student; cross-programme lecturer eligibility remains intact. Project stage is not inferred from calendar P1/P2 labels. Existing semesters retain disabled appointment enforcement until Office configures and explicitly enables it. Personal grants preserve expiry, renewal/supersession, revocation, ownership checks and audit history.
+
+Timeline uploads require a non-mutating signed preview, explicit warning acknowledgement and confirmation of the same file, actor, semester and current record versions. Past informational schedules may be acknowledged; linked operational dates must match their owning same-semester periods, with no silent publication or deadline overwrite. Calendar date expiry means Ended rather than proof of completion. Opening, closing and extension reminders target outstanding authorised actions and effective personal deadlines, with deduplication, email retry and student privacy. Scheduled live delivery is a separate activation step; the installed local job currently previews only and contacts nobody.
+
+## Historical connected-period proposal (2026-10-16, superseded by implementation above)
+
+The user requested a plan connecting timeline periods, appointment intake, Marks periods, extensions and reminders. See docs/SEMESTER_PERIODS_IMPROVEMENT_PROPOSAL_2026-10-16.md for the proposed scope and five design challenges. Recommended direction: authoritative module periods projected into calendars/tracking; backend Supervisor/Panel intake controls; preservation of existing Marks period extensions and task completion windows; reasoned scope-wide versus selected-case extra time; non-mutating upload preview and semester/date checks; relevant, deduplicated scheduled reminders with existing privacy rules. These are proposed changes, not implemented requirements or activated policy.
+
+## Cross-programme Supervisor and Panel eligibility verification (2026-10-16)
+
+Students may request an eligible Supervisor across programmes, and their active primary supervisor may recommend an eligible Panel member across programmes. Lecturers have faculty-wide academic profiles rather than a restrictive programme assignment; department/specialisation text does not determine programme eligibility. Existing active-account, appointment-role separation, published semester capacity and workflow guards still apply. Final approval remains with the student's programme coordinator or an authorised acting coordinator, irrespective of the lecturer's department or other supervisees.
+
+## Predictable Office Needs attention actions (2026-10-16)
+
+Every row in Without supervisor and Without Panel must offer exactly one View details action, regardless of whether a request is pending. It opens a student appointment overview with current appointment state and saved research; an ongoing request has its own View request action inside. Full student-record navigation belongs inside the overview. Waiting request/recommendation rows retain View request; workload/capacity rows retain View workload. Keep these category rules identical across Supervisor and Panel. Pending requests must not imply an active appointment, and closed/other-student requests must not be presented as ongoing. Preserve permissions, filters and labelled return navigation. This supersedes earlier row-state-dependent actions in Without categories.
+
+## Appointment table Action column alignment (2026-10-16)
+
+In shared Supervisor and Panel browse tables, action buttons must start on the same vertical line as the Action heading. Keep the same cell padding and left alignment for the heading and actions, including nested action groups. Preserve responsive rows, navigation and decision availability.
+
+## Office appointment detail simplification (2026-10-16)
+
+Office Supervisor and Panel record pages must not add a separate Administrative details card beneath appointment records. Retain appointment state, authorised ending controls and lifecycle history. Removing this optional presentation must not remove stored contact, workload or Panel data from their existing owning modules.
+
+## Consistent Office appointment Tools menus (2026-10-16)
+
+Office Supervisor and Panel appointment Tools disclosures must share the same trigger, menu width, typography, icons, descriptions and Monitoring/Configuration grouping. Retain each module's relevant actions: Supervisor research records, workload and document requirements; Panel workload and capacity management. Preserve the existing capacity action availability. Opening/rendering the menus must not fetch full datasets or navigate.
+
+## One appointment export format (2026-10-16)
+
+Standardise Supervisor and Panel report downloads to real Excel (.xlsx) files, including Office/Coordinator requests, history, Needs attention, supervision lists, Panel appointment browsing, workload tools and legacy Supervisor exports. Keep filled blue/navy Export Excel buttons with white text. Preserve existing report columns, authorised data scope, active filters and every matching page. Keep numeric/boolean cell types, leading-zero identifiers, Unicode and line breaks; treat all untrusted strings as literal text. Reject incomplete page collections or Excel limit violations instead of downloading partial or truncated data. This supersedes earlier CSV/Excel distinctions within these two modules.
+
+## Appointment list export placement (2026-10-16)
+
+Export controls use the existing filled primary blue/navy button with white text consistently across CSV and Excel downloads.
+
+Office and Coordinator Supervisor/Panel browse views must separate export actions from request/history or current/past navigation. Place existing exports in the filter footer opposite Clear filters. Use short Export CSV or Export Excel labels with a download icon and accessible descriptions of all-page filtered scope; omit the permanent Excel scope caption. Preserve existing export availability, file formats, columns, filtering, pagination traversal and download feedback.
+
+## Readable research abstracts across appointments (2026-10-16)
+
+Supervisor and Panel request details, supervisee research profiles, Student appointment overviews, Panel nomination research and saved research comparisons must use a consistent read-only abstract presentation. Use regular-weight 14px text, generous line spacing and the available content width rather than a narrow prose column within a wide tinted box. Preserve complete saved paragraphs and line breaks, wrap long terms, and avoid clipping or nested scrolling. Research facts remain distinct from the abstract; supervisee research metadata uses responsive columns above a full-width abstract. Submitted snapshots and current profiles keep their existing data sources and access rules.
+
+## Shared appointment request design and vocabulary (2026-10-16)
+
+Supervisor and Panel request detail pages across authorised roles share actual summary/research components, typography, responsive field grids and card padding. View student record belongs at the summary header's top right. Research has a separate card with prominent title, area, complete shaded abstract and actual supporting documents where available. Supervisor application research remains its submitted data; Panel research is labelled as the current saved profile. Nomination/replacement/decision reasons stay outside research; secondary Panel contact/department/staff facts remain available in a collapsed disclosure.
+
+Successful requests display Approved consistently in details, tables and filters. Pending labels name the reviewer, rejected/cancelled labels name the recorded actor category, and unknown history remains explicit. Capability affects review actions rather than renaming the same status for different viewers. Timelines use Request submitted, Supervisor/Panel accepted and Coordinator approved when supported by recorded decisions; pending steps name the awaited review/approval. Remove Selected from Panel reviewer labels. Request approval stays distinct from Active/Ended appointments and their outcomes. Preserve all access, privacy, audit, lifecycle and download behaviour.
+
+## Panel attention row action correction (2026-10-16)
+
+The one-record-action rule also applies to Office Needs attention student rows. Show View request for an existing recommendation, otherwise View Panel record. Student dossier navigation belongs inside the authorised details page, including profiles without a nomination.
+
+## Consistent dropdown menus across roles (2026-10-16)
+
+All single-choice dropdowns in every role and module use the shared styled menu, including forms, filters and page-size controls. Open menus use the portal's typography, soft borders/shadows, readable spacing, hover/focus highlights and a selected-option checkmark. Preserve existing values/change handlers, disabled choices, required-field validation, form submission/reset, labels and keyboard selection. Menus must remain usable within drawers/dialogs and fit the viewport.
+
+## Appointment table actions and badges (2026-10-15)
+
+Panel request/history/appointment tables have one role-appropriate record action per row. View student record belongs inside the authorised record details, following the Supervisor request pattern. Supervisor tables with workflow statuses/outcomes use the same existing coloured pill presentation as Panel across Office, Lecturer, Coordinator and Student; existing stage wording and permissions remain authoritative.
+
+## Panel consistency design approved (2026-10-15)
+
+The user approved implementation of the reviewed Panel consistency plan. Office opens Needs attention; staff roles share record/list presentation with distinct responsibilities. Follow docs/superpowers/plans/2026-10-15-panel-appointments-consistency.md and its approved design. Implementation status and actual evidence are recorded in PROJECT_STATUS.md.
+
+## Panel Appointments consistency requirements (2026-10-15, approved)
+
+The user requests Supervisor-style structure, typography, spacing and reusable table/card/progress/decision components across Office Staff, Lecturer (nominating Supervisor and selected Panel) and Programme Coordinator Panel Appointments. Office must open on records needing attention. Align every permitted list/detail/history/assignment/form and workload page while retaining role-specific actions, programme/delegation access, current capacity policy, replacement continuity and Student pending-Panel privacy. Use shared renderers for common staff content. The reviewable design and role/page/action matrix are in `docs/superpowers/specs/2026-10-15-panel-appointments-consistency-design.md`; implementation and verification evidence are recorded in PROJECT_STATUS.md.
 
 ## Student research profile in both appointment overviews (2026-10-15)
 
@@ -304,7 +623,7 @@ The active-module inventory and intentional contextual exceptions are recorded i
 ## Replacement acceptance corrections (2026-10-07)
 
 - Student Dashboard appointment cards use persisted Supervisor applications and the public student Panel view. They retain the active incumbent during replacement review, show the successor after final approval, release the Panel identity only when confirmed, and hide appointment cards during loading or retryable read errors.
-- Distinct Panel recommendation attempts remain visible in history even when the student, candidate, displayed date and status match. Deduplication uses persisted recommendation identity, with record identity as the legacy fallback.
+- Distinct Panel recommendation attempts remain visible in authorised staff history even when the student, candidate, displayed date and status match. Deduplication uses persisted recommendation identity, with record identity as the legacy fallback. Student academic records expose confirmed appointments only, as specified above.
 - Marks submission monitoring excludes paused and retired tasks from completion denominators, follow-up counts, previews and recent activity. Authorized history retains their original draft values and handover audits.
 
 ## Owned-workflow Django admin acceptance (2026-10-06)
@@ -756,7 +1075,7 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Supervisor and Panel appointments have a persisted active/ended lifecycle, controlled closure outcomes, mandatory reasons, server timestamps, actors, predecessor/successor links, and immutable lifecycle events.
 - The database permits at most one active Supervisor appointment per Student and one active Panel appointment per research profile. Approved applications and recommendations remain historical approval records after an appointment ends.
 - Office Staff/Admin may end any active appointment. Programme Coordinators may end only appointments in their managed programme. Direct closure supports `COMPLETED`, `WITHDRAWN`, and `OTHER`; `REPLACED` is reserved for approved handovers.
-- Students request Supervisor replacement through the existing multipart application with fresh current documents and a reason. Current Supervisors request Panel replacement through the existing recommendation and approval chain.
+- Office Staff/Admin initiates exceptional primary Supervisor replacement from View supervision, with a mandatory reason and Office-attributed submission; Students cannot initiate it. See the approved 2026-10-19 rule above. Current Supervisors request Panel replacement through the existing recommendation and approval chain.
 - The incumbent remains active during review. Final Coordinator approval atomically ends it as `REPLACED`, activates the successor, updates the research-profile Supervisor when applicable, and records lifecycle events.
 - Supervisor replacement preserves active Panel appointments and system-cancels the outgoing Supervisor's in-flight Panel recommendations with immutable workflow events.
 - Closure retires unfinished official Marks tasks in scheduled/open periods. Draft values are retained in an immutable handover audit, submitted entries remain unchanged, and approved handovers create clean tasks for replacement evaluators.

@@ -1,3 +1,4 @@
+import { PortalSelect } from './PortalSelect';
 import { DecisionDialog } from './DecisionDialog';
 import { completeDecision } from '../utils/decisionSubmission';
 import { RecordPage } from './RecordPage';
@@ -23,7 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalToast, PortalButton, PortalCard } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { SummaryCard } from './SummaryCard';
 import {
@@ -46,10 +47,10 @@ import {
   getMarksAssignmentStudents,
   marksMutationErrorMessage,
 } from '../utils/marksProductionManagement';
-import { Select } from './Select';
 
 interface EvaluationTaskAssignmentProps {
   onBack: () => void;
+  onManageTimeline?: (period?:Pick<EvaluationPeriodOption,'id'|'semesterId'>) => void;
 }
 
 interface ActivityItem {
@@ -124,7 +125,14 @@ const deriveTotals = (
   };
 };
 
-export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> = ({ onBack }) => {
+export function MarksTaskDeadlineEntryPoint({tasks,onChanged,onManageTimeline}: {
+  tasks:EvaluationPreviewTask[];onChanged:()=>Promise<void>;onManageTimeline?:()=>void;
+}) {
+  if(!onManageTimeline)return <MarksCompletionWindows tasks={tasks} onChanged={onChanged}/>;
+  return <PortalCard className="space-y-3"><h2 className="section-label">Deadlines and extra time</h2><p className="card-description">Manage common deadlines, selected task completion windows and their history in Periods &amp; deadlines.</p><PortalButton onClick={onManageTimeline}>Manage deadlines in Periods &amp; deadlines</PortalButton></PortalCard>;
+}
+
+export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> = ({ onBack, onManageTimeline }) => {
   const [tasks, setTasks] = useState<EvaluationPreviewTask[]>([]);
   const [periods, setPeriods] = useState<EvaluationPeriodOption[]>([]);
   const [options, setOptions] = useState<MarksAssignmentOptions>({
@@ -327,7 +335,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
         <ErrorState message={error} onRetry={loadWorkspace} />
       ) : (
         <>
-          <MarksCompletionWindows tasks={filteredTasks} onChanged={async () => {
+          <MarksTaskDeadlineEntryPoint onManageTimeline={onManageTimeline?()=>onManageTimeline(selectedPeriod):undefined} tasks={filteredTasks} onChanged={async () => {
             const [taskRows, periodRows] = await Promise.all([getEvaluationPreviewTasks(), getEvaluationPeriods()]);
             setTasks(taskRows);
             setPeriods(periodRows);
@@ -381,7 +389,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pt-5">
                 <label className="form-label block">
                   <span className="form-label block">Evaluation Period</span>
-                  <Select
+                  <PortalSelect
                     className="form-control form-control-md"
                     value={selectedPeriodId}
                     onChange={(event) => {
@@ -395,7 +403,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                         {period.name} · {period.semester} · {formatPeriodTargeting(period)}
                       </option>
                     ))}
-                  </Select>
+                  </PortalSelect>
                 </label>
 
                 <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-xs">
@@ -477,7 +485,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
               <div className="flex flex-wrap gap-3">
                 <label className="form-label block">
                   <span className="form-label block">Role</span>
-                  <Select
+                  <PortalSelect
                     className="form-control form-control-sm min-w-[150px]"
                     value={roleFilter}
                     onChange={(event) => setRoleFilter(event.target.value as typeof ALL_ROLES | EvaluationTaskRole)}
@@ -486,11 +494,11 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     <option value="SUPERVISOR">Supervisor</option>
                     <option value="PANEL">Panel</option>
                     <option value="BACKUP">Backup</option>
-                  </Select>
+                  </PortalSelect>
                 </label>
                 <label className="form-label block">
                   <span className="form-label block">Status</span>
-                  <Select
+                  <PortalSelect
                     className="form-control form-control-sm min-w-[150px]"
                     value={statusFilter}
                     onChange={(event) => setStatusFilter(event.target.value as typeof ALL_STATUSES | EvaluationPreviewStatus)}
@@ -499,7 +507,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     <option value="NOT_STARTED">Not Started</option>
                     <option value="DRAFT">Draft</option>
                     <option value="SUBMITTED">Submitted</option>
-                  </Select>
+                  </PortalSelect>
                 </label>
               </div>
             </div>
@@ -624,7 +632,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
                   <label className="form-label block">
                     <span className="form-label block">Evaluation Period</span>
-                    <Select
+                    <PortalSelect
                       className="form-control form-control-md"
                       value={backupForm.periodId}
                       onChange={(event) => setBackupForm((current) => ({
@@ -638,12 +646,12 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                       {periods.map((period) => (
                         <option key={period.id} value={period.id}>{period.name} · {period.semester} · {formatPeriodTargeting(period)}</option>
                       ))}
-                    </Select>
+                    </PortalSelect>
                   </label>
 
                   <label className="form-label block">
                     <span className="form-label block">Student</span>
-                    <Select
+                    <PortalSelect
                       className="form-control form-control-md"
                       value={backupForm.studentId}
                       onChange={(event) => setBackupForm((current) => ({
@@ -658,7 +666,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                           {student.studentName} · {student.studentId}
                         </option>
                       ))}
-                    </Select>
+                    </PortalSelect>
                     {selectedBackupStudent && (
                       <p className="card-description mt-2">
                         {selectedBackupStudent.researchTitle}
@@ -668,7 +676,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
                   <label className="form-label block">
                     <span className="form-label block">Backup Lecturer</span>
-                    <Select
+                    <PortalSelect
                       className="form-control form-control-md"
                       value={backupForm.evaluatorId}
                       onChange={(event) => setBackupForm((current) => ({
@@ -682,7 +690,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                           {lecturer.fullName} · {lecturer.staffId || lecturer.email}
                         </option>
                       ))}
-                    </Select>
+                    </PortalSelect>
                     {selectedBackupLecturer && (
                       <p className="card-description mt-2">
                         {selectedBackupLecturer.department || 'Department not recorded'} · {selectedBackupLecturer.email}
@@ -692,7 +700,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
                   <label className="form-label block">
                     <span className="form-label block">Original Task Covered</span>
-                    <Select
+                    <PortalSelect
                       className="form-control form-control-md"
                       value={backupForm.originalTaskId}
                       onChange={(event) => setBackupForm((current) => ({
@@ -706,7 +714,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                           {roleLabel(task.evaluatorRole, task.evaluatorRoleLabel)} · {task.panelMember}
                         </option>
                       ))}
-                    </Select>
+                    </PortalSelect>
                   </label>
 
                   <label className="form-label block">

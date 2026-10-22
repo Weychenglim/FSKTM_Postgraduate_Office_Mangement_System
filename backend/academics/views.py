@@ -17,6 +17,7 @@ from .capacity_services import (
     clone_capacity_plan,
     create_availability_window,
     create_capacity_plan,
+    discard_capacity_plan,
     publish_capacity_plan,
     update_capacity_entry,
 )
@@ -35,6 +36,7 @@ from .serializers import (
     CapacityEntryWriteSerializer,
     CapacityLimitOffsetSerializer,
     CapacityPlanCommandSerializer,
+    CapacityPlanDiscardSerializer,
     CapacityPlanCreateSerializer,
     CapacityPlanPatchSerializer,
     CapacityReasonSerializer,
@@ -472,6 +474,31 @@ def publish_capacity_plan_view(request, pk):
     except DjangoValidationError as exc:
         return _capacity_validation_response(exc)
     return Response(capacity_plan_payload(_current_capacity_plan(published.pk)))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated, IsOfficeStaffAdmin])
+def discard_capacity_plan_view(request, pk):
+    denied = _office_denied(request.user)
+    if denied:
+        return denied
+    plan = get_object_or_404(_capacity_plan_queryset(), pk=pk)
+    serializer = CapacityPlanDiscardSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    try:
+        _require_expected_version(plan, data["expectedVersion"])
+        discarded = discard_capacity_plan(
+            plan, actor=request.user, reason=data["reason"],
+            expected_fingerprint=data["expectedFingerprint"],
+        )
+    except (CapacityLifecycleConflict, CapacityConflict) as exc:
+        return _capacity_conflict_response(exc)
+    except IntegrityError:
+        return _concurrent_capacity_response()
+    except DjangoValidationError as exc:
+        return _capacity_validation_response(exc)
+    return Response(capacity_plan_payload(_current_capacity_plan(discarded.pk)))
 
 
 @api_view(["PATCH"])

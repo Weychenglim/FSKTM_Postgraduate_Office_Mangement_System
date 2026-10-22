@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import * as dossier from './StudentProgressDossier';
+assert.equal(typeof dossier.DossierRecordDisclosure,'function','Older Office records can be expanded without hiding current records or losing history');
+const content=<article>Historical appointment and complete audit events</article>;
+const render=(office:boolean,current:boolean)=>renderToStaticMarkup(<dossier.DossierRecordDisclosure office={office} current={current} title="Supervisor record · Approved">{content}</dossier.DossierRecordDisclosure>);
+assert.match(render(true,false),/<details/);
+assert.match(render(true,false),/<summary[^>]*>Supervisor record/);
+assert.match(render(true,false),/Historical appointment and complete audit events/);
+assert.doesNotMatch(render(true,true),/<details/);
+assert.equal(render(false,false),renderToStaticMarkup(content),'Other roles preserve their record presentation');
+console.log('Office dossier older-record disclosure preserves current and other-role views');

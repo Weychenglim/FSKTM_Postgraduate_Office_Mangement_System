@@ -1,3 +1,4 @@
+import { PortalSelect } from './PortalSelect';
 import { DecisionDialog } from './DecisionDialog';
 import { completeDecision } from '../utils/decisionSubmission';
 import { useReturnToFocusReload } from '../utils/returnToFocus';
@@ -9,12 +10,10 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  History,
   Gauge,
   Search,
   ShieldCheck,
   Wrench,
-  X,
 } from 'lucide-react';
 
 import type {
@@ -38,18 +37,33 @@ import {
 } from '../utils/workflowReconciliation';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
-import { Select } from './Select';
+import { APP_ROUTES } from '../constants/routes';
+import {OfficeToolSection} from './OfficeToolPrimitives';
 
 interface WorkflowReconciliationCentreProps {
   onBack: () => void;
+  backLabel?: string;
   onNavigateToRoute: (route: string) => void;
   onOpenCapacity?: () => void;
 }
 
-const humanize = (value: string) => value
+export const humanizeReconciliationLabel = (value: string) => value
+  .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+  .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
   .toLowerCase()
   .replaceAll('_', ' ')
-  .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  .replace(/\b\w/g, (letter) => letter.toUpperCase())
+  .replace(/\bIds\b/g, 'IDs').replace(/\bId\b/g, 'ID');
+const humanize = humanizeReconciliationLabel;
+
+const capacityIssueTypes = new Set(['CAPACITY_PLAN_MISSING', 'CAPACITY_MULTIPLE_PUBLISHED', 'CAPACITY_PLAN_INCOMPLETE', 'CAPACITY_ENTRY_ROLE_MISMATCH', 'CAPACITY_LEGACY_LIMIT_DIVERGENCE', 'CAPACITY_AVAILABILITY_OVERLAP']);
+export function reconciliationOwningRoute(issue: ReconciliationIssue) {
+  if (capacityIssueTypes.has(issue.issueType)) {
+    const semesterId = issue.currentState?.semesterId;
+    return `${APP_ROUTES.dashboardLecturerCapacity}${typeof semesterId === 'number' && Number.isSafeInteger(semesterId) && semesterId > 0 ? `?semester=${semesterId}` : ''}`;
+  }
+  return reconciliationRecordRoute(issue.navigation.targetModule, issue.navigation.recordType, issue.navigation.recordId);
+}
 
 const stateValue = (value: unknown) => {
   if (value === null || value === undefined || value === '') return 'Not set';
@@ -61,6 +75,7 @@ const stateValue = (value: unknown) => {
 
 export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentreProps> = ({
   onBack,
+  backLabel = 'Back to Office Dashboard',
   onNavigateToRoute,
   onOpenCapacity,
 }) => {
@@ -162,6 +177,8 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
     && confirmed
     && (!selectedResolution?.requiresProgramme || programme),
   );
+  const owningRoute = preview ? reconciliationOwningRoute(preview.issue) : null;
+  const capacityIssue = preview ? capacityIssueTypes.has(preview.issue.issueType) : false;
 
   return (
     <div className="space-y-6 pb-16 text-left text-xs">
@@ -173,20 +190,21 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
         canConfirm={canApply} busy={saving} onConfirm={applyRepair} onClose={() => setConfirmOpen(false)}
         onReload={async () => { if (preview) await openIssue(preview.issue, true); }} />
       <PageHeader
+        className="office-tool-heading"
         title="Workflow Reconciliation Centre"
-        subtitle="Detect and repair cross-module data inconsistencies with preview, confirmation, and immutable audit history."
-        backLabel="Back to Office Dashboard"
+        subtitle="Check inconsistent records. Review each issue and use verified, individually audited repairs where available."
+        backLabel={backLabel}
         onBack={onBack}
         actions={(
           <>
-            {onOpenCapacity && <PortalButton icon={Gauge} onClick={onOpenCapacity}>Lecturer Capacity</PortalButton>}
+            {onOpenCapacity && <PortalButton size="sm" icon={Gauge} onClick={onOpenCapacity}>Lecturer Capacity</PortalButton>}
 
           </>
         )}
       />
 
       {data && (
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Reconciliation summary">
+        <section className="office-tool-summary grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Reconciliation summary">
           {([
             ['Total issues', data.summary.total, 'neutral'],
             ['Blocking', data.summary.blocking, 'danger'],
@@ -202,39 +220,44 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
         </section>
       )}
 
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-3xs">
-        <div className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-3 xl:grid-cols-6">
-          <label className="form-label relative md:col-span-2">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+      <OfficeToolSection title="Issue records" description="Filter the issues, then preview a record before reviewing any repair.">
+        <div className="office-tool-filters grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="form-label sm:col-span-2 lg:col-span-4">Find an issue
+            <span className="relative mt-1 block"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
             <input
               className="form-control form-control-md w-full pl-9 font-sans not-italic normal-case tracking-normal text-xs font-bold"
               placeholder="Search record, student, or programme"
+              aria-label="Search record, student, or programme"
               value={filters.search ?? ''}
               onChange={(event) => setFilter('search', event.target.value)}
             />
-          </label>
-          <Select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.module ?? ''} onChange={(event) => setFilter('module', event.target.value)}>
+          </span></label>
+          <label className="form-label">Module
+          <PortalSelect className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" aria-label="Module" value={filters.module ?? ''} onChange={(event) => setFilter('module', event.target.value)}>
             <option value="">All modules</option>
             <option value="DASHBOARD">Dashboard / Timeline</option>
             <option value="SUPERVISOR_APPOINTMENTS">Supervisor</option>
             <option value="PANEL_APPOINTMENTS">Panel</option>
             <option value="MARKS">Marks</option>
             <option value="WORKFLOW_TRACKING">Workflow Tracking</option>
-          </Select>
-          <Select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.severity ?? ''} onChange={(event) => setFilter('severity', event.target.value)}>
+          </PortalSelect></label>
+          <label className="form-label">Severity
+          <PortalSelect className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" aria-label="Severity" value={filters.severity ?? ''} onChange={(event) => setFilter('severity', event.target.value)}>
             <option value="">All severities</option>
             <option value="BLOCKING">Blocking</option>
             <option value="WARNING">Warning</option>
-          </Select>
-          <Select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.repairability ?? ''} onChange={(event) => setFilter('repairability', event.target.value)}>
+          </PortalSelect></label>
+          <label className="form-label">Repair state
+          <PortalSelect className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" aria-label="Repair state" value={filters.repairability ?? ''} onChange={(event) => setFilter('repairability', event.target.value)}>
             <option value="">All repair states</option>
             <option value="REPAIRABLE">Repairable</option>
             <option value="REVIEW_REQUIRED">Review required</option>
-          </Select>
-          <Select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.programme ?? ''} onChange={(event) => setFilter('programme', event.target.value)}>
+          </PortalSelect></label>
+          <label className="form-label">Programme
+          <PortalSelect className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" aria-label="Programme" value={filters.programme ?? ''} onChange={(event) => setFilter('programme', event.target.value)}>
             <option value="">All programmes</option>
             {data?.availableProgrammes.map((item) => <option key={item} value={item}>{item}</option>)}
-          </Select>
+          </PortalSelect></label>
         </div>
 
         {loading ? (
@@ -245,7 +268,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
           <EmptyState title="No matching inconsistencies" description="The current persisted records are consistent for these filters." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table min-w-[800px]">
               <thead><tr className="data-thead">
                 <th className="data-th text-left">Issue</th>
                 <th className="data-th text-left">Module</th>
@@ -257,7 +280,6 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
                 <tr key={issue.issueId} className="data-row">
                   <td className="data-td max-w-[360px]">
                     <p className="card-value">{issue.title}</p>
-                    <p className="card-description mt-1">{issue.summary}</p>
                   </td>
                   <td className="data-td-strong text-slate-600">{humanize(issue.module)}</td>
                   <td className="data-td">
@@ -265,7 +287,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
                     <p className="card-description">{issue.studentId ?? issue.programme ?? 'Faculty-wide'}</p>
                   </td>
                   <td className="data-td space-x-2">
-                    <StatusBadge tone={issue.severity === 'BLOCKING' ? 'danger' : 'warning'}>{issue.severity}</StatusBadge>
+                    <StatusBadge tone={issue.severity === 'BLOCKING' ? 'danger' : 'warning'}>{humanize(issue.severity)}</StatusBadge>
                     <StatusBadge tone={issue.repairability === 'REPAIRABLE' ? 'success' : 'info'}>{humanize(issue.repairability)}</StatusBadge>
                   </td>
                   <td className="data-td text-right">
@@ -286,7 +308,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
             </div>
           </div>
         )}
-      </section>
+      </OfficeToolSection>
 
       {(previewing || preview) && (
         <RecordPage title={preview?.issue.title ?? 'Workflow issue'} backLabel="Back to Workflow Reconciliation" onBack={closePreview} pageKey="reconciliation-review" dirty={!!reason.trim() || confirmed} busy={saving}>
@@ -299,23 +321,28 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
                   <StatusBadge tone={preview.issue.repairability === 'REPAIRABLE' ? 'success' : 'info'} icon={preview.issue.repairability === 'REPAIRABLE' ? Wrench : ShieldCheck}>{humanize(preview.issue.repairability)}</StatusBadge>
                 </div>
 
-                <section className="rounded-lg border border-slate-200">
-                  <h3 className="section-label border-b border-slate-200 px-4 py-3">Affected record</h3>
+                <section className="space-y-2">
+                  <h3 className="section-label">Affected record</h3>
+                  <p className="card-value">{humanize(preview.issue.recordType)} #{preview.issue.recordId}</p>
+                  <p className="card-description">{preview.issue.studentId ?? preview.issue.programme ?? 'Faculty-wide'}</p>
+                </section>
+                <details className="rounded-lg border border-slate-200">
+                  <summary className="section-label cursor-pointer rounded px-4 py-3 focus-visible:outline-2 focus-visible:outline-blue-600">Technical facts and identifiers</summary>
                   <dl className="divide-y divide-slate-100">
                     {Object.entries(preview.issue.currentState).map(([key, value]) => (
-                      <div key={key} className="grid grid-cols-[150px_minmax(0,1fr)] gap-3 px-4 py-3">
+                      <div key={key} className="grid gap-2 px-4 py-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-3">
                         <dt className="font-bold text-slate-500">{humanize(key)}</dt>
-                        <dd className="break-words font-semibold text-slate-700">{stateValue(value)}</dd>
+                        <dd className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] font-semibold text-slate-700">{stateValue(value)}</dd>
                       </div>
                     ))}
                   </dl>
-                </section>
+                </details>
 
-                {reconciliationRecordRoute(preview.issue.navigation.targetModule, preview.issue.navigation.recordType, preview.issue.navigation.recordId) && (
+                {owningRoute && (
                   <PortalButton
                     icon={ArrowUpRight}
-                    onClick={() => onNavigateToRoute(reconciliationRecordRoute(preview.issue.navigation.targetModule, preview.issue.navigation.recordType, preview.issue.navigation.recordId) as string)}
-                  >Open Source Record</PortalButton>
+                    onClick={() => onNavigateToRoute(owningRoute)}
+                  >{capacityIssue ? 'Review lecturer capacity' : 'Open source record'}</PortalButton>
                 )}
 
                 {drawerError && <ErrorState message={drawerError} onRetry={() => void openIssue(preview.issue)} />}
@@ -323,14 +350,14 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
                 {preview.issue.repairability === 'REPAIRABLE' && preview.allowedResolutions.length > 0 ? (
                   <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
                     <div className="flex items-center gap-2 text-emerald-800"><CheckCircle2 className="h-4 w-4" /><h3 className="section-label text-emerald-800">Verified repair available</h3></div>
-                    <Select className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={selectedResolution?.action ?? ''} onChange={(event) => setSelectedResolution(preview.allowedResolutions.find((item) => item.action === event.target.value) ?? null)}>
+                    <PortalSelect className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={selectedResolution?.action ?? ''} onChange={(event) => setSelectedResolution(preview.allowedResolutions.find((item) => item.action === event.target.value) ?? null)}>
                       {preview.allowedResolutions.map((item) => <option key={item.action} value={item.action}>{item.label}</option>)}
-                    </Select>
+                    </PortalSelect>
                     {selectedResolution?.requiresProgramme && (
-                      <Select className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={programme} onChange={(event) => setProgramme(event.target.value)}>
+                      <PortalSelect className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={programme} onChange={(event) => setProgramme(event.target.value)}>
                         <option value="">Select managed programme</option>
                         {data?.availableProgrammes.map((item) => <option key={item} value={item}>{item}</option>)}
-                      </Select>
+                      </PortalSelect>
                     )}
                     <textarea className="form-control form-control-md min-h-24 w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" placeholder="Mandatory reason for this repair" value={reason} onChange={(event) => setReason(event.target.value)} />
                     <label className="card-description flex items-start gap-3 rounded-lg border border-emerald-200 bg-white p-3">
@@ -347,15 +374,15 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
                   </section>
                 )}
 
-                <section className="rounded-lg border border-slate-200">
-                  <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3"><History className="h-4 w-4 text-slate-500" /><h3 className="section-label">Repair audit history</h3></div>
+                <details className="rounded-lg border border-slate-200">
+                  <summary className="section-label cursor-pointer rounded px-4 py-3 focus-visible:outline-2 focus-visible:outline-blue-600">Repair audit history · {selectedAudits.length} records in the current audit response</summary>
                   {selectedAudits.length === 0 ? <p className="card-description p-4">No prior repair audit for this record.</p> : selectedAudits.map((audit) => (
                     <div key={audit.id} className="border-b border-slate-100 p-4 last:border-0">
                       <div className="flex justify-between gap-3"><p className="card-value">{humanize(audit.action)}</p><time className="card-caption text-slate-400">{new Date(audit.createdAt).toLocaleString('en-MY')}</time></div>
                       <p className="card-description mt-1">{audit.actor.name}: {audit.reason}</p>
                     </div>
                   ))}
-                </section>
+                </details>
               </div>
             )}
           </RecordPage>

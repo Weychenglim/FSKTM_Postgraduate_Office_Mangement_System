@@ -1,0 +1,139 @@
+"""Signed, non-mutating workbook review and safe period-link resolution."""
+import hashlib
+import json
+from zoneinfo import ZoneInfo
+
+from django.core import signing
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.utils import timezone
+
+from .excel import parse_timeline_workbook
+from .models import SemesterTimeline, SemesterTimelineEntry
+from .upload_security import validate_timeline_upload
+
+PREVIEW_SALT = 'dashboard.timeline.preview.v1'
+PREVIEW_MAX_AGE = 15 * 60
+MALAYSIA = ZoneInfo('Asia/Kuala_Lumpur')
+
+
+def fingerprint(semester, lock=False):
+    from academics.models import OperationalPeriod
+    from marks.models import EvaluationPeriod
+    def values(query):
+        if lock:
+            query = query.select_for_update()
+        return list(query.order_by('pk').values())
+    timelines = SemesterTimeline.objects.filter(academic_semester=semester, is_active=True)
+    state = {
+        'semester': list(type(semester).objects.filter(pk=semester.pk).values()),
+        'timelines': values(timelines),
+        'entries': values(SemesterTimelineEntry.objects.filter(timeline__in=timelines)),
+        'operations': values(OperationalPeriod.objects.filter(academic_semester=semester)),
+        'marks': values(EvaluationPeriod.objects.filter(academic_semester=semester)),
+        'today': timezone.localdate(timezone=MALAYSIA),
+    }
+    return hashlib.sha256(json.dumps(state, default=str, sort_keys=True).encode()).hexdigest()
+
+
+def digest(upload):
+    upload.seek(0)
+    result = hashlib.sha256(upload.read()).hexdigest()
+    upload.seek(0)
+    return result
+
+
+def prepare_rows(upload, semester):
+    from academics.models import OperationalPeriod
+    from marks.models import EvaluationPeriod
+    errors = validate_timeline_upload(upload)
+    if errors:
+        raise ValidationError(errors)
+    rows, errors = parse_timeline_workbook(upload)
+    if errors:
+        raise ValidationError(errors)
+    warnings = []
+    today = timezone.localdate(timezone=MALAYSIA)
+    current_links = list(SemesterTimelineEntry.objects.filter(
+        timeline__academic_semester=semester, timeline__is_active=True,
+    ).exclude(operational_period__isnull=True, marks_period__isnull=True))
+    preserved = set()
+    for row in rows:
+        code = row.pop('activity_code')
+        period_id = row.pop('period_id')
+        if bool(code) != bool(period_id):
+            raise ValidationError('Activity Code and Period ID must be supplied together.')
+        if code:
+            model = EvaluationPeriod if code == 'MARKS' else OperationalPeriod
+            if code not in {'MARKS', 'SUPERVISOR_APPLICATION', 'PANEL_RECOMMENDATION'}:
+                raise ValidationError('Unknown Activity Code. Select an existing operational period explicitly.')
+            try:
+                period = model.objects.get(pk=int(period_id), academic_semester=semester)
+            except (ValueError, model.DoesNotExist):
+                raise ValidationError('Period ID must identify an existing period in this semester.')
+            if model == OperationalPeriod and period.activity != code:
+                raise ValidationError('Activity Code does not match the selected period.')
+            if not period.opens_at or not period.closes_at:
+                raise ValidationError('Linked periods require configured opening and closing dates.')
+            start = period.opens_at.astimezone(MALAYSIA).date()
+            end = period.closes_at.astimezone(MALAYSIA).date()
+            if row['deadline_start'] != start or row['deadline_end'] != end:
+                raise ValidationError('Linked calendar dates must match the owning period; update that period through its module.')
+            if start < semester.starts_on or end > semester.ends_on:
+                raise ValidationError('Operational mappings must be within the selected semester.')
+            row['marks_period' if code == 'MARKS' else 'operational_period'] = period
+        for old in current_links:
+            # Workbook order and exact facts make preservation explicit and deterministic.
+            same = all(row[key] == getattr(old, key) for key in (
+                'level', 'step', 'title', 'detail', 'action_owner', 'week_label', 'target_roles'))
+            same = same and (row['deadline_start'], row['deadline_end']) == old.projected_dates
+            if same:
+                if code and (row.get('operational_period') != old.operational_period or row.get('marks_period') != old.marks_period):
+                    raise ValidationError('Replacement changes an existing period link. Resolve the existing link before importing.')
+                row['operational_period'] = old.operational_period
+                row['marks_period'] = old.marks_period
+                preserved.add(old.pk)
+        if row['deadline_end'] < today:
+            warnings.append(f"{row['level']} step {row['step']}: dates have already ended.")
+        if row['deadline_start'] < semester.starts_on or row['deadline_end'] > semester.ends_on:
+            warnings.append(f"{row['level']} step {row['step']}: dates are outside the selected semester.")
+    if any(old.pk not in preserved for old in current_links):
+        raise ValidationError('Replacement would lose an existing period link. Keep the equivalent row or explicitly resolve its link before importing.')
+    return rows, warnings
+
+
+def display_rows(rows):
+    return [{
+        'level': row['level'], 'step': row['step'], 'title': row['title'],
+        'detail': row['detail'], 'action': row['action_owner'],
+        'deadlineStart': row['deadline_start'].isoformat(),
+        'deadlineEnd': row['deadline_end'].isoformat(), 'targetRoles': row['target_roles'],
+        'operationalPeriodId': getattr(row.get('operational_period'), 'pk', None),
+        'marksPeriodId': getattr(row.get('marks_period'), 'pk', None),
+    } for row in rows]
+
+
+@transaction.atomic
+def create_preview(upload, semester, actor):
+    semester = type(semester).objects.select_for_update().get(pk=semester.pk)
+    if semester.lifecycle_status not in {"DRAFT", "ACTIVE"}:
+        raise ValidationError("Timeline changes require a Draft or Active academic semester.")
+    state = fingerprint(semester, lock=True)
+    rows, warnings = prepare_rows(upload, semester)
+    token = signing.dumps({'actor': actor.pk, 'semester': semester.pk,
+        'file': digest(upload), 'state': state}, salt=PREVIEW_SALT, compress=True)
+    return {'previewToken': token, 'warnings': warnings, 'rows': display_rows(rows),
+            'importedCount': len(rows), 'requiresAcknowledgement': bool(warnings)}
+
+
+def verify_preview(token, upload, semester, actor):
+    if not isinstance(token, str):
+        raise ValidationError("A valid preview token is required.")
+    try:
+        payload = signing.loads(token, salt=PREVIEW_SALT, max_age=PREVIEW_MAX_AGE)
+    except signing.BadSignature:
+        raise ValidationError('Preview expired or invalid. Preview the file again.')
+    expected = {'actor': actor.pk, 'semester': semester.pk,
+                'file': digest(upload), 'state': fingerprint(semester, lock=True)}
+    if payload != expected:
+        raise ValidationError('The file, actor, semester or timeline/period data changed. Preview again.')

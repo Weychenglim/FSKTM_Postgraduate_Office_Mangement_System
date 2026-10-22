@@ -1,3 +1,4 @@
+import {clearAppointmentFilterParams} from '../utils/appointmentFilters';
 import { DecisionDialog } from './DecisionDialog';
 import { completeDecision } from '../utils/decisionSubmission';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -10,7 +11,7 @@ import { appointmentRequestRows, requestCalendarDay, requestGroup, requestStatus
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { PortalButton } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
-import { RequestViewSwitch, RequestFilters, RequestGroupSection, WorkspaceSectionHeader, WorkspaceRecordTable, WorkspacePagination, workspacePageSize } from './RequestWorkspacePrimitives';
+import { RequestViewSwitch, RequestFilters, RequestGroupSection, WorkspaceSectionHeader, WorkspaceRecordTable, WorkspacePagination, workspacePageSize, type RequestListView } from './RequestWorkspacePrimitives';
 import { RecordPage } from './RecordPage';
 import { SupervisorRequestDetail, supervisorRequestMetadata, toSupervisorRequestPresentation } from './SupervisorRequestDetail';
 import { RequestMetadata, ViewStudentRecordAction } from './RequestDetailPrimitives';
@@ -21,13 +22,25 @@ import { capacityStateLabel } from '../utils/lecturerCapacity';
 const groups: RequestGroup[] = ['review', 'coordinator', 'other'];
 const EMPTY_WORKSPACE: SupervisoryWorkspace = { teams: [], nominations: [], appointments: [] };
 
-export function LecturerPrimaryRequestActions({ record, blocked = false, busy, onAction, onNavigateToDossier, children }: {
+export function lecturerRequestViewRows(rows: LecturerAppointmentRow[], view: RequestListView): LecturerAppointmentRow[] {
+  return rows.filter(row => (requestGroup(row.status, row.canDecide) === 'history') === (view === 'history'));
+}
+
+export function lecturerRequestViewParams(current: URLSearchParams, view: RequestListView, rows: LecturerAppointmentRow[]): URLSearchParams {
+  const next = new URLSearchParams(current);
+  next.set('view', view);
+  next.delete('page');
+  const status = next.get('status');
+  if (status && !lecturerRequestViewRows(rows, view).some(row => row.status === status)) next.delete('status');
+  return next;
+}
+
+export function LecturerPrimaryRequestActions({ record, blocked = false, busy, onAction, children }: {
   record: SupervisorApplicationRecord; blocked?: boolean; busy: boolean; onAction: (action: 'accept' | 'reject') => void;
-  onNavigateToDossier?: (studentId: string) => void; children?: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   const canReview = record.status === 'SUBMITTED_TO_SUPERVISOR' && record.participantEligible !== false && !blocked;
   return <div className="space-y-4">
-    <ViewStudentRecordAction studentId={record.studentId} onOpen={onNavigateToDossier} disabled={busy}/>
     {record.participantEligible === false ? <p className="card-description">This Student is currently ineligible for a decision.</p> : null}
     {canReview ? <div className="flex flex-wrap gap-2">{(['accept', 'reject'] as const).map(value => <PortalButton key={value} size="sm" variant={value === 'accept' ? 'primary' : 'secondary'} disabled={busy} onClick={() => onAction(value)}>{value === 'accept' ? 'Accept request' : 'Reject request'}</PortalButton>)}</div> : null}
     {children}
@@ -149,8 +162,8 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
   }, [initialApplicationId, initialSupportingId, loading, primaryLoading, primaryRequests, history, workspace, open, scope]);
   const reviewCount = rows.filter(row => requestGroup(row.status, row.canDecide) === 'review').length;
   const coordinatorCount = rows.filter(row => requestGroup(row.status, row.canDecide) === 'coordinator').length;
-  const visible = rows.filter(row => (requestGroup(row.status, row.canDecide) === 'history') === (view === 'history')
-    && (type === 'all' || row.kind === type) && (!status || row.status === status) && (!semester || row.semester === semester)
+  const viewRows = lecturerRequestViewRows(rows, view);
+  const visible = viewRows.filter(row => (type === 'all' || row.kind === type) && (!status || row.status === status) && (!semester || row.semester === semester)
     && (!from || requestCalendarDay(row.submittedAt) >= from)
     && `${row.studentName} ${row.matricNo} ${row.title} ${row.id} SV-REQ-${String(row.id).padStart(5, '0')} ${row.nomination?.candidate.name ?? ''} ${row.nomination?.nominator.name ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()));
   if (view === 'history') visible.reverse();
@@ -169,7 +182,7 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
     onClose={() => { setAction(null); setReason(''); }} onConfirm={decide} onReload={async () => { if (selected) await open(selected, true, true); }}>
     {action && !['accept', 'approve'].includes(action) ? <label className="form-label block">Reason (required)<textarea required className="form-control mt-2" value={reason} disabled={busy} onChange={event => setReason(event.target.value)} /></label> : null}
   </DecisionDialog>;
-  const primaryActions = detail ? <LecturerPrimaryRequestActions record={detail} blocked={!!detailError || decisionSaved.current} busy={busy} onNavigateToDossier={onNavigateToDossier}
+  const primaryActions = detail ? <LecturerPrimaryRequestActions record={detail} blocked={!!detailError || decisionSaved.current} busy={busy}
     onAction={value => { setAction(value); setReason(''); }} /> : null;
   if (initialApplicationId || initialSupportingId || selected) return <>{decisionDialog}<RecordPage navigationComplete={navigationComplete} title="Appointment request" backLabel={backLabel} onBack={closePanel}
     metadata={!detailLoading && !detailError ? detail ? <RequestMetadata {...supervisorRequestMetadata(toSupervisorRequestPresentation(detail))} /> : panelRow ? <RequestMetadata {...supportingRequestMetadata(panelRow)} /> : undefined : undefined}
@@ -177,7 +190,7 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
     dirty={!!action && !!reason.trim()} busy={busy}>
     {selected ? detailLoading ? <LoadingState message="Loading request details…" /> : <>
       {detailError ? <ErrorState message={detailError} onRetry={() => void open(selected)} /> : null}
-      {detail ? <SupervisorRequestDetail request={toSupervisorRequestPresentation(detail)} actions={primaryActions} /> : panelRow ? <CoSupervisorNominationCard nomination={decisionSaved.current ? { ...panelRow, allowedActions: [] } : panelRow} hideMetadata busy={busy || !!detailError}
+      {detail ? <SupervisorRequestDetail request={toSupervisorRequestPresentation(detail)} contextAction={<ViewStudentRecordAction studentId={detail.studentId} onOpen={onNavigateToDossier} disabled={busy}/>} actions={primaryActions} /> : panelRow ? <CoSupervisorNominationCard nomination={decisionSaved.current ? { ...panelRow, allowedActions: [] } : panelRow} hideMetadata busy={busy || !!detailError}
         onAction={(_, value) => { if (!detailError) { setAction(value); setReason(''); } }}  /> : null}
     </> : loadError ? <ErrorState message={loadError} onRetry={() => { void load(); void onChanged(); }} /> : <LoadingState message="Loading request details…" />}
   </RecordPage></>;
@@ -188,11 +201,11 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
       <AppointmentSummaryCard title="Awaiting Coordinator" value={String(coordinatorCount)} description="Ongoing requests you can follow while final approval is pending." tone="info" />
     </div> : null}
     <section aria-label="Appointment requests" className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <WorkspaceSectionHeader title="Appointment requests" description="Review supervision requests and follow their recorded progress and outcomes." actions={<RequestViewSwitch view={view} reviewCount={loading || primaryLoading || loadError ? 0 : reviewCount} onChange={value => setFilter('view', value, false)} />} />
+    <WorkspaceSectionHeader title="Appointment requests" description="Review supervision requests and follow their recorded progress and outcomes." actions={<RequestViewSwitch view={view} reviewCount={loading || primaryLoading || loadError ? 0 : reviewCount} onChange={value => setParams(current => lecturerRequestViewParams(current, value, rows), { replace: false })} />} />
     {notice ? <p role="status" className="card-description rounded-lg bg-slate-50 p-3">{notice}</p> : null}
     {loading || primaryLoading ? <LoadingState message="Loading appointment requests…" /> : loadError ? <ErrorState message={loadError} onRetry={() => { void load(); void onChanged(); }} /> : <>
       {view === 'history' ? <p className="card-description">{rows.filter(row => requestGroup(row.status, row.canDecide) === 'history').length} final request outcomes</p> : null}
-      <RequestFilters search={search} onSearch={value => setFilter('q', value)} type={type} onType={value => setFilter('type', value)} status={status} statuses={[...new Set(rows.map(row => row.status))]} onStatus={value => setFilter('status', value)} semester={semester} semesters={[...new Set(rows.map(row => row.semester).filter(Boolean))]} onSemester={value => setFilter('semester', value)} from={from} onFrom={value => setFilter('from', value)} />
+      <RequestFilters onReset={()=>setParams(current=>clearAppointmentFilterParams(current),{replace:true,state:location.state})} search={search} onSearch={value => setFilter('q', value)} type={type} onType={value => setFilter('type', value)} status={status} statuses={[...new Set(viewRows.map(row => row.status))]} onStatus={value => setFilter('status', value)} semester={semester} semesters={[...new Set(rows.map(row => row.semester).filter(Boolean))]} onSemester={value => setFilter('semester', value)} from={from} onFrom={value => setFilter('from', value)} />
       {visible.length ? <LecturerAppointmentRequestList rows={visible.slice((page - 1) * pageSize, page * pageSize)} history={view === 'history'} onOpen={row => onNavigateToRequest ? onNavigateToRequest(String(row.id), row.kind) : void open(row)} /> : <p className="card-description rounded-lg bg-slate-50 p-4">{search || type !== 'all' || status || semester || from ? 'No matching requests. Adjust the filters to see more records.' : view === 'history' ? 'No final request outcomes yet.' : 'No ongoing appointment requests.'}</p>}
       <WorkspacePagination page={page} pageCount={pageCount} total={visible.length} noun="requests" pageSize={pageSize} onPageSize={value => setFilter('size', String(value))} onPage={value => setParams(current => { const next = new URLSearchParams(current); next.set('page', String(value)); return next; })} />
       {view === 'history' && appointments.length ? <details className="border-t border-slate-200 pt-4"><summary className="card-value cursor-pointer">Supporting appointment activity ({appointments.length})</summary><p className="card-description mt-2">Recorded appointment endings and replacements, separate from request decisions.</p><div className="mt-3 space-y-3">{appointments.map(row => <CoSupervisorAppointmentCard key={row.id} appointment={{ ...row, canEnd: false }} busy={false} canReplace={false} onEnd={() => {}} onReplace={() => {}} />)}</div></details> : null}

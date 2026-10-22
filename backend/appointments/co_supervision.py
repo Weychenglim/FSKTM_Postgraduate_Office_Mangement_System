@@ -781,19 +781,21 @@ def serialize_team(student, actor, *, include_details=False):
                 }
             )
     from dashboard.models import SemesterTimelineEntry
+    from dashboard.serializers import TimelineEntrySerializer
 
     semester = current_effective_semester()
     if semester:
         for entry in SemesterTimelineEntry.objects.filter(
-            timeline__academic_semester=semester, timeline__is_active=True
-        ):
+            timeline__academic_semester=semester, timeline__is_active=True,
+            marks_period__isnull=True,
+        ).select_related('operational_period'):
             if "STUDENT" in entry.target_roles:
                 timeline.append(
                     {
                         "id": f"timeline-{entry.pk}",
                         "title": entry.title or entry.detail,
-                        "date": iso(entry.deadline_end),
-                        "status": entry.status,
+                        "date": iso(entry.projected_dates[1]),
+                        "status": TimelineEntrySerializer().get_status(entry),
                     }
                 )
     timeline.sort(key=lambda event: (event["date"] or "", event["id"]))
@@ -815,6 +817,22 @@ def serialize_team(student, actor, *, include_details=False):
         "canNominate": can_nominate(actor, student),
         "timeline": timeline,
     }
+    from .research_amendments import assert_no_pending_transfer, AmendmentConflict
+    pending_primary = student.supervisor_applications.filter(status__in=[
+        "SUBMITTED_TO_SUPERVISOR", "PENDING_COORDINATOR"
+    ]).select_related("proposed_supervisor").order_by("-submitted_at", "-pk").first()
+    can_change = bool(actor.role == User.Role.OFFICE_ADMIN and actor.is_active
+                      and primary and student_is_workflow_eligible(student) and not pending_primary)
+    if can_change:
+        try:
+            assert_no_pending_transfer(student.pk)
+        except AmendmentConflict:
+            can_change = False
+    result["canChangePrimarySupervisor"] = can_change
+    result["pendingPrimaryReplacement"] = {
+        "applicationId": pending_primary.pk, "status": pending_primary.status,
+        "supervisorName": pending_primary.proposed_supervisor.full_name,
+    } if pending_primary and pending_primary.replaces_appointment_id else None
     if include_details and actor.role in {User.Role.OFFICE_ADMIN, User.Role.COORDINATOR, User.Role.LECTURER}:
         result["studentEmail"] = student.user.email
         result["panel"] = supervision_panel_summary(student, actor, profile, primary)

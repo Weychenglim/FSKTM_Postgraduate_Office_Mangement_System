@@ -1,3 +1,4 @@
+import { PortalSelect } from './PortalSelect';
 import { completeDecision } from '../utils/decisionSubmission';
 import { ApiError } from '../services/apiClient';
 import { useListState } from './ListState';
@@ -35,7 +36,6 @@ import { replaceEvaluationTask } from '../utils/marksProductionManagement';
 import { getMarkTaskSemesters, filterMarkTasks } from '../utils/marksSemesterFilters';
 import { EvaluationTask, EvaluationStatus } from '../types';
 import { getEvaluationTasks, saveMarkDraft, submitMarkEntry } from '../services';
-import { Select } from './Select';
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -280,7 +280,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                 <label className="form-label">
                   Semester
                 </label>
-                <Select
+                <PortalSelect
                   value={selectedSemester}
                   onChange={(e) => setSelectedSemester(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-slate-400 transition"
@@ -289,14 +289,14 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                   {semesterOptions.map(semester => (
                     <option key={semester} value={semester}>{semester}</option>
                   ))}
-                </Select>
+                </PortalSelect>
               </div>
 
               <div className="col-span-1 md:col-span-3 space-y-1.5">
                 <label className="form-label">
                   Status
                 </label>
-                <Select
+                <PortalSelect
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-slate-400 transition"
@@ -305,7 +305,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                   <option>NOT STARTED</option>
                   <option>DRAFT SAVED</option>
                   <option>SUBMITTED</option>
-                </Select>
+                </PortalSelect>
               </div>
 
               <div className="col-span-1 md:col-span-1">

@@ -1,3 +1,4 @@
+import { PortalSelect } from './PortalSelect';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Eye, Search } from 'lucide-react';
 import { PanelRecommendationDraft } from '../types';
@@ -8,7 +9,7 @@ import {
 } from '../utils/panelRecommendationRecords';
 import { PANEL_RECOMMENDATION_STATUS_LABELS } from '../utils/panelRecommendationWorkflow';
 import { StatusBadge } from './PortalPrimitives';
-import { Select } from './Select';
+import { panelStatusTone } from '../utils/panelPresentation';
 
 interface PanelRecommendationRecordsTableProps {
   title: string;
@@ -19,15 +20,7 @@ interface PanelRecommendationRecordsTableProps {
   showSupervisor?: boolean;
 }
 
-const statusTone = (status: PanelRecommendationDraft['status']) => {
-  if (status === 'APPROVED') return 'success' as const;
-  if (status === 'REJECTED_BY_PANEL' || status === 'REJECTED_BY_COORDINATOR') {
-    return 'danger' as const;
-  }
-  if (status === 'CANCELLED_BY_SUPERVISOR' || status === 'CANCELLED_BY_OFFICE') return 'neutral' as const;
-  if (status === 'PENDING_COORDINATOR') return 'warning' as const;
-  return 'info' as const;
-};
+const statusTone = panelStatusTone;
 
 export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecordsTableProps> = ({
   title,
@@ -78,7 +71,7 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
               className="form-control form-control-sm pl-10"
             />
           </div>
-          <Select
+          <PortalSelect
             value={statusGroup}
             onChange={(event) => {
               setStatusGroup(event.target.value as PanelRecommendationRecordGroup);
@@ -91,7 +84,7 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
             <option value="Approved">Approved</option>
             <option value="Rejected">Rejected</option>
             <option value="Cancelled">Cancelled</option>
-          </Select>
+          </PortalSelect>
         </div>
 
         <div className="overflow-x-auto">
@@ -100,7 +93,7 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
               <tr className="data-thead">
                 <th className="data-th">Student</th>
                 {showSupervisor && <th className="data-th">Supervisor</th>}
-                <th className="data-th">Selected Panel</th>
+                <th className="data-th">Panel</th>
                 <th className="data-th">Panel Decision</th>
                 <th className="data-th">Workflow Status</th>
                 <th className="data-th">Updated</th>

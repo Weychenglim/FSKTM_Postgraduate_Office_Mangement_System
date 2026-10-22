@@ -1,3 +1,4 @@
+import { PortalSelect } from './PortalSelect';
 import { useListState } from './ListState';
 /**
  * @license
@@ -15,7 +16,6 @@ import {
   StatusBadge,
 } from './PortalPrimitives';
 import { EmptyState } from './StateViews';
-import { Select } from './Select';
 
 interface MarksEntryHistoryProps {
   onBack: () => void;
@@ -73,14 +73,14 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
               className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3 text-xs font-bold"
             />
           </label>
-          <Select
+          <PortalSelect
             value={semester}
             onChange={(event) => setSemester(event.target.value)}
             className="rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-bold"
           >
             <option>All semesters</option>
             {semesters.map((value) => <option key={value}>{value}</option>)}
-          </Select>
+          </PortalSelect>
         </div>
       </PortalCard>
 

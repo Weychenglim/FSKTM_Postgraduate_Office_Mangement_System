@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { PortalSelect } from './PortalSelect';
 import React from 'react';
-import { Select } from './Select';
 
 interface Option {
   value: string;
@@ -32,9 +32,12 @@ export const FormSelect: React.FC<FormSelectProps> = ({
         {label}
       </label>
       <div className="relative">
-        <Select
+        <PortalSelect
           id={id}
-          className={`form-control form-control-md ${error ? 'form-control-error' : ''} ${className}`}
+          className={`form-control form-control-md appearance-none pr-10 cursor-pointer ${error ? 'form-control-error' : ''} ${className}`}
+          aria-labelledby={`select-label-${id}`}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `select-err-${id}` : undefined}
           {...props}
         >
           {options.map((opt) => (
@@ -42,7 +45,7 @@ export const FormSelect: React.FC<FormSelectProps> = ({
               {opt.label}
             </option>
           ))}
-        </Select>
+        </PortalSelect>
       </div>
       {error && (
         <span id={`select-err-${id}`} className="card-description text-red-500 mt-1.5">

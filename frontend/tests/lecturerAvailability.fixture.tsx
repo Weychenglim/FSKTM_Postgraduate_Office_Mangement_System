@@ -1,0 +1,80 @@
+import React from 'react';
+import {createRoot,type Root} from 'react-dom/client';
+import {createMemoryRouter,Link,RouterProvider} from 'react-router';
+import {LecturerAvailabilityPage} from '../src/components/LecturerAvailabilityPage';
+
+const semester={id:1,code:'2099-I',academicSession:'2099/2100',term:'SEMESTER_I',label:'Semester I 2099/2100',startsOn:'2099-01-01',endsOn:'2099-12-31',lifecycleStatus:'ACTIVE',effectiveStatus:'ACTIVE',isActive:true,activatedAt:null,closedAt:null,archivedAt:null};
+const record={id:1,semesterId:1,semesterCode:'2099-I',lecturerId:7,staffNo:'S007',lecturerName:'Dr Fixture',role:'SUPERVISOR',startsOn:'2099-02-01',endsOn:'2099-02-20',reason:'Research leave',isEffective:false,isCancelled:false,createdBy:{id:7,name:'Dr Fixture'},createdAt:'2099-01-01T10:00:00Z',cancelledBy:null,cancelledAt:null,cancellationReason:null};
+const container=document.getElementById('root')!;
+const results:{name:string;error:string|null}[]=[];
+let root:Root|null=null,posts=0,gets=0,changed=0,backs=0;
+let router:ReturnType<typeof createMemoryRouter>|null=null;
+let context:any;
+let read:(url:URL)=>Promise<Response>,write:(url:URL,body:any)=>Promise<Response>;
+const check=(condition:unknown,message:string)=>{if(!condition)throw new Error(message);};
+const until=async(predicate:()=>unknown)=>{for(let i=0;i<150;i++){if(predicate())return;await new Promise(resolve=>setTimeout(resolve,10));}throw new Error(`Timed out: ${document.body.textContent}`);};
+const button=(label:string)=>Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(row=>row.textContent?.trim()===label);
+const input=(id:string)=>document.getElementById(id) as HTMLInputElement;
+const dialog=()=>document.querySelector('dialog[open]');
+function fill(id:string,value:string){const field=input(id);const proto=field.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value')!.set!.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true}));}
+async function draft(){fill('availability-start','2099-03-01');fill('availability-end','2099-03-20');fill('availability-reason','Conference and field work');await until(()=>!button('Save restriction')?.matches(':disabled'));}
+async function mount(overrides:any={},routed=false){
+  root?.unmount();router?.dispose();router=null;context={semesters:[semester],semesterId:1,roles:['SUPERVISOR','PANEL'],restrictions:[record],canManage:true,pagination:{total:1,limit:10,offset:0},...overrides};posts=0;gets=0;changed=0;backs=0;
+  read=async()=>Response.json(context);
+  write=async(url,body)=>{if(url.pathname.endsWith('/cancel/'))context={...context,restrictions:context.restrictions.map((row:any)=>({...row,isCancelled:true,cancellationReason:body.reason,cancelledAt:'2099-01-02T10:00:00Z'}))};else context={...context,restrictions:[{...record,id:2,...body},...context.restrictions],pagination:{total:2,limit:10,offset:0}};return Response.json(context.restrictions[0]);};
+  window.fetch=async(input,options)=>{const url=new URL(String(input),location.origin);check(url.pathname.startsWith('/api/academics/my-availability/'),'Unexpected API route');if(options?.method==='POST'){posts++;const body=JSON.parse(String(options.body));check(body.confirmed===true,'Mutation requires explicit confirmed:true');return write(url,body);}gets++;return read(url);};
+  const page=<LecturerAvailabilityPage onBack={()=>{backs++;}} onChanged={()=>{changed++;}}/>;
+  root=createRoot(container);
+  if(routed){router=createMemoryRouter([{path:'/',element:<p>Previous page</p>},{path:'/availability',element:<><Link to="/dashboard">Dashboard sidebar</Link>{page}</>},{path:'/dashboard',element:<p>Fixture dashboard</p>}],{initialEntries:['/','/availability'],initialIndex:1});root.render(<RouterProvider router={router}/>);}
+  else root.render(page);
+  await until(()=>!!button('Save restriction')||!!button('Retry'));
+}
+async function scenario(name:string,run:()=>Promise<void>){try{await run();results.push({name,error:null});}catch(error){results.push({name,error:error instanceof Error?error.message:String(error)});}}
+
+await scenario('review has no POST and Go back or Close preserves the complete draft',async()=>{
+  await mount();await draft();button('Save restriction')!.click();await until(dialog);check(posts===0,'Review must not save');check(dialog()!.textContent?.includes('Conference and field work'),'Exact draft reason missing');check(dialog()!.textContent?.includes('existing assignments')||dialog()!.textContent?.includes('Existing assignments'),'Existing assignment consequence missing');check(dialog()!.textContent?.includes('pending'),'Pending final activation consequence missing');button('Go back')!.click();await until(()=>!dialog());check(input('availability-reason').value==='Conference and field work'&&input('availability-start').value==='2099-03-01','Go back lost draft');button('Save restriction')!.click();await until(dialog);document.querySelector<HTMLButtonElement>('[aria-label="Close dialog"]')!.click();await until(()=>!dialog());check(input('availability-end').value==='2099-03-20'&&posts===0,'Close lost draft or submitted');
+});
+await scenario('confirmation sends one exact mutation and reports a scheduled restriction once',async()=>{
+  await mount();await draft();let release:(r:Response)=>void=()=>{};let body:any;write=async(_url,value)=>{body=value;return new Promise(resolve=>{release=resolve;});};button('Save restriction')!.click();await until(dialog);button('Confirm restriction')!.click();button('Confirm restriction')!.click();await until(()=>posts===1);check(body.role==='SUPERVISOR'&&body.semesterId===1&&body.startsOn==='2099-03-01'&&body.endsOn==='2099-03-20'&&body.reason==='Conference and field work','Incorrect mutation payload');release(Response.json({...record,id:2,...body}));await until(()=>!dialog()&&changed===1);check(posts===1,'Duplicate mutation');check(document.querySelectorAll('[aria-label="Dismiss notification"]').length===1,'Success must have a single toast');check(document.body.textContent?.includes('scheduled'),'Future restriction must be described as scheduled');
+});
+await scenario('failed confirmation stays open and retries the same retained draft',async()=>{
+  await mount();await draft();write=async()=>Response.json({detail:'Temporary restriction failure.'},{status:503});button('Save restriction')!.click();await until(dialog);button('Confirm restriction')!.click();await until(()=>dialog()?.textContent?.includes('Temporary restriction failure.'));check(posts===1&&input('availability-reason').value==='Conference and field work','Failed save lost draft');write=async()=>Response.json({...record,id:2});button('Confirm restriction')!.click();await until(()=>!dialog()&&changed===1);check(posts===2,'Retry must send once');
+});
+await scenario('cancel requires an audited reason and explicit confirmation and preserves history',async()=>{
+  await mount();button('Cancel restriction')!.click();await until(dialog);check(posts===0&&button('Confirm cancellation')?.matches(':disabled'),'Cancel must require a reason');fill('availability-cancellation-reason','Plans changed');await until(()=>!button('Confirm cancellation')?.matches(':disabled'));button('Confirm cancellation')!.click();await until(()=>!dialog()&&container.textContent?.includes('Plans changed'));check(posts===1&&container.textContent?.includes('Cancelled'),'Cancellation must preserve recorded history');
+});
+await scenario('read failure Retry recovers without any mutation',async()=>{
+  await mount();root?.unmount();read=async()=>Response.json({detail:'Cannot load availability.'},{status:503});root=createRoot(container);root.render(<LecturerAvailabilityPage onBack={()=>{}}/>);await until(()=>!!button('Retry'));read=async()=>Response.json(context);button('Retry')!.click();await until(()=>!!button('Save restriction'));check(posts===0,'Read retry must not mutate');
+});
+await scenario('history pages use selected semester and server pagination',async()=>{
+  await mount({pagination:{total:11,limit:10,offset:0}});let query='';read=async url=>{query=url.search;return Response.json({...context,restrictions:[{...record,id:11,reason:'Eleventh record'}],pagination:{total:11,limit:10,offset:10}});};button('Next')!.click();await until(()=>container.textContent?.includes('Eleventh record'));const params=new URLSearchParams(query);check(params.get('semesterId')==='1'&&params.get('limit')==='10'&&params.get('offset')==='10','Incorrect scoped pagination');check(posts===0,'History must be read only');
+});
+await scenario('empty history explains that no restrictions are recorded',async()=>{await mount({restrictions:[],pagination:{total:0,limit:10,offset:0}});check(container.textContent?.includes('No restrictions'),'Empty history missing');});
+await scenario('read-only semester blocks creation but own history remains cancellable',async()=>{await mount({canManage:false});check(button('Save restriction')?.matches(':disabled'),'Creation must be blocked');check(!button('Cancel restriction')?.matches(':disabled'),'Own history remains cancellable');});
+await scenario('role selection only offers roles actually held',async()=>{await mount({roles:['PANEL']});const select=container.querySelector<HTMLSelectElement>('select[name="role"]');check(select?.value==='PANEL','Only held Panel role should be selected');check(!Array.from(select!.options).some(option=>option.value==='SUPERVISOR'),'Unheld role must not be offered');});
+await scenario('committed save with failed history refresh only offers a read retry',async()=>{
+  await mount();await draft();write=async()=>{read=async()=>Response.json({detail:'History temporarily unavailable.'},{status:503});return Response.json({...record,id:2});};button('Save restriction')!.click();await until(dialog);button('Confirm restriction')!.click();await until(()=>!dialog()&&!!button('Retry'));check(posts===1&&changed===1,'Committed action must be reported once');check(document.querySelectorAll('[aria-label="Dismiss notification"]').length===1,'Refresh warning must be a single toast');read=async()=>Response.json(context);button('Retry')!.click();await until(()=>!!button('Save restriction'));check(posts===1&&input('availability-reason').value==='','History retry must neither repeat the saved mutation nor restore the committed draft');
+});
+await scenario('out-of-order semester reads cannot replace the latest history or discard the draft',async()=>{
+  await mount({semesters:[semester,{...semester,id:2,code:'2099-II',label:'Semester II 2099/2100'}]});await draft();let release:(value:Response)=>void=()=>{};
+  read=async url=>url.searchParams.get('semesterId')==='2'?new Promise(resolve=>{release=resolve;}):Response.json(context);
+  const select=container.querySelector<HTMLSelectElement>('select:not([name])');
+  check(select,'Semester select missing');select!.value='2';select!.dispatchEvent(new Event('change',{bubbles:true}));await until(()=>gets===2);select!.value='1';select!.dispatchEvent(new Event('change',{bubbles:true}));await until(()=>gets===3&&!!button('Save restriction'));
+  release(Response.json({...context,semesterId:2,restrictions:[{...record,id:22,reason:'Stale semester record'}]}));await new Promise(resolve=>setTimeout(resolve,30));check(!container.textContent?.includes('Stale semester record'),'Stale response replaced current semester history');check(input('availability-reason').value==='Conference and field work','Semester reads discarded draft');
+});
+await scenario('page Back requires discard confirmation and Keep editing retains the draft',async()=>{
+  await mount();await draft();button('Back to dashboard')!.click();await new Promise(resolve=>setTimeout(resolve,20));check(backs===0,'Page Back discarded an unsaved restriction without confirmation');check(dialog()?.textContent?.includes('Discard unsaved changes?'),'Missing page discard confirmation');button('Keep editing')!.click();await until(()=>!dialog());check(input('availability-start').value==='2099-03-01'&&input('availability-reason').value==='Conference and field work','Keep editing discarded form values');button('Back to dashboard')!.click();await until(dialog);button('Discard changes')!.click();await until(()=>backs===1);check(posts===0,'Discarding a form must not save');
+});
+await scenario('sidebar and browser Back attempts retain the routed dirty form until discarded',async()=>{
+  await mount({},true);await draft();container.querySelector<HTMLAnchorElement>('a')!.click();await new Promise(resolve=>setTimeout(resolve,20));check(router!.state.location.pathname==='/availability','Sidebar navigation lost the unsaved form');check(dialog()?.textContent?.includes('Discard unsaved changes?'),'Sidebar must show the navigation guard');button('Stay on this page')!.click();await until(()=>!dialog());void router!.navigate(-1);await until(dialog);check(router!.state.location.pathname==='/availability','Browser Back lost the unsaved form');button('Stay on this page')!.click();await until(()=>!dialog());check(input('availability-reason').value==='Conference and field work','Staying on route lost draft');container.querySelector<HTMLAnchorElement>('a')!.click();await until(dialog);button('Discard changes')!.click();await until(()=>router!.state.location.pathname==='/dashboard');check(posts===0,'Discard navigation must not submit');
+});
+await scenario('pending confirmation blocks page Back and data-router navigation',async()=>{
+  await mount({},true);await draft();let release:(response:Response)=>void=()=>{};write=async()=>new Promise(resolve=>{release=resolve;});button('Save restriction')!.click();await until(dialog);button('Confirm restriction')!.click();await until(()=>posts===1);check(button('Back to dashboard')?.matches(':disabled'),'Page Back must stay blocked during POST');void router!.navigate('/dashboard');await new Promise(resolve=>setTimeout(resolve,20));check(router!.state.location.pathname==='/availability','Route left during pending POST');check(document.body.textContent?.includes('Saving changes'),'Busy route guard missing');check(button('Discard changes')?.matches(':disabled'),'Busy route guard must not allow discard');release(Response.json({...record,id:2}));await until(()=>changed===1&&!button('Back to dashboard')?.matches(':disabled'));button('Stay on this page')!.click();await until(()=>!dialog());check(posts===1,'Navigation attempt repeated mutation');
+});
+await scenario('form controls have consistent comfortable height and padding',async()=>{
+  await mount();for(const control of [input('availability-start'),input('availability-end'),input('availability-reason'),document.getElementById('availability-role'),document.getElementById('availability-semester')]){check(control!.getBoundingClientRect().height>=40,'Form control height below 40px');check(parseFloat(getComputedStyle(control!).paddingLeft)>=10,'Form control lacks comfortable horizontal padding');}
+});
+await scenario('page history and confirmation fit the viewport with readable values',async()=>{
+  await mount();await draft();check(document.documentElement.scrollWidth<=innerWidth+1,'Page horizontally overflows');check(parseFloat(getComputedStyle(input('availability-reason')).fontSize)>=14,'Input type too small');button('Save restriction')!.click();await until(dialog);const bounds=dialog()!.getBoundingClientRect();check(bounds.left>=0&&bounds.right<=innerWidth+1,'Dialog overflows viewport');check(document.documentElement.scrollWidth<=innerWidth+1,'Dialog creates horizontal overflow');
+});
+parent.postMessage({type:'availability-results',results},location.origin);

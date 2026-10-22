@@ -25,6 +25,7 @@ from marks.models import EvaluationTask, MarkEntry
 from marks.completion_windows import task_due_at, task_access
 
 from .models import SemesterTimelineEntry
+from .serializers import TimelineEntrySerializer
 from .reconciliation import detect_reconciliation_issues
 from .co_supervision_tracking import scoped_nominations
 
@@ -611,11 +612,14 @@ def _mark_rows(
 
 
 def _timeline_status(entry, today):
-    if today < entry.deadline_start:
+    if entry.linked_period:
+        return TimelineEntrySerializer().get_status(entry).upper()
+    start, end = entry.projected_dates
+    if today < start:
         return "UPCOMING"
-    if today > entry.deadline_end:
-        return "COMPLETED"
-    if entry.deadline_start == entry.deadline_end:
+    if today > end:
+        return "ENDED"
+    if start == end:
         return "DEADLINE"
     return "ACTIVE"
 
@@ -634,6 +638,7 @@ def _timeline_rows(
     entries = SemesterTimelineEntry.objects.select_related(
         "timeline",
         "timeline__academic_semester",
+        "marks_period", "operational_period",
     ).filter(
         timeline__is_active=True,
     )
@@ -644,9 +649,10 @@ def _timeline_rows(
         semester,
     )
     for entry in entries:
+        projected_start, projected_end = entry.projected_dates
         if user.role == User.Role.LECTURER and "LECTURER" not in entry.target_roles:
             continue
-        if not _within_range(entry.deadline_start, start_date, end_date):
+        if not _within_range(projected_start, start_date, end_date):
             continue
         rows.append(
             {
@@ -656,8 +662,8 @@ def _timeline_rows(
                 "level": entry.level,
                 "status": _timeline_status(entry, today),
                 "targetRoles": entry.target_roles,
-                "reportDate": entry.deadline_start.isoformat(),
-                "dueAt": entry.deadline_end.isoformat(),
+                "reportDate": projected_start.isoformat(),
+                "dueAt": projected_end.isoformat(),
                 **_semester_row(entry.timeline.academic_semester),
             }
         )

@@ -106,6 +106,15 @@ class CapacityPlanCommandSerializer(StrictCapacitySerializer):
     expectedFingerprint = serializers.RegexField(r"^[0-9a-f]{64}$")
 
 
+class CapacityPlanDiscardSerializer(CapacityPlanCommandSerializer):
+    confirmed = serializers.BooleanField()
+
+    def validate_confirmed(self, value):
+        if self.initial_data.get("confirmed") is not True:
+            raise serializers.ValidationError("Explicit confirmation is required.")
+        return value
+
+
 class AvailabilityWriteSerializer(StrictCapacitySerializer):
     lecturerId = serializers.IntegerField(min_value=1)
     role = serializers.ChoiceField(

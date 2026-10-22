@@ -1,3 +1,4 @@
+import { PortalSelect } from './PortalSelect';
 import { useReturnToFocusReload } from '../utils/returnToFocus';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, History, Search, ShieldAlert, ShieldCheck, UserRoundCheck } from 'lucide-react';
@@ -22,7 +23,6 @@ import {
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { CoordinatorDelegations } from './CoordinatorDelegations';
-import { Select } from './Select';
 
 interface ParticipantLifecycleManagementProps {
   onBack: () => void;
@@ -212,21 +212,21 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
               <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
               <input className="form-control form-control-md w-full pl-9 font-sans not-italic normal-case tracking-normal text-xs font-bold" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or ID" />
             </label>
-            <Select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'ALL' | ParticipantType)}>
+            <PortalSelect className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'ALL' | ParticipantType)}>
               <option value="ALL">All participants</option>
               <option value="STUDENT">Students</option>
               <option value="LECTURER">Lecturers</option>
-            </Select>
-            <Select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            </PortalSelect>
+            <PortalSelect className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="">All lifecycle states</option>
               {['ACTIVE', 'DEFERRED', 'GRADUATED', 'WITHDRAWN', 'RETIRING', 'RETIRED'].map((status) => (
                 <option key={status} value={status}>{lifecycleLabel(status)}</option>
               ))}
-            </Select>
-            <Select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={programme} onChange={(event) => setProgramme(event.target.value)}>
+            </PortalSelect>
+            <PortalSelect className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={programme} onChange={(event) => setProgramme(event.target.value)}>
               <option value="">All programmes</option>
               {data?.availableProgrammes.map((value) => <option key={value}>{value}</option>)}
-            </Select>
+            </PortalSelect>
           </fieldset>
 
           {loading ? <LoadingState message="Loading participant lifecycle records..." /> : error && !data ? (

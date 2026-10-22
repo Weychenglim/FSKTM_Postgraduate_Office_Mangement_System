@@ -764,6 +764,35 @@ def publish_capacity_plan(plan, *, actor, reason, expected_fingerprint):
         ) from exc
 
 
+def discard_capacity_plan(plan, *, actor, reason, expected_fingerprint):
+    """Retire an unpublished draft without deleting its entries or audit trail."""
+    reason = _require_reason(reason)
+    expected_fingerprint = _validate_expected_fingerprint(expected_fingerprint)
+    try:
+        with transaction.atomic():
+            semesters = _lock_semesters({plan.academic_semester_id})
+            semester = semesters[plan.academic_semester_id]
+            _require_writable_semester(semester)
+            plans = _lock_plans_for_semesters({semester.pk})
+            current = next((row for row in plans if row.pk == plan.pk), None)
+            _assert_current_plan(plan, current)
+            if current.lifecycle_status != SemesterCapacityPlan.Lifecycle.DRAFT:
+                raise CapacityLifecycleConflict("Only a Draft capacity plan can be discarded.")
+            entries = _lock_capacity_entries_for_plans([current.pk])
+            _assert_expected_fingerprint(current, entries, expected_fingerprint)
+            before = capacity_plan_snapshot(current)
+            current.lifecycle_status = SemesterCapacityPlan.Lifecycle.DISCARDED
+            current.save(update_fields=["lifecycle_status"])
+            _audit(
+                semester=semester, plan=current, actor=actor,
+                action=LecturerCapacityAudit.Action.PLAN_DISCARD, reason=reason,
+                before=before, after=capacity_plan_snapshot(current),
+            )
+            return current
+    except IntegrityError as exc:
+        raise CapacityPlanConflict("Capacity plan changed concurrently; reload and retry.") from exc
+
+
 def _clean_date(field_name, value):
     field = LecturerAvailabilityWindow._meta.get_field(field_name)
     return field.clean(value, None)

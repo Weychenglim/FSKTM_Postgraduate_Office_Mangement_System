@@ -10,6 +10,7 @@ from academics.models import AcademicSemester
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
     AppointmentWorkflowEvent,
+    PanelAppointment,
     PanelRecommendation,
     StudentResearchProfile,
     SupervisorApplication,
@@ -396,15 +397,12 @@ class StudentProgressDossierTests(APITestCase):
         ):
             self.assertNotIn(sensitive_key, panel_record)
 
-        rejected_panel_record = next(
-            row
-            for row in response.data["panel"]["records"]
-            if row["status"] == "REJECTED"
-        )
-        self.assertEqual(
-            rejected_panel_record["rejectionReason"],
-            "Unable to participate.",
-        )
+        self.assertEqual(len(response.data["panel"]["records"]), 1)
+        for sensitive_key in ("rejectionReason", "cancellationReason"):
+            self.assertNotIn(sensitive_key, panel_record)
+        self.assertIsNone(panel_record["waitingDays"])
+        self.assertNotIn("Unable to participate.", str(response.data))
+        self.assertNotIn(self.panel.full_name, str(response.data))
 
         self.assertNotIn("MARKS", response.data["visibleSections"])
         self.assertIsNone(response.data["marks"])
@@ -415,6 +413,92 @@ class StudentProgressDossierTests(APITestCase):
 
         supervisor_record = response.data["supervisor"]["records"][0]
         self.assertNotIn("workflow", supervisor_record)
+
+    def approved_panel(self, member, *, appointment_status="ACTIVE", days_ago=0):
+        recommendation = PanelRecommendation.objects.create(
+            profile=self.profile, supervisor=self.supervisor, recommended_member=member,
+            academic_semester=self.academic_semester, status=PanelRecommendation.Status.APPROVED,
+        )
+        return PanelAppointment.objects.create(
+            recommendation=recommendation, profile=self.profile, supervisor=self.supervisor,
+            panel_member=member, approved_by=self.coordinator,
+            appointment_date=timezone.localdate() - timedelta(days=days_ago),
+            status=appointment_status,
+            ended_at=self.now if appointment_status != "ACTIVE" else None,
+            end_reason="Internal appointment closure explanation.",
+        )
+
+    def test_student_active_panel_takes_precedence_over_pending_replacement(self):
+        appointment = self.approved_panel(self.other_lecturer)
+        self.pending_panel.replaces_appointment = appointment
+        self.pending_panel.save(update_fields=["replaces_appointment"])
+        self.authenticate(self.student_user)
+        response = self.client.get(self.dossier_url())
+        records = response.data["panel"]["records"]
+        self.assertEqual(response.data["overview"]["panelStatus"], "CONFIRMED")
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["status"], "CONFIRMED")
+        self.assertEqual(records[0]["appointment"], {
+            "appointmentDate": appointment.appointment_date.isoformat(),
+            "status": "ACTIVE", "panelMember": self.other_lecturer.full_name, "endedAt": None,
+        })
+        for key in ("recordId", "recommendedMember", "rejectionReason", "cancellationReason", "workflow"):
+            self.assertNotIn(key, records[0])
+        self.assertFalse(any(item["targetModule"] == "PANEL_APPOINTMENTS" for item in response.data["attention"]))
+
+    def test_student_panel_history_contains_only_actual_confirmed_appointments(self):
+        past = self.approved_panel(self.panel, appointment_status="ENDED", days_ago=30)
+        current = self.approved_panel(self.other_lecturer)
+        self.authenticate(self.student_user)
+        records = self.client.get(self.dossier_url()).data["panel"]["records"]
+        self.assertEqual([row["status"] for row in records], ["CONFIRMED", "ENDED"])
+        self.assertEqual([row["appointment"]["appointmentDate"] for row in records],
+                         [current.appointment_date.isoformat(), past.appointment_date.isoformat()])
+        self.assertNotIn("Internal appointment closure explanation.", str(records))
+        self.assertNotIn("Unable to participate.", str(records))
+
+    def test_student_pending_panel_precedes_history_without_revealing_candidate(self):
+        self.approved_panel(self.other_lecturer, appointment_status="COMPLETED", days_ago=30)
+        self.authenticate(self.student_user)
+        response = self.client.get(self.dossier_url())
+        records = response.data["panel"]["records"]
+        self.assertEqual([row["status"] for row in records], ["FACULTY_PROCESSING", "COMPLETED"])
+        self.assertIsNone(records[0]["appointment"])
+        self.assertNotIn("recommendedMember", records[0])
+        self.assertEqual(response.data["overview"]["panelStatus"], "FACULTY_PROCESSING")
+
+    def test_student_does_not_receive_failed_attempts_or_unconfirmed_approval(self):
+        for state in [PanelRecommendation.Status.REJECTED_BY_COORDINATOR,
+                      PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR,
+                      PanelRecommendation.Status.CANCELLED_BY_OFFICE,
+                      PanelRecommendation.Status.APPROVED]:
+            with self.subTest(state=state):
+                self.pending_panel.status = state
+                self.pending_panel.coordinator_rejection_reason = "Private coordinator feedback."
+                self.pending_panel.cancellation_reason = "Private nomination cancellation."
+                self.pending_panel.save()
+                self.authenticate(self.student_user)
+                response = self.client.get(self.dossier_url())
+                self.assertEqual(response.data["panel"]["records"], [])
+                self.assertIsNone(response.data["overview"]["panelStatus"])
+
+    def test_student_past_panel_is_not_the_current_appointment(self):
+        self.pending_panel.status = PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR
+        self.pending_panel.save(update_fields=["status"])
+        self.approved_panel(self.panel, appointment_status="ENDED", days_ago=30)
+        self.authenticate(self.student_user)
+        response = self.client.get(self.dossier_url())
+        self.assertEqual([row["status"] for row in response.data["panel"]["records"]], ["ENDED"])
+        self.assertIsNone(response.data["overview"]["panelStatus"])
+
+    def test_office_keeps_rejected_panel_reason_and_workflow_history(self):
+        self.authenticate(self.office)
+        records = self.client.get(self.dossier_url()).data["panel"]["records"]
+        rejected = next(row for row in records if row["recordId"] == str(self.rejected_panel.pk))
+        self.assertEqual(rejected["rejectionReason"], "Unable to participate.")
+        pending = next(row for row in records if row["recordId"] == str(self.pending_panel.pk))
+        self.assertEqual(pending["recommendedMember"], self.panel.full_name)
+        self.assertTrue(pending["workflow"])
 
     def test_unknown_and_unauthorized_students_share_not_found_response(self):
         self.authenticate(self.panel)

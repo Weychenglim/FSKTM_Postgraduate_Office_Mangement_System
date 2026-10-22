@@ -9,6 +9,7 @@ from django.test import override_settings
 from rest_framework.test import APIClient, APITransactionTestCase
 
 from announcements.models import Notification
+from .research_intent_test_helpers import valid_research_intent_json
 from .models import SupervisorApplication, SupervisorApplicationDocument, SupervisorAppointment, AppointmentWorkflowEvent
 from .serializers import SupervisorApplicationCreateSerializer
 from . import test_supervisor_workflow as fixture
@@ -41,6 +42,7 @@ class SupervisorSubmissionConcurrencyTests(APITransactionTestCase):
                     'researchTitle': 'Concurrent synthetic proposal',
                     'researchArea': 'Artificial Intelligence',
                     'researchAbstract': 'Fictional proposal to exercise simultaneous request submission.',
+                    "researchIntent": valid_research_intent_json(),
                     'documents': [SimpleUploadedFile('proposal.pdf', b'%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF', content_type='application/pdf')],
                     'requirementCodes': ['research-proposal'],
                 }, format='multipart')

@@ -8,6 +8,7 @@ import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, ListTodo, X } from 'lucide-react';
 import { StatusBadge } from './PortalPrimitives';
+import { LinkedPeriodStatus } from './LinkedPeriodStatus';
 import { SemesterTimelineEntry, TimelineLevel } from '../types';
 
 export interface TimelineCalendarGroup {
@@ -69,7 +70,7 @@ const monthLabel = (key: string) => {
 
 const statusTone = (status: SemesterTimelineEntry['status']) => {
   if (status === 'Active') return 'info';
-  if (status === 'Completed') return 'neutral';
+  if (status === 'Ended') return 'neutral';
   if (status === 'Deadline') return 'danger';
   return 'warning';
 };
@@ -256,9 +257,9 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
                   {selectedEntry.title || selectedEntry.detail}
                 </h3>
                 <div className="mt-2">
-                  <StatusBadge tone={statusTone(selectedEntry.status)} dot>
+                  {selectedEntry.linkedPeriodStatus?<LinkedPeriodStatus status={selectedEntry.linkedPeriodStatus}/>:<StatusBadge tone={statusTone(selectedEntry.status)} dot>
                     {selectedEntry.status}
-                  </StatusBadge>
+                  </StatusBadge>}
                 </div>
               </div>
               <button

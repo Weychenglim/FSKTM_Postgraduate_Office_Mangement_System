@@ -9,7 +9,7 @@ export interface TimelineBarProps {
   label: string;
   gridStart: number; // 1-indexed column start (1 = Oct, 2 = Nov, 3 = Dec, etc, or fractional if using subset)
   gridSpan: number;  // How many submodules/fractions it spans
-  status: 'Completed' | 'Active' | 'Upcoming' | 'Deadline';
+  status: 'Ended' | 'Active' | 'Upcoming' | 'Deadline';
   className?: string;
   onClick?: () => void;
 }
@@ -23,10 +23,10 @@ export const TimelineBar: React.FC<TimelineBarProps> = ({
   onClick,
 }) => {
   // Map status colors corresponding to the timeline legend:
-  // Completed (grey/slate), Active (blue/indigo), Upcoming (light purple/grayish slate), Deadline (amber/red)
+  // Ended (grey/slate), Active (blue/indigo), Upcoming (light purple/grayish slate), Deadline (amber/red)
   const getStatusClasses = () => {
     switch (status) {
-      case 'Completed':
+      case 'Ended':
         return 'bg-slate-200 text-slate-700 hover:bg-slate-300 border-slate-300/40';
       case 'Active':
         return 'bg-[#0f2957] text-white hover:bg-slate-800 border-transparent';

@@ -49,23 +49,27 @@ def _profile_has_downstream_history(profile):
 
 
 def _resolve_research_profile(application):
+    from .supervisor_replacement import is_office_replacement, resolve_replacement_profile
     student_user = application.student.user
-    by_student = (
-        StudentResearchProfile.objects.select_for_update()
-        .filter(student=student_user)
-        .first()
-    )
-    by_matric = (
-        StudentResearchProfile.objects.select_for_update()
-        .filter(matric_no=application.student.matric_no)
-        .first()
-    )
-    if by_student and by_matric and by_student.pk != by_matric.pk:
-        raise SupervisorApprovalConflict(
-            "Conflicting research profiles exist for this student. Office Staff must resolve the records before approval."
+    office_replacement = is_office_replacement(application)
+    if office_replacement:
+        profile = resolve_replacement_profile(application.replaces_appointment, lock=True)
+    else:
+        by_student = (
+            StudentResearchProfile.objects.select_for_update()
+            .filter(student=student_user)
+            .first()
         )
-
-    profile = by_student or by_matric
+        by_matric = (
+            StudentResearchProfile.objects.select_for_update()
+            .filter(matric_no=application.student.matric_no)
+            .first()
+        )
+        if by_student and by_matric and by_student.pk != by_matric.pk:
+            raise SupervisorApprovalConflict(
+                "Conflicting research profiles exist for this student. Office Staff must resolve the records before approval."
+            )
+        profile = by_student or by_matric
     semester_label = (
         application.academic_semester.label
         if application.academic_semester_id
@@ -100,7 +104,7 @@ def _resolve_research_profile(application):
         raise SupervisorApprovalConflict(
             "The existing research profile has downstream records for another supervisor and cannot be changed automatically."
         )
-    if has_history:
+    if has_history or office_replacement:
         update_fields = []
         if profile.student_id is None:
             profile.student = student_user
@@ -168,6 +172,8 @@ def approve_supervisor_application(*, application_id, actor):
         raise SupervisorApprovalConflict(
             "This application is not awaiting Programme Coordinator review."
         )
+    from .supervisor_replacement import assert_current_predecessor
+    assert_current_predecessor(application)
     if not student_is_workflow_eligible(application.student):
         raise SupervisorApprovalConflict(
             "The student's lifecycle status does not permit final approval."

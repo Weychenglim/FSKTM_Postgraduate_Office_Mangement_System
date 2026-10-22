@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
@@ -16,9 +17,13 @@ from academics.capacity import (
     resolve_lecturer_capacity,
 )
 from academics.services import current_effective_semester
+from academics.operational_periods import assert_intake_allowed
 from accounts.models import Lecturer, Student
 
 from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
+from .section_a import SectionAField, capture_section_a
+from .research_intent import ResearchIntentField
+from .supervisor_replacement import is_office_replacement
 from .role_integrity import (
     AppointmentRoleConflict,
     assert_no_panel_role,
@@ -31,6 +36,7 @@ from .models import (
     AppointmentWorkflowEvent,
     StudentResearchProfile,
     SupervisorApplication,
+    SupervisorApplicationDraft,
     SupervisorApplicationDocument,
     SupervisorAppointment,
     SupervisorDocumentRequirement,
@@ -169,6 +175,7 @@ def appointment_lifecycle_serializer_payload(appointment):
 
 
 class StudentResearchProfileSerializer(serializers.ModelSerializer):
+    studentUserId = serializers.IntegerField(source="student_id", read_only=True, allow_null=True)
     studentId = serializers.CharField(source="matric_no")
     studentName = serializers.CharField(source="student_name")
     proposedTopic = serializers.CharField(source="proposed_topic")
@@ -187,6 +194,7 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentResearchProfile
         fields = [
+            "studentUserId",
             "studentId",
             "studentName",
             "programme",
@@ -323,6 +331,55 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
 
 
 class PanelRecommendationSerializer(serializers.ModelSerializer):
+    studentEmail = serializers.SerializerMethodField()
+    supervisorEmail = serializers.EmailField(source="supervisor.email", read_only=True)
+    panelMemberEmail = serializers.EmailField(source="recommended_member.email", read_only=True)
+    panelMemberDepartment = serializers.SerializerMethodField()
+    replacedPanelMember = serializers.SerializerMethodField()
+    replacedAppointmentStatus = serializers.SerializerMethodField()
+    canReview = serializers.SerializerMethodField()
+    appointmentDate = serializers.SerializerMethodField()
+    canEndAppointment = serializers.SerializerMethodField()
+
+    def get_studentEmail(self, obj):
+        return obj.profile.student.email if obj.profile.student_id else ""
+
+    def get_panelMemberDepartment(self, obj):
+        return department_for_user(obj.recommended_member)
+
+    def get_replacedPanelMember(self, obj):
+        return obj.replaces_appointment.panel_member.full_name if obj.replaces_appointment_id else None
+
+    def get_replacedAppointmentStatus(self, obj):
+        return obj.replaces_appointment.status if obj.replaces_appointment_id else None
+
+    def get_canReview(self, obj):
+        from .panel_access import coordinator_can_decide_panel
+        from accounts.models import User
+        request = self.context.get("request")
+        if not request or not request.user.is_active or not self.get_participantEligible(obj):
+            return False
+        if obj.academic_semester_id and obj.academic_semester.lifecycle_status == "ARCHIVED":
+            return False
+        if request.user.role == User.Role.COORDINATOR:
+            return obj.status == "PENDING_COORDINATOR" and coordinator_can_decide_panel(request.user, obj)
+        return request.user.role == User.Role.LECTURER and request.user.pk == obj.recommended_member_id and obj.status == "SUBMITTED_TO_PANEL"
+
+    def get_appointmentDate(self, obj):
+        try:
+            return obj.panel_appointment.appointment_date.isoformat()
+        except PanelAppointment.DoesNotExist:
+            return None
+
+    def get_canEndAppointment(self, obj):
+        from .panel_access import coordinator_can_decide_panel
+        request = self.context.get("request")
+        if not request:
+            return False
+        from accounts.models import User
+        return request.user.role == User.Role.OFFICE_ADMIN or (
+            request.user.role == User.Role.COORDINATOR and coordinator_can_decide_panel(request.user, obj))
+
     participantLifecycleStatus = serializers.SerializerMethodField()
     participantEligible = serializers.SerializerMethodField()
     studentId = serializers.CharField(source="profile.matric_no", read_only=True)
@@ -376,6 +433,8 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
     class Meta:
         model = PanelRecommendation
         fields = [
+            "studentEmail", "supervisorEmail", "panelMemberEmail", "panelMemberDepartment",
+            "replacedPanelMember", "replacedAppointmentStatus", "canReview", "appointmentDate", "canEndAppointment",
             "id",
             "studentId",
             "studentName",
@@ -627,6 +686,8 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
         academic_semester = current_effective_semester()
         if academic_semester is None:
             raise NoEffectiveSemester()
+        assert_intake_allowed(semester=academic_semester, activity="PANEL_RECOMMENDATION",
+            student=Student.objects.filter(pk=profile.student_id).first(), participant=user)
         enforce_capacity(
             user=recommended_member,
             semester=academic_semester,
@@ -639,8 +700,11 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
         attrs["replacement_reason"] = replacement_reason
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
         profile = validated_data["profile"]
+        assert_intake_allowed(semester=validated_data["academic_semester"], activity="PANEL_RECOMMENDATION",
+            student=Student.objects.filter(pk=profile.student_id).first(), participant=self.context["request"].user, lock=True)
         if profile.student_id:
             student = Student.objects.select_for_update().get(pk=profile.student_id)
             enforce_no_pending_transfer(student.pk)
@@ -828,6 +892,7 @@ class AppointmentWorkflowEventSerializer(serializers.ModelSerializer):
 
 
 class SupervisorApplicationSerializer(serializers.ModelSerializer):
+    initiatedByOffice = serializers.SerializerMethodField()
     participantLifecycleStatus = serializers.SerializerMethodField()
     participantEligible = serializers.SerializerMethodField()
     studentId = serializers.CharField(source="student.matric_no", read_only=True)
@@ -914,7 +979,11 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
             "replacementReason",
             "appointmentLifecycle",
             "unavailableUntil",
+            "initiatedByOffice",
         ]
+
+    def get_initiatedByOffice(self, obj):
+        return is_office_replacement(obj)
 
     def get_proposedSupervisorId(self, obj):
         return staff_no_for_user(obj.proposed_supervisor)
@@ -984,6 +1053,8 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
 
 
 class SupervisorApplicationCreateSerializer(serializers.Serializer):
+    sectionA = SectionAField(required=False)
+    researchIntent = ResearchIntentField(required=True)
     proposedSupervisorId = serializers.CharField()
     projectCourseCodes = serializers.CharField(
         max_length=255, required=False, allow_blank=True, trim_whitespace=True, default="",
@@ -1049,41 +1120,15 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
         ).first()
         replacement_id = attrs.get("replacesAppointmentId")
         replacement_reason = str(attrs.get("replacementReason") or "").strip()
-        if active_appointment:
-            if replacement_id != active_appointment.pk:
-                raise serializers.ValidationError(
-                    "Select the active supervisor appointment being replaced."
-                )
-            if not replacement_reason:
-                raise serializers.ValidationError(
-                    "A supervisor replacement reason is required."
-                )
-            if active_appointment.supervisor_id == supervisor.pk:
-                raise serializers.ValidationError(
-                    "The replacement supervisor must be different."
-                )
-        elif replacement_id:
-            try:
-                replaced = SupervisorAppointment.objects.get(
-                    pk=replacement_id,
-                    student=student,
-                )
-            except SupervisorAppointment.DoesNotExist as exc:
-                raise serializers.ValidationError(
-                    "The referenced supervisor appointment was not found."
-                ) from exc
-            if hasattr(replaced, "replacement_appointment"):
-                raise serializers.ValidationError(
-                    "The referenced supervisor appointment was already replaced."
-                )
-            if not replacement_reason:
-                raise serializers.ValidationError(
-                    "A supervisor replacement reason is required."
-                )
-            active_appointment = replaced
+        if active_appointment or replacement_id is not None or replacement_reason:
+            raise serializers.ValidationError(
+                "Only the Office can initiate a Supervisor change. Contact the Office for assistance."
+            )
         academic_semester = current_effective_semester()
         if academic_semester is None:
             raise NoEffectiveSemester()
+        assert_intake_allowed(semester=academic_semester, activity="SUPERVISOR_APPLICATION",
+            student=student, participant=request.user)
         enforce_capacity(
             user=supervisor,
             semester=academic_semester,
@@ -1096,12 +1141,22 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
         attrs["replacement_reason"] = replacement_reason
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
+        assert_intake_allowed(semester=validated_data["academic_semester"], activity="SUPERVISOR_APPLICATION",
+            student=validated_data["student"], participant=self.context["request"].user, lock=True)
         documents = validated_data.pop("validated_documents", [])
         self.saved_file_names = []
         student = Student.objects.select_for_update().get(
             pk=validated_data["student"].pk
         )
+        if (SupervisorAppointment.objects.filter(student=student, status="ACTIVE").exists()
+                or validated_data.get("replacesAppointmentId") is not None
+                or validated_data.get("replacementReason")
+                or validated_data.get("replaces_appointment") is not None):
+            raise serializers.ValidationError(
+                "Only the Office can initiate a Supervisor change. Contact the Office for assistance."
+            )
         # Another request may have passed validation before this Student lock.
         if student.supervisor_applications.filter(
             status__in=[
@@ -1145,6 +1200,11 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
             project_course_codes=validated_data["projectCourseCodes"],
             research_area=validated_data["researchArea"],
             research_abstract=validated_data["researchAbstract"],
+            research_intent=validated_data["researchIntent"],
+            section_a=capture_section_a(
+                validated_data.get("sectionA"), student=student,
+                semester=validated_data["academic_semester"], actor=self.context["request"].user,
+            ),
             replaces_appointment=validated_data.get("replaces_appointment"),
             replacement_reason=validated_data.get("replacement_reason", ""),
         )
@@ -1167,6 +1227,7 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
             )
             self.saved_file_names.append(record.file.name)
             record.save()
+        SupervisorApplicationDraft.objects.filter(student=student).delete()
         return application
 
 
@@ -1256,6 +1317,17 @@ class SupervisorCandidateSerializer(serializers.ModelSerializer):
 
 
 class PanelAssignmentSerializer(serializers.ModelSerializer):
+    recommendation = PanelRecommendationSerializer(read_only=True)
+    appointmentLifecycle = serializers.SerializerMethodField()
+    panelMemberName = serializers.CharField(source="panel_member.full_name", read_only=True)
+    panelMemberId = serializers.SerializerMethodField()
+
+    def get_appointmentLifecycle(self, obj):
+        return appointment_lifecycle_serializer_payload(obj)
+
+    def get_panelMemberId(self, obj):
+        return staff_no_for_user(obj.panel_member)
+
     studentId = serializers.CharField(source="profile.matric_no")
     studentName = serializers.CharField(source="profile.student_name")
     researchTitle = serializers.CharField(source="profile.proposed_topic")
@@ -1293,6 +1365,7 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = PanelAppointment
         fields = [
+            "recommendation", "appointmentLifecycle", "panelMemberName", "panelMemberId",
             "studentId",
             "studentName",
             "researchTitle",

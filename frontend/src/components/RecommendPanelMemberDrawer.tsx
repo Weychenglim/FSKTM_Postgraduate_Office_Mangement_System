@@ -1,4 +1,8 @@
 import { RecordPage } from './RecordPage';
+import { appointmentDetailTypography as typography } from './AppointmentPrimitives';
+import { RequestSection } from './RequestDetailPrimitives';
+import { ResearchAbstract } from './ResearchAbstract';
+import { OperationalIntakeFeedback, useOperationalIntake } from './OperationalIntakeFeedback';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -6,7 +10,6 @@ import { RecordPage } from './RecordPage';
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  X, 
   Search, 
   CheckCircle, 
   AlertTriangle, 
@@ -22,6 +25,7 @@ import {
 import { capacityStateLabel } from '../utils/lecturerCapacity';
 
 export interface StudentData {
+  studentUserId?: number;
   studentName: string;
   studentId: string;
   programme: string;
@@ -54,6 +58,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   replacementMember,
   onSubmit,
 }) => {
+  const intake = useOperationalIntake('PANEL_RECOMMENDATION', student.studentUserId, isOpen && student.studentUserId !== undefined);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedLecturer, setSelectedLecturer] = useState<PanelCandidate | null>(null);
@@ -131,7 +136,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitAttempted(true);
-    if (busy || !canSubmitRecommendation || !selectedLecturer) return;
+    if (busy || intake.blocked || !canSubmitRecommendation || !selectedLecturer) return;
     onSubmit(
       recommendationNotes.trim(),
       selectedLecturer.staffId,
@@ -140,123 +145,47 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   };
 
   if (!isOpen) return null;
-  return <RecordPage title={replacementMember ? 'Replace Panel Member' : 'Recommend Panel Member'} backLabel={backLabel} onBack={onClose} pageKey={`panel-nomination:${student.studentId}`} dirty={selectedLecturer !== null || !!recommendationNotes.trim() || !!replacementReason.trim()} busy={busy}><section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
-              {/* SECTION A: Student Summary Card at Top */}
-              <div 
-                id="recommend-student-card" 
-                className="bg-slate-50 border border-slate-100 rounded-xl p-5 relative flex flex-col space-y-4"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3.5">
-                    {/* Student Initials Box */}
-                    <div className="w-11 h-11 rounded-full bg-blue-50 border border-blue-100/60 text-blue-600 font-extrabold text-xs flex items-center justify-center shrink-0">
-                      {student.initials}
-                    </div>
-                    <div>
-                      <h4 id="summary-student-name" className="section-label leading-tight">
-                        {student.studentName}
-                      </h4>
-                      <p id="summary-student-id" className="font-mono text-[10px] text-slate-400 mt-1 font-bold">
-                        {student.studentId}
-                      </p>
-                    </div>
+  return <RecordPage title={replacementMember ? 'Replace Panel Member' : 'Recommend Panel Member'} backLabel={backLabel} onBack={onClose} pageKey={`panel-nomination:${student.studentId}`} dirty={selectedLecturer !== null || !!recommendationNotes.trim() || !!replacementReason.trim()} busy={busy}><form onSubmit={handleFormSubmit} className="min-w-0 space-y-6 rounded-2xl border border-slate-200 bg-white p-6">
+              <OperationalIntakeFeedback {...intake} activity="PANEL_RECOMMENDATION" onRetry={() => void intake.refresh()} />
+              <RequestSection title="Student and supervision" headingClassName={typography.heading}>
+                <div id="recommend-student-card" className="space-y-6">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0"><h3 id="summary-student-name" className={`${typography.name} [overflow-wrap:anywhere]`}>{student.studentName}</h3><p id="summary-student-id" className={`${typography.body} mt-1 [overflow-wrap:anywhere]`}>{student.studentId}</p></div>
+                    <span id="summary-status-badge" className="rounded-md border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">{replacementMember ? 'Panel replacement' : 'Recommendation needed'}</span>
                   </div>
-
-                  {/* Recommendation badge on top right */}
-                  <span 
-                    id="summary-status-badge" 
-                    className="inline-flex items-center px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100"
-                  >
-                    {replacementMember ? 'Panel replacement' : 'Recommendation needed'}
-                  </span>
+                  <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div className="min-w-0"><dt className={typography.label}>Programme</dt><dd id="summary-student-prog" className={`${typography.body} mt-1 [overflow-wrap:anywhere]`}>{student.programme || 'Not recorded'}</dd></div>
+                    <div className="min-w-0"><dt className={typography.label}>Intake semester</dt><dd id="summary-student-intake" className={`${typography.body} mt-1 [overflow-wrap:anywhere]`}>{student.intake || 'Not recorded'}</dd></div>
+                    <div className="min-w-0"><dt className={typography.label}>Supervisor</dt><dd className={`${typography.name} mt-1 [overflow-wrap:anywhere]`}>{student.supervisor || 'Not recorded'}</dd></div>
+                    {replacementMember ? <div className="min-w-0"><dt className={typography.label}>Current active Panel</dt><dd className={`${typography.name} mt-1 [overflow-wrap:anywhere]`}>{replacementMember}</dd></div> : null}
+                  </dl>
                 </div>
-
-                {/* Sub-Metadata Programme / Intake details */}
-                <div className="grid grid-cols-2 gap-4 pt-3.5 border-t border-slate-200/50">
-                  <div>
-                    <span className="card-label text-slate-400 uppercase tracking-widest block">
-                      PROGRAMME
-                    </span>
-                    <span id="summary-student-prog" className="text-xs font-bold text-slate-700 block mt-0.5 leading-snug">
-                      {student.programme}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="card-label text-slate-400 uppercase tracking-widest block">
-                      INTAKE
-                    </span>
-                    <span id="summary-student-intake" className="text-xs font-bold text-slate-700 block mt-0.5">
-                      {student.intake}
-                    </span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="card-label text-slate-400 uppercase tracking-widest block">
-                      SUPERVISOR
-                    </span>
-                    <span className="text-xs font-bold text-slate-700 block mt-0.5">
-                      {student.supervisor}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION B: Research Details section */}
-              <div id="recommend-research-details" className="space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="card-label text-slate-400 uppercase tracking-widest font-sans">
-                    RESEARCH DETAILS
-                  </span>
-                </div>
-
-                <div className="space-y-3.5">
-                  <div>
-                    <span className="card-label text-slate-400 uppercase tracking-wider block">
-                      TITLE
-                    </span>
-                    <h3 id="research-title-text" className="card-value text-brand-navy mt-1 leading-snug">
-                      "{student.proposedTopic}"
-                    </h3>
-                  </div>
-
-                  <div>
-                    <span className="card-label text-slate-400 uppercase tracking-wider block mb-1.5">
-                      AREA
-                    </span>
-                    <span 
-                      id="research-area-tag" 
-                      className="inline-flex items-center px-2.5 py-1 rounded bg-blue-50 text-blue-600 font-extrabold text-[10px] border border-blue-100/50"
-                    >
-                      {student.area}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="card-label text-slate-400 uppercase tracking-wider block">
-                      ABSTRACT
-                    </span>
-                    <p id="research-abstract-text" className="card-description mt-1">
-                      {student.abstract}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              </RequestSection>
+              <RequestSection title="Research information" headingClassName={typography.heading}>
+                <dl id="recommend-research-details" className="space-y-6">
+                  <div><dt className={typography.label}>Research title</dt><dd id="research-title-text" className={`${typography.name} mt-1 [overflow-wrap:anywhere]`}>{student.proposedTopic || 'Not recorded'}</dd></div>
+                  <div><dt className={typography.label}>Research area</dt><dd id="research-area-tag" className={`${typography.body} mt-1 [overflow-wrap:anywhere]`}>{student.area || 'Not recorded'}</dd></div>
+                  <div><dt className={typography.label}>Abstract</dt><dd id="research-abstract-text" className="mt-3"><ResearchAbstract value={student.abstract} /></dd></div>
+                </dl>
+              </RequestSection>
 
               {replacementMember && (
                 <div className="space-y-2">
-                  <label htmlFor="panel-replacement-reason" className="form-label text-slate-500 uppercase tracking-widest">
+                  <label htmlFor="panel-replacement-reason" className={typography.label}>
                     Replacement reason
                   </label>
-                  <p className="card-description">
+                  <p className={typography.body}>
                     The current appointment with {replacementMember} remains active until final coordinator approval.
                   </p>
                   <textarea
                     id="panel-replacement-reason"
+                    disabled={busy}
                     value={replacementReason}
                     onChange={(event) => setReplacementReason(event.target.value)}
                     rows={3}
                     required
                     placeholder="Explain why a different panel member is required"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                    className={`w-full rounded-lg border border-slate-200 px-3 py-2 disabled:opacity-60 ${typography.body}`}
                   />
                   {submitAttempted && !hasReplacementReason && (
                     <p className="card-description text-rose-600">A panel replacement reason is required.</p>
@@ -267,14 +196,14 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
               {/* SECTION C: Select Panel Member Section */}
               <div id="recommend-select-member" className="space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="card-label text-slate-400 uppercase tracking-widest font-sans">
-                    SELECT PANEL MEMBER
-                  </span>
+                  <h2 className={typography.heading}>
+                    Select Panel member
+                  </h2>
                 </div>
 
                 <div className="space-y-3" ref={dropdownRef}>
-                  <label className="form-label text-slate-400 uppercase tracking-wider block">
-                    RECOMMENDED PANEL MEMBER
+                  <label htmlFor="panel-candidate-search" className={`${typography.label} block`}>
+                    Recommended Panel member
                   </label>
                   
                   {/* Select input with magnifying glass and dropdown toggle arrow */}
@@ -283,6 +212,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                       <Search className="w-4 h-4 cursor-pointer" />
                     </div>
                     <input
+                      id="panel-candidate-search"
                       type="text"
                       role="combobox"
                       aria-label="Find a panel member"
@@ -291,7 +221,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                       aria-autocomplete="list"
                       disabled={busy}
                       placeholder={selectedLecturer ? 'Search to change panel member' : 'Search by name, staff ID or department'}
-                      className="w-full pl-10 pr-10 py-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:border-slate-350 focus:border-slate-800 focus:outline-none transition-all rounded-xl shadow-3xs cursor-pointer"
+                      className="w-full pl-10 pr-10 py-3 text-xs font-normal text-slate-800 bg-white border border-slate-200 hover:border-slate-350 focus:border-slate-800 focus:outline-none transition-all rounded-xl shadow-3xs cursor-pointer"
                       value={searchTerm}
                       onChange={(e) => {
                         setSearchTerm(e.target.value);
@@ -333,11 +263,11 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                                   selectedLecturer?.staffId === lec.staffId ? 'bg-indigo-50/45 text-blue-600' : ''
                                 }`}
                               >
-                                <div className="space-y-0.5">
+                                <div className="min-w-0 space-y-0.5 [overflow-wrap:anywhere]">
                                   <span className="block">{lec.name}{selectedLecturer?.staffId === lec.staffId ? <span className="ml-2 inline-flex items-center gap-1 text-blue-600"><CheckCircle className="h-3 w-3" />Selected</span> : null}</span>
                                   <span className="card-caption text-slate-400 block">{lec.department}</span>
                                 </div>
-                                <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
                                   isSelectable ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
                                 }`}>
                                   {lec.capacityState ? capacityStateLabel(lec.capacityState) : lec.availability}
@@ -356,10 +286,10 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                 {selectedLecturer && (
                   <div 
                     id="candidate-highlight-card"
-                    className="p-4 bg-gradient-to-r from-blue-50/30 to-blue-50/5 border border-blue-200/70 rounded-xl flex items-center justify-between gap-4"
+                    className="p-6 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-start justify-between gap-4"
                   >
-                    <div className="min-w-0 flex-1 space-y-2">
-                    <p className="card-label inline-flex items-center gap-1 text-blue-700"><CheckCircle className="h-4 w-4" />Selected panel member</p>
+                    <div className="min-w-0 flex-1 basis-48 space-y-2">
+                    <p className="card-label inline-flex items-center gap-1 text-blue-700"><CheckCircle className="h-4 w-4" />Proposed Panel member</p>
                     <div className="flex items-center gap-3 w-full">
                       {/* Avatar with beautiful sketch style or generic portrait */}
                       <div className="w-11 h-11 rounded-lg bg-[#e0f2fe]/80 border border-blue-200 flex items-center justify-center shrink-0 overflow-hidden">
@@ -367,28 +297,25 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                       </div>
 
                       <div className="space-y-0.5 text-left flex-1 min-w-0">
-                        <h4 id="candidate-name" className="section-label truncate">
+                        <h4 id="candidate-name" className={`${typography.name} [overflow-wrap:anywhere]`}>
                           {selectedLecturer.name}
                         </h4>
-                        <p id="candidate-dept" className="card-description text-slate-450 truncate">
+                        <p id="candidate-dept" className={`${typography.body} [overflow-wrap:anywhere]`}>
                           {selectedLecturer.department}
                         </p>
                         
                         {/* Selected Metadata Badges */}
                         <div id="candidate-tags" className="flex items-center gap-2 pt-1.5 flex-wrap">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-[9px] font-medium text-slate-600 border border-slate-200">
-                            Staff ID: {selectedLecturer.staffId}
-                          </span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-[9px] font-medium text-slate-600 border border-slate-200">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-xs font-normal text-slate-600 border border-slate-200">
                             Reserved workload: {selectedLecturer.workloadCount}/{selectedLecturer.workloadLimit}
                           </span>
                           {selectedLecturer.capacityPlanVersion !== null && selectedLecturer.capacityPlanVersion !== undefined && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-[9px] font-medium text-slate-600 border border-slate-200">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-xs font-normal text-slate-600 border border-slate-200">
                               Capacity plan v{selectedLecturer.capacityPlanVersion}
                             </span>
                           )}
                         </div>
-                        <p className="card-description text-slate-400 leading-relaxed pt-1">
+                        <p className={`${typography.body} pt-1 [overflow-wrap:anywhere]`}>
                           {selectedLecturer.workloadHelpText}
                         </p>
                       </div>
@@ -400,7 +327,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     {/* Available indicator */}
                     <span 
                       id="candidate-avail-badge"
-                      className={`text-[9px] font-black uppercase tracking-wider shrink-0 px-2.5 py-1 rounded-md ${
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-md ${
                         (selectedLecturer.selectable ?? selectedLecturer.canSubmit)
                           ? 'text-[#00a15c] bg-[#e6fbf2] border border-[#bef5db]' 
                           : 'text-rose-600 bg-rose-50 border border-rose-150'
@@ -433,10 +360,10 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     )}
                   </div>
                   <div className="space-y-1">
-                    <span className="card-label uppercase tracking-wider block">
+                    <span className={`${typography.label} block`}>
                       {canSubmitRecommendation ? 'Ready to submit' : !selectedLecturer ? 'Choose a panel member' : !hasRecommendationNotes ? 'Add recommendation notes to continue' : !hasReplacementReason ? 'Add a replacement reason to continue' : 'Panel member unavailable'}
                     </span>
-                    <p id="eligibility-text" className="card-description">
+                    <p id="eligibility-text" className={typography.body}>
                       {validationMessage}
                     </p>
                     {submitAttempted && !canSubmitRecommendation && (
@@ -450,27 +377,28 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
 
               {/* SECTION E: Recommendation notes section */}
               <div id="recommend-notes-section" className="space-y-3">
-                <label className="form-label text-slate-400 uppercase tracking-wider block">
-                  RECOMMENDATION NOTES
+                <label htmlFor="recommendation-notes-textarea" className={`${typography.label} block`}>
+                  Recommendation notes
                 </label>
                 <textarea
                   id="recommendation-notes-textarea"
+                  disabled={busy}
+                  required
                   value={recommendationNotes}
                   onChange={(e) => setRecommendationNotes(e.target.value)}
                   placeholder="Briefly explain why this lecturer is suitable as the panel member."
-                  className="w-full border border-slate-200 focus:border-slate-800 p-3.5 rounded-xl focus:outline-none transition-all resize-none shadow-3xs leading-relaxed text-xs font-bold"
-                  rows={4.5}
+                  className={`w-full border border-slate-200 focus:border-slate-800 p-3.5 rounded-xl focus:outline-none transition-all resize-none shadow-3xs disabled:opacity-60 ${typography.body}`}
+                  rows={5}
                 />
               </div>
 
               <button
                 id="submit-recommendation-btn"
                 type="submit"
-                onClick={handleFormSubmit}
-                disabled={busy || !canSubmitRecommendation}
+                disabled={busy || intake.blocked || !canSubmitRecommendation}
                 className="w-full py-3.5 bg-brand-navy hover:bg-slate-850 disabled:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all select-none cursor-pointer text-center"
               >
                 Submit to Panel
               </button>
-            </section></RecordPage>;
+            </form></RecordPage>;
 };

@@ -3,22 +3,26 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import * as form from './SupervisorAppointmentApplicationPage';
 import type { SupervisorCandidate } from '../types';
+import {ProjectCourseCodeEntries} from './SupervisorSectionAFormSections';
+import {parseProjectCourseCodes} from '../utils/projectCourseCodes';
 
 const html = renderToStaticMarkup(<form.SupervisorAppointmentApplicationPage onBack={() => {}} onSuccess={() => {}} />);
-assert.match(html, /aria-label="Application sections"/);
-assert.match(html, /<label[^>]*for="project-course-codes-input"[^>]*>Course code\(s\) \(optional\)<\/label>/);
+assert.doesNotMatch(html, /aria-label="Application sections"|Jump to section|One pending request at a time|You can cancel while awaiting Supervisor review|Your appointment starts after final approval/);
+assert.match(html, /Project course codes/);
 assert.match(html, /<input[^>]*id="project-course-codes-input"[^>]*maxLength="255"/);
-const replacement = renderToStaticMarkup(<form.SupervisorAppointmentApplicationPage
-  onBack={() => {}} onSuccess={() => {}}
-  replacementApplication={{ projectCourseCodes: 'ABC1234, XYZ9000' } as import('../types').SupervisorApplicationRecord}
-/>);
-assert.match(replacement, /id="project-course-codes-input"[^>]*value="ABC1234, XYZ9000"/);
+const replacement = renderToStaticMarkup(<ProjectCourseCodeEntries entries={parseProjectCourseCodes('ABC1234, XYZ9000')} onChange={()=>{}} />);
+assert.match(replacement, /id="project-course-codes-input"[^>]*value="ABC1234"/);
+assert.match(replacement, /value="XYZ9000"/);
+assert.doesNotMatch(html,/Replacement reason|Change Supervisor|replacement-reason-input/);
+assert.doesNotMatch(html, /Separate multiple codes with commas|150 words|max 500 words|Submit SV Request/);
 for (const id of ['project-details','supervisor-selection','supporting-documents']) {
   assert.ok(html.includes(`href="#${id}"`) && html.includes(`id="${id}"`), `Section link and destination: ${id}`);
 }
-assert.match(html, /aria-label="Appointment guidance"/);
-assert.match(html, /One pending request at a time/);
-assert.match(html, /Programme Coordinator/);
+for (const label of ['Your details', 'Research intent', 'Supervisor and documents', 'Review and submit']) assert.ok(html.includes(label));
+assert.match(html, /aria-label="Application progress"/);
+assert.match(html, /aria-current="step"/);
+assert.match(html, /<form[^>]*noValidate/);
+assert.match(html, /Save draft/);
 assert.doesNotMatch(html, /No formal turnaround target|Need Assistance\?|Submission prerequisites/);
 assert.ok('SupervisorCandidateOption' in form, 'Candidate selection is a renderable control');
 assert.ok('SupervisorSelectionSummary' in form, 'Selected Supervisor has a visible summary');

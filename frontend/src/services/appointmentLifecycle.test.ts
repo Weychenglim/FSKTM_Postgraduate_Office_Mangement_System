@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { PanelSuperviseeDetails } from '../components/PanelSuperviseeRoster';
 
 import { buildSupervisorApplicationFormData } from '../utils/supervisorDocuments';
 
@@ -34,22 +37,25 @@ const studentSource = readFileSync(
   new URL('../components/StudentSupervisorAppointment.tsx', import.meta.url),
   'utf8',
 );
-assert.match(studentSource, /Change Supervisor/);
-assert.match(studentSource, /replacementApplication/);
+assert.doesNotMatch(studentSource, /Change Supervisor|replacementApplication/);
 
 const supervisorFormSource = readFileSync(
   new URL('../components/SupervisorAppointmentApplicationPage.tsx', import.meta.url),
   'utf8',
 );
-assert.match(supervisorFormSource, /replacementReason/);
-assert.match(supervisorFormSource, /Replacement reason/);
+assert.doesNotMatch(supervisorFormSource, /replacementReason|Replacement reason/);
 
 const panelSource = readFileSync(
   new URL('../components/LecturerPanelAppointments.tsx', import.meta.url),
   'utf8',
 );
 assert.match(panelSource, /replacementAssignment/);
-assert.match(panelSource, /Replace Panel Member/);
+const replacementPanel = renderToStaticMarkup(React.createElement(PanelSuperviseeDetails, {
+  student: { studentId:'PG1', studentName:'Student', programme:'Computing', semester:'Semester I', proposedTopic:'Research', researchArea:'Area', abstract:'Abstract', supervisorName:'Supervisor', supervisorId:'L1', supervisorAppointmentId:1, panelAppointmentId:2, currentPanelMember:'Current Panel', currentPanelMemberId:'L2', canRecommend:true },
+  onRecommend:()=>{}, onOpenRequest:()=>{},
+}));
+assert.match(replacementPanel, /Request replacement/);
+assert.match(replacementPanel, /Current Panel/);
 
 const officeSupervisorSource = readFileSync(
   new URL('../components/SupervisorAppointmentManagement.tsx', import.meta.url),
@@ -57,6 +63,8 @@ const officeSupervisorSource = readFileSync(
 );
 assert.match(officeSupervisorSource, /AppointmentEndControl/);
 assert.match(officeSupervisorSource, /endSupervisorAppointment/);
+assert.match(officeSupervisorSource, /OfficeSupervisorReplacementForm/);
+assert.match(officeSupervisorSource, /onChangePrimarySupervisor/);
 
 const officePanelSource = readFileSync(
   new URL('../components/PanelAppointmentDetail.tsx', import.meta.url),

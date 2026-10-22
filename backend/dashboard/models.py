@@ -49,7 +49,7 @@ class SemesterTimelineEntry(models.Model):
         P2 = "P2", "Research Project (P2)"
 
     class Status(models.TextChoices):
-        COMPLETED = "Completed", "Completed"
+        ENDED = "Ended", "Ended"
         ACTIVE = "Active", "Active"
         DEADLINE = "Deadline", "Deadline"
         UPCOMING = "Upcoming", "Upcoming"
@@ -60,6 +60,14 @@ class SemesterTimelineEntry(models.Model):
         SemesterTimeline,
         on_delete=models.CASCADE,
         related_name="entries",
+    )
+    operational_period = models.ForeignKey(
+        "academics.OperationalPeriod", on_delete=models.PROTECT,
+        related_name="timeline_entries", null=True, blank=True,
+    )
+    marks_period = models.ForeignKey(
+        "marks.EvaluationPeriod", on_delete=models.PROTECT,
+        related_name="timeline_entries", null=True, blank=True,
     )
     level = models.CharField(max_length=2, choices=Level.choices, db_index=True)
     step = models.PositiveIntegerField()
@@ -81,8 +89,34 @@ class SemesterTimelineEntry(models.Model):
             models.UniqueConstraint(
                 fields=["timeline", "level", "step"],
                 name="unique_step_per_timeline_level",
+            ),
+            models.CheckConstraint(
+                condition=Q(operational_period__isnull=True) | Q(marks_period__isnull=True),
+                name="timeline_entry_one_period_link",
             )
         ]
+
+    def clean(self):
+        super().clean()
+        if self.operational_period_id and self.marks_period_id:
+            raise ValidationError("A timeline entry can link to only one period.")
+        for period in (self.operational_period, self.marks_period):
+            if period and period.academic_semester_id != self.timeline.academic_semester_id:
+                raise ValidationError("The period must belong to the timeline semester.")
+
+    @property
+    def linked_period(self):
+        return self.operational_period or self.marks_period
+
+    @property
+    def projected_dates(self):
+        from zoneinfo import ZoneInfo
+        period = self.linked_period
+        if period and period.opens_at and period.closes_at:
+            malaysia = ZoneInfo("Asia/Kuala_Lumpur")
+            return (period.opens_at.astimezone(malaysia).date(),
+                    period.closes_at.astimezone(malaysia).date())
+        return self.deadline_start, self.deadline_end
 
     def __str__(self):
         return f"{self.timeline}: {self.level} step {self.step}"
@@ -95,6 +129,7 @@ class TimelineAuditLog(models.Model):
         ADD_ENTRY = "ADD_ENTRY", "Add Entry"
         EDIT_ENTRY = "EDIT_ENTRY", "Edit Entry"
         DELETE_ENTRY = "DELETE_ENTRY", "Delete Entry"
+        EXTEND = "EXTEND", "Extend event"
 
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -115,6 +150,9 @@ class TimelineAuditLog(models.Model):
     )
     action = models.CharField(max_length=32, choices=Action.choices)
     summary = models.CharField(max_length=500)
+    reason = models.TextField(blank=True)
+    before_values = models.JSONField(default=dict)
+    after_values = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

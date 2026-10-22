@@ -1,4 +1,6 @@
 from .request_visibility import routine_supervisor_requests
+from .section_a import validate_section_a_proposal
+from .supervisor_replacement import is_office_replacement, assert_current_predecessor
 from .capacity_reassessment import lock_request, assert_not_archived, ReassessmentConflict
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
@@ -120,6 +122,7 @@ def panel_record_from_appointment(appointment):
     recommendation = appointment.recommendation
     return {
         "recordId": f"appointment-{appointment.pk}",
+        "recommendation": PanelRecommendationSerializer(recommendation).data,
         "recommendationId": recommendation.pk,
         "id": appointment.profile.matric_no,
         "studentName": appointment.profile.student_name,
@@ -182,6 +185,7 @@ def panel_record_from_recommendation(recommendation):
 
     return {
         "recordId": f"recommendation-{recommendation.pk}",
+        "recommendation": PanelRecommendationSerializer(recommendation).data,
         "recommendationId": recommendation.pk,
         "id": recommendation.profile.matric_no,
         "studentName": recommendation.profile.student_name,
@@ -826,7 +830,7 @@ def recommendations_view(request):
         ).select_related(
             "profile", "recommended_member", "recommended_member__lecturer"
         )
-        return Response(PanelRecommendationSerializer(recommendations, many=True).data)
+        return Response(PanelRecommendationSerializer(recommendations, many=True, context={"request": request}).data)
 
     serializer = PanelRecommendationCreateSerializer(
         data=request.data, context={"request": request}
@@ -874,7 +878,7 @@ def panel_recommendation_detail_view(request, pk):
             "You do not have permission to view this recommendation.",
             status.HTTP_403_FORBIDDEN,
         )
-    return Response(PanelRecommendationSerializer(recommendation).data)
+    return Response(PanelRecommendationSerializer(recommendation, context={"request": request}).data)
 
 
 @api_view(["GET"])
@@ -889,7 +893,7 @@ def review_queue_view(request):
         recommended_member=request.user,
         status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
     ).select_related("profile", "recommended_member", "recommended_member__lecturer")
-    return Response(PanelRecommendationSerializer(recommendations, many=True).data)
+    return Response(PanelRecommendationSerializer(recommendations, many=True, context={"request": request}).data)
 
 
 @api_view(["GET"])
@@ -906,7 +910,7 @@ def coordinator_queue_view(request):
     ).select_related(
         "profile", "supervisor", "recommended_member", "recommended_member__lecturer"
     )
-    return Response(PanelRecommendationSerializer(recommendations, many=True).data)
+    return Response(PanelRecommendationSerializer(recommendations, many=True, context={"request": request}).data)
 
 
 @api_view(["GET"])
@@ -956,8 +960,8 @@ def coordinator_workspace_view(request):
             "programme": programme,
             "programmes": programmes,
             "pendingCount": len(queue),
-            "queue": PanelRecommendationSerializer(queue, many=True).data,
-            "records": PanelRecommendationSerializer(recommendations, many=True).data,
+            "queue": PanelRecommendationSerializer(queue, many=True, context={"request": request}).data,
+            "records": PanelRecommendationSerializer(recommendations, many=True, context={"request": request}).data,
         }
     )
 
@@ -989,7 +993,7 @@ def review_history_view(request):
         )
         .order_by("-updated_at")
     )
-    return Response(PanelRecommendationSerializer(recommendations, many=True).data)
+    return Response(PanelRecommendationSerializer(recommendations, many=True, context={"request": request}).data)
 
 
 @api_view(["POST"])
@@ -1063,7 +1067,7 @@ def cancel_panel_recommendation_view(request, pk):
             record_id=recommendation.pk,
             priority=Notification.Priority.MEDIUM,
         )
-    return Response(PanelRecommendationSerializer(recommendation).data)
+    return Response(PanelRecommendationSerializer(recommendation, context={"request": request}).data)
 
 
 @api_view(["POST"])
@@ -1123,7 +1127,7 @@ def panel_accept_view(request, pk):
             record_id=recommendation.pk,
             priority=Notification.Priority.MEDIUM,
         )
-    return Response(PanelRecommendationSerializer(recommendation).data)
+    return Response(PanelRecommendationSerializer(recommendation, context={"request": request}).data)
 
 
 @api_view(["POST"])
@@ -1193,7 +1197,7 @@ def panel_reject_view(request, pk):
             record_id=recommendation.pk,
             priority=Notification.Priority.MEDIUM,
         )
-    return Response(PanelRecommendationSerializer(recommendation).data)
+    return Response(PanelRecommendationSerializer(recommendation, context={"request": request}).data)
 
 
 @api_view(["POST"])
@@ -1326,7 +1330,7 @@ def coordinator_approve_view(request, pk):
             record_type="PANEL_RECOMMENDATION",
             record_id=recommendation.pk,
         )
-    return Response(PanelRecommendationSerializer(recommendation).data)
+    return Response(PanelRecommendationSerializer(recommendation, context={"request": request}).data)
 
 
 @api_view(["POST"])
@@ -1407,7 +1411,7 @@ def coordinator_reject_view(request, pk):
             record_id=recommendation.pk,
             priority=Notification.Priority.MEDIUM,
         )
-    return Response(PanelRecommendationSerializer(recommendation).data)
+    return Response(PanelRecommendationSerializer(recommendation, context={"request": request}).data)
 
 
 @api_view(["GET"])
@@ -1419,7 +1423,7 @@ def assignments_view(request):
         )
     appointments = PanelAppointment.objects.filter(
         panel_member=request.user
-    ).select_related("profile", "supervisor")
+    ).select_related("profile", "profile__student", "supervisor", "panel_member", "recommendation", "recommendation__replaces_appointment__panel_member").prefetch_related("recommendation__workflow_events__actor", "lifecycle_events__actor")
     return Response(PanelAssignmentSerializer(appointments, many=True).data)
 
 
@@ -1677,7 +1681,10 @@ def supervisor_applications_view(request):
             files,
             requirement_codes,
         )
+        validate_section_a_proposal(serializer.validated_data.get("sectionA"), validated_documents)
     except DocumentRequirementsNotConfigured as exc:
+        # Keep the conditional proposal configuration failure actionable for Section A.
+        validate_section_a_proposal(serializer.validated_data.get("sectionA"), [])
         return error_response(str(exc), status.HTTP_409_CONFLICT)
     except DjangoValidationError as exc:
         return _django_validation_error_response(exc)
@@ -1765,6 +1772,11 @@ def cancel_supervisor_application_view(request, pk):
         if request.user.pk != application.student.user_id:
             return error_response(
                 "Only the student who submitted this request can cancel it.",
+                status.HTTP_403_FORBIDDEN,
+            )
+        if is_office_replacement(application):
+            return error_response(
+                "Only the Office can manage cancellation of an Office-initiated Supervisor change.",
                 status.HTTP_403_FORBIDDEN,
             )
         if application.status != SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR:
@@ -1874,6 +1886,7 @@ def supervisor_accept_view(request, pk):
             return error_response("The approval stage changed; refresh before retrying.", status.HTTP_409_CONFLICT)
         if not student_is_workflow_eligible(application.student):
             return participant_ineligible_response()
+        assert_current_predecessor(application)
         previous_status = application.status
         application.status = SupervisorApplication.Status.PENDING_COORDINATOR
         application.supervisor_decided_at = timezone.now()
@@ -2370,8 +2383,53 @@ def supervisor_records_view(request):
                 ),
                 "replacesAppointmentId": application.replaces_appointment_id,
                 "replacementReason": application.replacement_reason or None,
+                "initiatedByOffice": is_office_replacement(application),
                 **supervisor_waiting_metadata(application),
             }
             for application in applications
         ]
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def panel_appointment_detail_view(request, pk):
+    appointment = PanelAppointment.objects.select_related("profile", "profile__student", "supervisor", "panel_member", "recommendation").filter(pk=pk).first()
+    if appointment is None:
+        return error_response("Panel appointment was not found.", status.HTTP_404_NOT_FOUND)
+    if request.user.role == User.Role.STUDENT or not can_view_panel_recommendation(request.user, appointment.recommendation):
+        return error_response("You do not have permission to view this appointment.", status.HTTP_403_FORBIDDEN)
+    return Response(PanelAssignmentSerializer(appointment).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def panel_record_detail_view(request, record_id):
+    if request.user.role != User.Role.OFFICE_ADMIN:
+        return error_response("Only Office Staff/Admin can view faculty Panel records.", status.HTTP_403_FORBIDDEN)
+    kind, separator, identity = record_id.partition("-")
+    if not separator or not identity.isdecimal():
+        return error_response("Panel record was not found.", status.HTTP_404_NOT_FOUND)
+    if kind == "appointment":
+        row = PanelAppointment.objects.select_related("profile", "supervisor", "panel_member", "recommendation").filter(pk=identity).first()
+        payload = panel_record_from_appointment(row) if row else None
+    elif kind == "recommendation":
+        row = get_recommendation_or_404(identity)
+        if row:
+            try:
+                payload = panel_record_from_appointment(row.panel_appointment)
+            except PanelAppointment.DoesNotExist:
+                payload = panel_record_from_recommendation(row)
+        else:
+            payload = None
+    elif kind == "profile":
+        row = StudentResearchProfile.objects.select_related("supervisor").filter(pk=identity).first()
+        if row:
+            current = row.panel_appointments.filter(status=PanelAppointment.Status.ACTIVE).first()
+            pending = row.panel_recommendations.filter(status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES).order_by("-submitted_at", "-pk").first()
+            payload = panel_record_from_appointment(current) if current else panel_record_from_recommendation(pending) if pending else panel_record_from_profile(row)
+        else:
+            payload = None
+    else:
+        payload = None
+    return Response(payload) if payload else error_response("Panel record was not found.", status.HTTP_404_NOT_FOUND)

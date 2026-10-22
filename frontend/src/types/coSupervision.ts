@@ -56,6 +56,8 @@ export interface SupervisoryTeam {
   studentStatus: string;
   primarySupervisor: TeamPerson | null;
   primaryAppointmentId: number | null;
+  canChangePrimarySupervisor?: boolean;
+  pendingPrimaryReplacement?: {applicationId:number;status:string;supervisorName:string} | null;
   research: { title: string; area: string; abstract: string };
   appointments: CoSupervisorAppointment[];
   nominations: CoSupervisorNomination[];

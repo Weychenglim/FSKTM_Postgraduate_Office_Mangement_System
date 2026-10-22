@@ -3,10 +3,11 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
 from django.db import close_old_connections, connection, connections, transaction
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, APIException
 from rest_framework.test import APITestCase, APITransactionTestCase
 
 from . import test_appointment_lifecycle as fixture
+from .research_intent_test_helpers import valid_research_intent_json
 from .models import (
     AppointmentLifecycleEvent,
     AppointmentWorkflowEvent,
@@ -35,8 +36,7 @@ class AppointmentRoleIntegrityTests(APITestCase):
             "researchTitle": self.profile.proposed_topic,
             "researchArea": self.profile.research_area,
             "researchAbstract": self.profile.abstract,
-            "replacesAppointmentId": self.supervisor_appointment.pk,
-            "replacementReason": "Research alignment.",
+            "researchIntent": valid_research_intent_json(),
         }
 
     def panel_role(self, status="SUBMITTED_TO_PANEL", *, linked=True):
@@ -75,13 +75,13 @@ class AppointmentRoleIntegrityTests(APITestCase):
 
     def assert_supervisor_submission_conflicts(self, panel_status, *, linked=True):
         self.panel_role(panel_status, linked=linked)
-        self.client.force_authenticate(self.student_user)
+        self.client.force_authenticate(self.office)
         response = self.client.post(
-            "/api/appointments/supervisor/applications/",
-            self.supervisor_payload(),
+            f"/api/appointments/supervisor/appointments/{self.supervisor_appointment.pk}/replacement/",
+            {"proposedSupervisorId": self.new_supervisor.lecturer.staff_no, "reason": "Research alignment."},
             format="json",
         )
-        self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(response.status_code, 409, response.data)
         self.assertIn("Panel", str(response.data))
         self.assertEqual(SupervisorApplication.objects.count(), 1)
         self.supervisor_appointment.refresh_from_db()
@@ -97,6 +97,8 @@ class AppointmentRoleIntegrityTests(APITestCase):
         self.assert_supervisor_submission_conflicts("APPROVED", linked=False)
 
     def test_primary_save_rechecks_panel_role_after_validation(self):
+        self.supervisor_appointment.status = "ENDED"
+        self.supervisor_appointment.save(update_fields=["status"])
         serializer = SupervisorApplicationCreateSerializer(
             data=self.supervisor_payload(),
             context={"request": SimpleNamespace(user=self.student_user)},
@@ -238,16 +240,12 @@ class AppointmentRoleConcurrencyTests(APITransactionTestCase):
     supervisor_payload = AppointmentRoleIntegrityTests.supervisor_payload
 
     def test_competing_primary_and_panel_submissions_cannot_reserve_both_roles(self):
-        primary = SupervisorApplicationCreateSerializer(
-            data=self.supervisor_payload(),
-            context={"request": SimpleNamespace(user=self.student_user)},
-        )
+        from .supervisor_replacement import initiate_replacement
         panel = PanelRecommendationCreateSerializer(
             data={"studentId": self.student.matric_no,
                   "recommendedMemberId": self.new_supervisor.lecturer.staff_no},
             context={"request": SimpleNamespace(user=self.supervisor)},
         )
-        self.assertTrue(primary.is_valid(), primary.errors)
         self.assertTrue(panel.is_valid(), panel.errors)
         barrier = Barrier(2)
 
@@ -260,15 +258,19 @@ class AppointmentRoleConcurrencyTests(APITransactionTestCase):
                 barrier.wait(timeout=10)
                 try:
                     with transaction.atomic():
-                        serializer.save()
+                        if serializer is None:
+                            initiate_replacement(appointment_id=self.supervisor_appointment.pk, actor=self.office,
+                                proposed_supervisor_id=self.new_supervisor.lecturer.staff_no, reason="Research alignment.")
+                        else:
+                            serializer.save()
                     return "created"
-                except ValidationError:
+                except APIException:
                     return "conflict"
             finally:
                 connections.close_all()
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            futures = [pool.submit(save, serializer) for serializer in (primary, panel)]
+            futures = [pool.submit(save, serializer) for serializer in (None, panel)]
             results = [future.result(timeout=30) for future in futures]
         self.assertCountEqual(results, ["created", "conflict"])
         primary_count = SupervisorApplication.objects.filter(

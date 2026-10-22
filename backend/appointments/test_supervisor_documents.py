@@ -19,6 +19,7 @@ from academics.models import AcademicSemester
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
 
+from .research_intent_test_helpers import valid_research_intent_json
 from .models import (
     SupervisorApplication,
     SupervisorApplicationDocument,
@@ -165,6 +166,7 @@ class SupervisorDocumentTests(APITestCase):
             "researchTitle": "Secure postgraduate document workflows",
             "researchArea": "Secure Software Engineering",
             "researchAbstract": "A persisted and permission-checked document workflow.",
+            "researchIntent": valid_research_intent_json(),
         }
         if file is not None:
             data["documents"] = [file]
@@ -365,6 +367,7 @@ class SupervisorDocumentTests(APITestCase):
                 "researchTitle": "Duplicate content",
                 "researchArea": "Secure Software Engineering",
                 "researchAbstract": "Duplicate content must be rejected.",
+                "researchIntent": valid_research_intent_json(),
                 "documents": [duplicate_one, duplicate_two],
                 "requirementCodes": ["research-proposal", "supporting-evidence"],
             },

@@ -8,12 +8,15 @@ export const APP_ROUTES = {
   activateAccount: '/activate-account',
   dashboard: '/dashboard',
   dashboardTimeline: '/dashboard/timeline',
+  dashboardPeriods: '/dashboard/periods',
   dashboardSemesters: '/dashboard/semesters',
   dashboardReports: '/dashboard/reports',
+  dashboardAttention: '/dashboard/attention',
   dashboardProgress: '/dashboard/progress',
   dashboardParticipantLifecycle: '/dashboard/participant-lifecycle',
   dashboardWorkflowReconciliation: '/dashboard/workflow-reconciliation',
   dashboardLecturerCapacity: '/dashboard/lecturer-capacity',
+  dashboardMyAvailability: '/dashboard/my-availability',
   registry: '/registry',
   registryStaff: '/registry/staff',
   registryStaffNew: '/registry/staff/new',
@@ -196,12 +199,15 @@ export const isKnownAppPath = (pathname: string): boolean => {
     return (
       pathname === APP_ROUTES.dashboard
       || pathname === APP_ROUTES.dashboardTimeline
+      || pathname === APP_ROUTES.dashboardPeriods
       || pathname === APP_ROUTES.dashboardSemesters
       || pathname === APP_ROUTES.dashboardReports
+      || pathname === APP_ROUTES.dashboardAttention
       || pathname === APP_ROUTES.dashboardProgress
       || pathname === APP_ROUTES.dashboardParticipantLifecycle
       || pathname === APP_ROUTES.dashboardWorkflowReconciliation
       || pathname === APP_ROUTES.dashboardLecturerCapacity
+      || pathname === APP_ROUTES.dashboardMyAvailability
       || /^\/dashboard\/progress\/[^/]+$/.test(pathname)
     );
   }

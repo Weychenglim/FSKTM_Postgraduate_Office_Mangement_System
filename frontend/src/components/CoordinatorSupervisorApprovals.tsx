@@ -286,9 +286,8 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
             const pending = records.some(item => String(item.id) === String(record.id));
             const isRejecting = String(rejectingRecordId) === String(record.id);
 
-            return <SupervisorRequestDetail key={record.id} request={toSupervisorRequestPresentation(record)} actions={<div className="space-y-4">
+            return <SupervisorRequestDetail key={record.id} request={toSupervisorRequestPresentation(record)} contextAction={<ViewStudentRecordAction studentId={record.studentId} onOpen={onNavigateToDossier} disabled={busy}/>} actions={<div className="space-y-4">
                 <div className="flex gap-2 shrink-0">
-                  <ViewStudentRecordAction studentId={record.studentId} onOpen={onNavigateToDossier} disabled={busy}/>
                   {pending && <>
                   <PortalButton
                     variant="secondary"

@@ -220,3 +220,33 @@ class LecturerCapacityAuditAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+from .models import OperationalPeriod, OperationalEnforcement, OperationalException, OperationalPeriodAudit
+
+
+@admin.register(OperationalPeriod)
+class OperationalPeriodAdmin(ReadOnlyAcademicConfigurationAdmin):
+    list_display = ('id', 'name', 'academic_semester', 'activity', 'lifecycle_status', 'revision')
+    list_filter = ('activity', 'lifecycle_status', 'academic_semester')
+    search_fields = ('name', 'academic_semester__code')
+
+
+@admin.register(OperationalEnforcement)
+class OperationalEnforcementAdmin(ReadOnlyAcademicConfigurationAdmin):
+    list_display = ('academic_semester', 'activity', 'enabled', 'updated_by', 'updated_at')
+    list_filter = ('activity', 'enabled', 'academic_semester')
+
+
+@admin.register(OperationalException)
+class OperationalExceptionAdmin(ReadOnlyAcademicConfigurationAdmin):
+    list_display = ('id', 'period', 'student', 'participant', 'deadline', 'revoked_at')
+    search_fields = ('student__full_name', 'participant__full_name', 'period__name')
+    list_filter = ('period__academic_semester',)
+
+
+@admin.register(OperationalPeriodAudit)
+class OperationalPeriodAuditAdmin(ReadOnlyAcademicConfigurationAdmin):
+    list_display = ('id', 'academic_semester', 'period', 'action', 'actor', 'created_at')
+    list_filter = ('action', 'activity', 'academic_semester')
+    search_fields = ('actor__email', 'reason', 'period__name')
