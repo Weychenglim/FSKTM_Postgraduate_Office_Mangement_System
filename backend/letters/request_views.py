@@ -51,11 +51,13 @@ from .appointment_letters import (
 )
 from .details import letter_details
 from .eligibility import inactive_student_refusal
-from .issuing import issue_letter
+from .confirmation import add_months, english_date, malay_values, request_values
+from .issuing import issue_letter, letter_wording
 from .models import AUTOMATIC_PURPOSES, GeneratedLetter, LetterPurpose, LetterTemplate
 from .notices import send_notice
 from .pdf_export import build_letter_pdf
-from .placeholders import letter_fields, placeholder_problems, value_problem
+from .placeholders import VALUE_KEYS, letter_fields, placeholder_problems, used_names, value_problem
+from .recipients import clean_request_details, recipient_options, same_recipient
 
 PDF_TYPE = "application/pdf"
 # Students' notifications point at their letter; office ones at the request.
@@ -140,7 +142,9 @@ def _notify(recipient, letter, *, event_key, title, summary, message, record_typ
 
 def _notify_office(letter):
     matric = (letter.student_data or {}).get("matricNumber", "")
-    message = f"{_student_name(letter)} ({matric}) asked for a {letter.template_name}."
+    organisation = (letter.request_details or {}).get("organisation")
+    message = f"{_student_name(letter)} ({matric}) asked for a {letter.template_name}"
+    message += f" for {organisation}." if organisation else "."
     if letter.student_note:
         message += f" Their note: {letter.student_note}"
     for user in User.objects.filter(role=User.Role.OFFICE_ADMIN, is_active=True):
@@ -293,9 +297,14 @@ def _create_request(request):
     ).first()
     if template is None:
         raise NotFound("This letter is no longer available.")
-    unknown, malformed = placeholder_problems(template.content, template.custom_fields)
+    unknown, malformed = placeholder_problems(f"{template.content}\n{template.content_ms}", template.custom_fields)
     if unknown or malformed or not template.content.strip():
         return _conflict("This letter cannot be requested right now. Please contact the postgraduate office.")
+    details = {}
+    if template.asks_recipient:
+        details, errors = clean_request_details(request.data.get("details"))
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
     pending = Response(
         {
@@ -316,6 +325,7 @@ def _create_request(request):
                 letter_type=template.letter_type,
                 student_data=letter_details(student),
                 student_note=note,
+                request_details=details,
                 status=Status.PENDING,
                 requested_by=request.user,
             )
@@ -328,25 +338,29 @@ def _create_request(request):
 
 def _earlier_copies(letter):
     """The student's issued copies of the same letter, which a newly approved
-    request replaces (a student pass letter, say, is only valid for months)."""
+    request replaces (a student pass letter, say, is only valid for months).
+    A letter addressed to someone replaces only the copy for that recipient."""
     if letter.is_automatic or letter.student_id is None or letter.template_id is None:
-        return GeneratedLetter.objects.none()
-    return GeneratedLetter.objects.filter(
+        return []
+    copies = GeneratedLetter.objects.filter(
         student_id=letter.student_id,
         template_id=letter.template_id,
         purpose=LetterPurpose.REQUEST,
         status=Status.ISSUED,
     ).exclude(pk=letter.pk)
+    if letter.request_details:
+        return [old for old in copies if same_recipient(old.request_details, letter.request_details)]
+    return list(copies)
 
 
 def _review(letter):
     """What the office needs to decide a pending request: the template's current
     wording and every value it needs, from the student's record or typed in."""
     template = letter.template
-    content = template.content if template else ""
+    content, content_ms = letter_wording(template, letter.request_details) if template else ("", "")
     custom = template.custom_fields if template else []
-    values = letter_values(letter)
-    unknown, malformed = placeholder_problems(content, custom, template.purpose if template else LetterPurpose.REQUEST)
+    values = request_values(letter_values(letter), letter.request_details)
+    unknown, malformed = placeholder_problems(f"{content}\n{content_ms}", custom, template.purpose if template else LetterPurpose.REQUEST)
     if template is None:
         problem = "The letter template was deleted."
     elif template.purpose != letter.purpose:
@@ -364,20 +378,38 @@ def _review(letter):
         )
     else:
         problem = None
+    today = timezone.localdate()
+    valid_until = add_months(today, template.valid_months) if template and template.valid_months else None
+    preview = {**values, "validUntil": english_date(valid_until).upper()}
+    malay = malay_values({**preview, "_issuedOn": today, "_validUntil": valid_until})
     return {
         "templateContent": content,
+        "templateContentMs": content_ms,
+        "previewValidUntil": preview["validUntil"],
+        "malayValues": {
+            name: str(malay.get(VALUE_KEYS[name]) or "")
+            for name in used_names(content_ms)
+            if name in VALUE_KEYS and malay.get(VALUE_KEYS[name]) != preview.get(VALUE_KEYS[name])
+        },
         "templateStatus": template.status if template else None,
         "referencePrefix": template.reference_prefix if template else "",
         # Who will sign it: the letter takes the template's signatory when issued.
         "signatoryName": template.signatory_name if template else "",
         "signatoryTitle": template.signatory_title if template else "",
-        "fields": letter_fields(content, values, custom),
+        "fields": letter_fields(f"{content}\n{content_ms}", values, custom),
         "problem": problem,
         "replaces": [
             {"id": str(old.pk), "referenceNumber": old.reference_number, "issuedAt": old.to_public_dict(include_content=False)["issuedAt"]}
             for old in _earlier_copies(letter)
         ],
     }
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def recipient_options_view(request):
+    """The purposes and organisations a student chooses from on a confirmation letter."""
+    return Response(recipient_options())
 
 
 @api_view(["GET"])
@@ -462,7 +494,8 @@ def approve_request(request, pk):
             notify_recipients(letter)
             return Response(letter.to_public_dict())
         replaced = []
-        for old in _earlier_copies(letter).select_for_update():
+        earlier = [old.pk for old in _earlier_copies(letter)]
+        for old in GeneratedLetter.objects.select_for_update().filter(pk__in=earlier):
             old.status = Status.REVOKED
             old.revoked_at = letter.decided_at or timezone.now()
             old.revoked_by = request.user

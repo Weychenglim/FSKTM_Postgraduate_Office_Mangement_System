@@ -5,9 +5,20 @@ issued by itself, so both kinds of letter are filled the same way.
 """
 from django.utils import timezone
 
+from .confirmation import add_months, drop_unchosen_lines, english_date, malay_typed, malay_values, request_values
 from .models import GeneratedLetter
 from .placeholders import fill_placeholders
 from .references import next_reference_number
+
+
+def letter_wording(template, details):
+    """The English and Malay wording to fill, without the optional lines the
+    student did not ask for."""
+    english, malay = template.content or "", template.content_ms or ""
+    if template.asks_recipient:
+        include = (details or {}).get("include")
+        english, malay = drop_unchosen_lines(english, include), drop_unchosen_lines(malay, include)
+    return english, malay
 
 
 def issue_letter(letter, template, values, typed, actor):
@@ -18,8 +29,22 @@ def issue_letter(letter, template, values, typed, actor):
     """
     issued_on = timezone.localdate()
     reference = next_reference_number(template.reference_prefix, issued_on.year)
-    values = {**values, "referenceNumber": reference, "date": issued_on.strftime("%d %B %Y")}
-    letter.content = fill_placeholders(template.content, values, typed)
+    details = letter.request_details or {}
+    valid_until = add_months(issued_on, template.valid_months) if template.valid_months else None
+    values = {
+        **request_values(values, details),
+        "referenceNumber": reference,
+        "date": english_date(issued_on),
+        "validUntil": english_date(valid_until).upper(),
+    }
+    english, malay = letter_wording(template, details)
+    letter.content = fill_placeholders(english, values, typed)
+    letter.content_ms = (
+        fill_placeholders(malay, malay_values({**values, "_issuedOn": issued_on, "_validUntil": valid_until}), malay_typed(typed))
+        if malay.strip()
+        else ""
+    )
+    letter.valid_until = valid_until
     letter.student_data = values
     letter.office_values = typed
     letter.template = template

@@ -18,6 +18,9 @@ class LetterTemplateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=LetterTemplate.Status.choices, required=False)
     description = serializers.CharField(max_length=500, required=False, allow_blank=True)
     content = serializers.CharField(required=False, allow_blank=True)
+    contentMs = serializers.CharField(required=False, allow_blank=True)
+    asksRecipient = serializers.BooleanField(required=False)
+    validMonths = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=60)
     referencePrefix = serializers.CharField(max_length=64, required=False, allow_blank=True)
     signatoryName = serializers.CharField(max_length=120, required=False, allow_blank=True)
     signatoryTitle = serializers.CharField(max_length=120, required=False, allow_blank=True)
@@ -30,6 +33,9 @@ class LetterTemplateSerializer(serializers.Serializer):
         "customFields": "custom_fields",
         "signatoryName": "signatory_name",
         "signatoryTitle": "signatory_title",
+        "contentMs": "content_ms",
+        "asksRecipient": "asks_recipient",
+        "validMonths": "valid_months",
     }
 
     def validate_name(self, value):

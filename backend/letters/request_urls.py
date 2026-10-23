@@ -6,6 +6,7 @@ from . import request_views as views
 urlpatterns = [
     path("requests/", views.letter_requests, name="letter-requests"),
     path("requests/counts/", views.request_counts, name="letter-request-counts"),
+    path("requests/recipient-options/", views.recipient_options_view, name="letter-recipient-options"),
     path("requests/<int:pk>/", views.letter_detail, name="letter-request-detail"),
     path("requests/<int:pk>/withdraw/", views.withdraw_request, name="letter-request-withdraw"),
     path("requests/<int:pk>/approve/", views.approve_request, name="letter-request-approve"),

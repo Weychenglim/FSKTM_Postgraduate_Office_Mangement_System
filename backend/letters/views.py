@@ -77,6 +77,26 @@ def _placeholder_errors(content, custom_fields=(), purpose=LetterPurpose.REQUEST
     }
 
 
+RECIPIENT_TAGS = ("{{RECIPIENT}}", "{{BALANCE_SEMESTERS_MIN}}", "{{BALANCE_SEMESTERS_MAX}}")
+
+
+def _template_errors(template):
+    """Error body when either page uses tags the template cannot fill, otherwise None."""
+    for field, wording in (("content", template.content), ("contentMs", template.content_ms)):
+        invalid = _placeholder_errors(wording, template.custom_fields, template.purpose)
+        if invalid:
+            problem = invalid.pop("content")
+            return {**invalid, field: problem}
+    both = f"{template.content}\n{template.content_ms}"
+    if template.asks_recipient and template.purpose != LetterPurpose.REQUEST:
+        return {"asksRecipient": "Only letters students ask for can ask who the letter is for."}
+    if not template.asks_recipient and any(tag in both for tag in RECIPIENT_TAGS):
+        return {"asksRecipient": "This letter uses who it is for or semesters left. Turn on \"Students say who it is for\"."}
+    if "{{VALID_UNTIL}}" in both and not template.valid_months:
+        return {"validMonths": "This letter shows a valid-until date. Say how many months it stays valid."}
+    return None
+
+
 def _actor(request):
     user = request.user
     return getattr(user, "full_name", "") or getattr(user, "email", "Office Staff")
@@ -149,14 +169,10 @@ def templates_list(request):
             {"content": "Letter content is required."},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    invalid = _placeholder_errors(
-        serializer.validated_data["content"],
-        serializer.validated_data.get("customFields", []),
-        serializer.validated_data.get("purpose", LetterPurpose.REQUEST),
-    )
+    template = LetterTemplate(modified_by=_actor(request), **serializer.to_model_kwargs())
+    invalid = _template_errors(template)
     if invalid:
         return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
-    template = LetterTemplate(modified_by=_actor(request), **serializer.to_model_kwargs())
     clash = _active_clash(template) or _save(template)
     if clash:
         return Response(clash, status=status.HTTP_409_CONFLICT)
@@ -221,12 +237,10 @@ def templates_detail(request, pk):
 
     invalid = _require_content(template)
     if not invalid and (
-        "content" in serializer.validated_data
-        or "customFields" in serializer.validated_data
-        or "purpose" in serializer.validated_data
+        set(serializer.validated_data) & {"content", "contentMs", "customFields", "purpose", "asksRecipient", "validMonths"}
         or template.status == LetterTemplate.Status.ACTIVE
     ):
-        invalid = _placeholder_errors(template.content, template.custom_fields, template.purpose)
+        invalid = _template_errors(template)
     if invalid:
         return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
 

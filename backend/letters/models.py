@@ -50,9 +50,15 @@ class LetterTemplate(models.Model):
         help_text="Letter body with {{PLACEHOLDER}} tags; the allowed tags are "
         "listed in letters/placeholders.py, plus this template's own fields.",
     )
+    # The same letter in Malay, printed as a second page; blank for English only.
+    content_ms = models.TextField(blank=True, default="")
     # Values the office types in when it approves a request, e.g.
     # [{"name": "ATTENDANCE", "label": "Attendance (%)", "hint": ""}].
     custom_fields = models.JSONField(default=list, blank=True)
+    # Students say who the letter is for (purpose, organisation, address).
+    asks_recipient = models.BooleanField(default=False)
+    # How long an issued letter stays valid, for {{VALID_UNTIL}}; blank for no limit.
+    valid_months = models.PositiveSmallIntegerField(null=True, blank=True)
     # Prefix used to build the student's reference number, e.g. "UMF/PG".
     reference_prefix = models.CharField(max_length=64, blank=True, default="UMF/PG")
     # Printed under the signature line; blank keeps the faculty default.
@@ -93,11 +99,14 @@ class LetterTemplate(models.Model):
             "referencePrefix": self.reference_prefix,
             "signatoryName": self.signatory_name,
             "signatoryTitle": self.signatory_title,
+            "asksRecipient": self.asks_recipient,
+            "validMonths": self.valid_months,
             "lastModified": localtime(self.updated_at).strftime("%b %d, %Y"),
             "modifiedBy": self.modified_by,
         }
         if include_wording:
             data["content"] = self.content
+            data["contentMs"] = self.content_ms
             data["customFields"] = list(self.custom_fields or [])
         return data
 
@@ -187,6 +196,10 @@ class GeneratedLetter(models.Model):
     content = models.TextField(
         blank=True, default="", help_text="The letter body with every placeholder filled in."
     )
+    content_ms = models.TextField(blank=True, default="", help_text="The Malay page, filled in like the English one.")
+    # Who a confirmation letter is for, and which optional lines the student asked for.
+    request_details = models.JSONField(default=dict, blank=True)
+    valid_until = models.DateField(null=True, blank=True)
     student_data = models.JSONField(
         default=dict, help_text="The student details the letter was filled from."
     )
@@ -291,7 +304,10 @@ class GeneratedLetter(models.Model):
             "withdrawnAt": _moment(self.withdrawn_at),
             "revokedAt": _moment(self.revoked_at),
             "revokeReason": self.revoke_reason,
+            "requestDetails": dict(self.request_details or {}),
+            "validUntil": _day(self.valid_until),
         }
         if include_content:
             data["content"] = self.content
+            data["contentMs"] = self.content_ms
         return data

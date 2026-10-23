@@ -6,12 +6,13 @@ example attendance, worked out in another system). Each template's fields are
 stored on it as ``custom_fields``.
 
 Appointment letters may also use ``APPOINTMENT_PLACEHOLDERS``, filled from the
-approved appointment. Each one works only in the letter kinds listed for it in
-``APPOINTMENT_PURPOSES``.
+approved appointment, and letters students ask for may use
+``REQUEST_PLACEHOLDERS``, filled from what they entered. Each one works only in
+the letter kinds listed for it in ``APPOINTMENT_PURPOSES``.
 
-``PLACEHOLDERS`` and ``APPOINTMENT_PLACEHOLDERS`` are mirrored by
-``LETTER_PLACEHOLDERS`` and ``APPOINTMENT_PLACEHOLDERS`` in
-frontend/src/utils/letterDocument.ts; a frontend test fails if they differ.
+``PLACEHOLDERS``, ``APPOINTMENT_PLACEHOLDERS`` and ``REQUEST_PLACEHOLDERS`` are
+mirrored, in this order, by ``LETTER_PLACEHOLDERS`` and ``APPOINTMENT_PLACEHOLDERS``
+in frontend/src/utils/letterDocument.ts; a frontend test fails if they differ.
 """
 
 import re
@@ -59,6 +60,13 @@ APPOINTMENT_PLACEHOLDERS = {
     "SEMESTER": ("Semester", "The semester of the appointment"),
 }
 
+REQUEST_PLACEHOLDERS = {
+    "RECIPIENT": ("Recipient", "Who the letter is for, with the address the student typed"),
+    "VALID_UNTIL": ("Valid Until", "The date the letter stops being valid, from the template"),
+    "BALANCE_SEMESTERS_MIN": ("Semesters Left (Minimum)", "Semesters until the expected completion, from the registry"),
+    "BALANCE_SEMESTERS_MAX": ("Semesters Left (Maximum)", "Semesters until the maximum semester, from the registry"),
+}
+
 _BOTH = (SUPERVISOR_LETTER, PANEL_LETTER)
 APPOINTMENT_PURPOSES = {
     "RESEARCH_TITLE": _BOTH,
@@ -73,9 +81,13 @@ APPOINTMENT_PURPOSES = {
     "APPROVED_DATE": _BOTH,
     "APPOINTMENT_DATE": _BOTH,
     "SEMESTER": _BOTH,
+    "RECIPIENT": (REQUEST,),
+    "VALID_UNTIL": (REQUEST,),
+    "BALANCE_SEMESTERS_MIN": (REQUEST,),
+    "BALANCE_SEMESTERS_MAX": (REQUEST,),
 }
 
-ALL_PLACEHOLDERS = {**PLACEHOLDERS, **APPOINTMENT_PLACEHOLDERS}
+ALL_PLACEHOLDERS = {**PLACEHOLDERS, **APPOINTMENT_PLACEHOLDERS, **REQUEST_PLACEHOLDERS}
 
 # The key in ``letters.details.letter_details`` each placeholder is filled from.
 VALUE_KEYS = {
@@ -107,10 +119,14 @@ VALUE_KEYS = {
     "APPROVED_DATE": "approvedDate",
     "APPOINTMENT_DATE": "appointmentDate",
     "SEMESTER": "semester",
+    "RECIPIENT": "recipient",
+    "VALID_UNTIL": "validUntil",
+    "BALANCE_SEMESTERS_MIN": "balanceSemestersMin",
+    "BALANCE_SEMESTERS_MAX": "balanceSemestersMax",
 }
 
 # Filled by the server when the letter is issued, so never missing.
-ISSUED_WITH_LETTER = {"REFERENCE_NUMBER", "CURRENT_DATE"}
+ISSUED_WITH_LETTER = {"REFERENCE_NUMBER", "CURRENT_DATE", "VALID_UNTIL"}
 
 TOKEN_RE = re.compile(r"\{\{([^{}]*)\}\}")
 NAME_RE = re.compile(r"[A-Z_]+")
