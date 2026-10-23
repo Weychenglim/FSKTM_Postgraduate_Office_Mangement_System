@@ -13,7 +13,9 @@ import {
   LetterCustomField,
   LetterPlaceholder,
   LetterPurpose,
+  LetterRecipientOptions,
   LetterRequestCounts,
+  LetterRequestDetails,
   LetterRequestFilters,
   LetterTemplate,
   MadeAppointmentLetters,
@@ -46,6 +48,9 @@ export interface LetterTemplateInput {
   purpose?: LetterPurpose;
   signatoryName?: string;
   signatoryTitle?: string;
+  contentMs?: string;
+  asksRecipient?: boolean;
+  validMonths?: number | null;
 }
 
 /** All templates, used by the office-staff template manager. */
@@ -124,11 +129,16 @@ export function approvalFieldErrors(err: unknown): Record<string, string> | null
 }
 
 /** Student: ask the office for a letter from an Active template. */
-export async function requestLetter(templateId: string, note = ''): Promise<GeneratedLetter> {
+export async function requestLetter(templateId: string, note = '', details?: LetterRequestDetails): Promise<GeneratedLetter> {
   return request<GeneratedLetter>('/letters/requests/', {
     method: 'POST',
-    body: JSON.stringify({ templateId, note }),
+    body: JSON.stringify(details ? { templateId, note, details } : { templateId, note }),
   });
+}
+
+/** The purposes, organisations and optional details a confirmation letter request offers. */
+export async function getRecipientOptions(): Promise<LetterRecipientOptions> {
+  return request<LetterRecipientOptions>('/letters/requests/recipient-options/');
 }
 
 /** Student: their own requests and letters, newest first. */

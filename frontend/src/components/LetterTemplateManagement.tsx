@@ -23,10 +23,12 @@ import {
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { SelectMenu } from './SelectMenu';
+import { LetterPages } from './LetterPages';
 import { IssuedLettersRegister } from './IssuedLetters';
 import { OfficeLetterRequests } from './OfficeLetterRequests';
 import { LetterCustomField, LetterPlaceholder, LetterPurpose, LetterRequestCounts, LetterTemplate, LetterTemplateStatus } from '../types';
 import {
+  APPOINTMENT_PLACEHOLDERS,
   LETTERHEAD,
   fieldNameFromLabel,
   findPlaceholderProblems,
@@ -53,6 +55,11 @@ const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]
     ...unknown.map(placeholderPurposeHint),
     malformed.length ? `Malformed placeholder(s): ${malformed.join(', ')}. Write them as {{NAME}}.` : '',
   ].filter(Boolean).join(' ');
+
+// Tags only letters students ask for may use: who it is for, valid until, semesters left.
+const REQUEST_TAGS = new Set(APPOINTMENT_PLACEHOLDERS.filter((p) => p.purposes.includes('REQUEST')).map((p) => p.tag));
+const RECIPIENT_TAGS = ['{{RECIPIENT}}', '{{BALANCE_SEMESTERS_MIN}}', '{{BALANCE_SEMESTERS_MAX}}'];
+const MAX_VALID_MONTHS = 60;
 
 const LETTER_TYPES = ['Academic Certification', 'Visa & Immigration', 'General Notifications', 'Financial Clearance'];
 const DEFAULT_REFERENCE_PREFIX = 'UMF/PG';
@@ -91,7 +98,19 @@ const STATUS_HINT: Record<LetterTemplateStatus, string> = {
 };
 
 // Editor fields a 400 response can point at; anything else goes to the toast.
-const EDITOR_FIELDS = ['name', 'description', 'referencePrefix', 'content', 'customFields', 'purpose', 'signatoryName', 'signatoryTitle'] as const;
+const EDITOR_FIELDS = [
+  'name',
+  'description',
+  'referencePrefix',
+  'content',
+  'contentMs',
+  'customFields',
+  'purpose',
+  'asksRecipient',
+  'validMonths',
+  'signatoryName',
+  'signatoryTitle',
+] as const;
 type EditorField = (typeof EDITOR_FIELDS)[number];
 
 // Where unsaved edits were about to go when the office was asked to confirm.
@@ -103,9 +122,13 @@ interface EditorValues {
   description: string;
   referencePrefix: string;
   content: string;
+  contentMs: string;
   customFields: LetterCustomField[];
   status: LetterTemplateStatus;
   purpose: LetterPurpose;
+  asksRecipient: boolean;
+  /** Typed as text so the box can be empty; blank means no end date. */
+  validMonths: string;
   signatoryName: string;
   signatoryTitle: string;
 }
@@ -117,9 +140,12 @@ const BLANK_TEMPLATE: EditorValues = {
   description: '',
   referencePrefix: '',
   content: 'Dear Sir/Madam,\n\nThis is to confirm that {{STUDENT_NAME}} ({{STUDENT_ID}}) is a student of {{PROGRAMME_NAME}}.',
+  contentMs: '',
   customFields: [],
   status: 'Draft',
   purpose: 'REQUEST',
+  asksRecipient: false,
+  validMonths: '',
   signatoryName: '',
   signatoryTitle: '',
 };
@@ -130,9 +156,12 @@ const valuesOf = (template: LetterTemplate): EditorValues => ({
   description: template.description,
   referencePrefix: template.referencePrefix ?? '',
   content: template.content ?? '',
+  contentMs: template.contentMs ?? '',
   customFields: template.customFields ?? [],
   status: template.status,
   purpose: template.purpose ?? 'REQUEST',
+  asksRecipient: template.asksRecipient ?? false,
+  validMonths: template.validMonths ? String(template.validMonths) : '',
   signatoryName: template.signatoryName ?? '',
   signatoryTitle: template.signatoryTitle ?? '',
 });
@@ -220,6 +249,8 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<'write' | 'preview'>('write');
+  // Which page is being written: the English letter, or its Malay copy.
+  const [language, setLanguage] = useState<'en' | 'ms'>('en');
   // Which toolbar menu is open: student info, or the blanks the office fills in.
   const [openMenu, setOpenMenu] = useState<'info' | 'blanks' | null>(null);
   const [addingBlank, setAddingBlank] = useState(false);
@@ -233,6 +264,9 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   const [editorDescription, setEditorDescription] = useState('');
   const [editorPrefix, setEditorPrefix] = useState('');
   const [editorContent, setEditorContent] = useState('');
+  const [editorContentMs, setEditorContentMs] = useState('');
+  const [editorAsksRecipient, setEditorAsksRecipient] = useState(false);
+  const [editorValidMonths, setEditorValidMonths] = useState('');
   const [editorStatus, setEditorStatus] = useState<LetterTemplateStatus>('Active');
   const [editorPurpose, setEditorPurpose] = useState<LetterPurpose>('REQUEST');
   const [editorSignatoryName, setEditorSignatoryName] = useState('');
@@ -277,9 +311,13 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     setEditorDescription(values.description);
     setEditorPrefix(values.referencePrefix);
     setEditorContent(values.content);
+    setEditorContentMs(values.contentMs);
     setEditorFields(values.customFields);
     setEditorStatus(values.status);
     setEditorPurpose(values.purpose);
+    setEditorAsksRecipient(values.asksRecipient);
+    setEditorValidMonths(values.validMonths);
+    setLanguage('en');
     setEditorSignatoryName(values.signatoryName);
     setEditorSignatoryTitle(values.signatoryTitle);
     setProblems({});
@@ -300,9 +338,12 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       editorDescription !== saved.description ||
       editorPrefix !== saved.referencePrefix ||
       editorContent !== saved.content ||
+      editorContentMs !== saved.contentMs ||
       JSON.stringify(editorFields) !== JSON.stringify(saved.customFields) ||
       editorStatus !== saved.status ||
       editorPurpose !== saved.purpose ||
+      editorAsksRecipient !== saved.asksRecipient ||
+      editorValidMonths !== saved.validMonths ||
       editorSignatoryName !== saved.signatoryName ||
       editorSignatoryTitle !== saved.signatoryTitle);
 
@@ -317,7 +358,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       textarea.focus();
       textarea.setSelectionRange(cursor, cursor);
     }
-  }, [editorContent]);
+  }, [editorContent, editorContentMs]);
 
   // Close an open toolbar menu on an outside click or Escape.
   useEffect(() => {
@@ -353,15 +394,24 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     label: p.label,
     tag: p.tag,
     source: p.source,
-    appointment: Boolean(placeholderPurposeHint(p.tag)),
+    group: REQUEST_TAGS.has(p.tag) ? 'request' : placeholderPurposeHint(p.tag) ? 'appointment' : 'record',
   }));
+  // Who it is for and semesters left need the student to say who it is for;
+  // valid until needs the months it stays valid.
+  const offeredTags = placeholderTags.filter(
+    (p) => (!RECIPIENT_TAGS.includes(p.tag) || editorAsksRecipient) && (p.tag !== '{{VALID_UNTIL}}' || editorValidMonths.trim() !== ''),
+  );
   const tagGroups = [
-    { title: 'From the student record', tags: placeholderTags.filter((p) => !p.appointment) },
-    { title: 'From the appointment', tags: placeholderTags.filter((p) => p.appointment) },
+    { title: 'From the student record', tags: offeredTags.filter((p) => p.group === 'record') },
+    { title: 'From the request', tags: offeredTags.filter((p) => p.group === 'request') },
+    { title: 'From the appointment', tags: offeredTags.filter((p) => p.group === 'appointment') },
   ].filter((group) => group.tags.length > 0);
-  // Every detail the letter uses, named the way the office knows it.
+  // The page being written, and the text helpers below work on it.
+  const content = language === 'ms' ? editorContentMs : editorContent;
+  const setContent = language === 'ms' ? setEditorContentMs : setEditorContent;
+  // Every detail the letter uses, on either page, named the way the office knows it.
   const knownLabels = new Map(placeholderTags.map((p) => [p.tag, p.label]));
-  const usedDetails = Array.from(new Set(editorContent.match(/\{\{[A-Z_]+\}\}/g) ?? [])).map((tag) => {
+  const usedDetails = Array.from(new Set(`${editorContent}\n${editorContentMs}`.match(/\{\{[A-Z_]+\}\}/g) ?? [])).map((tag) => {
     const field = editorFields.find((f) => `{{${f.name}}}` === tag);
     if (field) return { tag, label: field.label || field.name, kind: 'office' as const };
     const label = knownLabels.get(tag);
@@ -373,11 +423,11 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   // Insert the tag at the caret (or over the current selection), not at the end.
   const handleInsertTag = (tag: string) => {
     const textarea = editorTextareaRef.current;
-    const start = textarea?.selectionStart ?? editorContent.length;
-    const end = textarea?.selectionEnd ?? editorContent.length;
+    const start = textarea?.selectionStart ?? content.length;
+    const end = textarea?.selectionEnd ?? content.length;
 
-    const before = editorContent.slice(0, start);
-    const after = editorContent.slice(end);
+    const before = content.slice(0, start);
+    const after = content.slice(end);
     // Pad with a single space only where the tag would otherwise touch a word.
     const lead = before.length && !/[\s(]$/.test(before) ? ' ' : '';
     const trail = after.length && !/^[\s).,;:]/.test(after) ? ' ' : '';
@@ -385,7 +435,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
     setMode('write');
     setOpenMenu(null);
-    setEditorContent(before + insertion + after);
+    setContent(before + insertion + after);
     pendingCursorRef.current = before.length + insertion.length;
   };
 
@@ -418,10 +468,13 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     setRenaming(null);
   };
 
-  // Take a word out of the letter's text.
+  // Take a word out of the letter's text, on both pages.
   const takeOut = (tag: string) => {
-    setEditorContent((current) => current.split(tag).join('').replace(/[ \t]{2,}/g, ' ').replace(/ ([.,;:)])/g, '$1'));
+    const strip = (current: string) => current.split(tag).join('').replace(/[ \t]{2,}/g, ' ').replace(/ ([.,;:)])/g, '$1');
+    setEditorContent(strip);
+    setEditorContentMs(strip);
     clearProblem('content');
+    clearProblem('contentMs');
   };
 
   // Deleting a blank also takes it out of the letter.
@@ -440,24 +493,37 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       return;
     }
 
+    const months = editorValidMonths.trim();
+    if (months && (!/^\d+$/.test(months) || Number(months) < 1 || Number(months) > MAX_VALID_MONTHS)) {
+      setProblems((current) => ({ ...current, validMonths: `Use a whole number of months from 1 to ${MAX_VALID_MONTHS}, or leave it blank.` }));
+      triggerToast('Error: Check how many months the letter stays valid.');
+      return;
+    }
+
     const submitted = {
       name: editorName,
       type: editorType,
       description: editorDescription,
       referencePrefix: editorPrefix,
       content: editorContent,
+      contentMs: editorContentMs,
       customFields: editorFields,
       status: editorStatus,
       purpose: editorPurpose,
+      asksRecipient: editorAsksRecipient,
+      validMonths: editorValidMonths,
       signatoryName: editorSignatoryName,
       signatoryTitle: editorSignatoryTitle,
     };
+    const request = editorPurpose === 'REQUEST';
     const body = {
       ...submitted,
       name: submitted.name.trim(),
       referencePrefix: submitted.referencePrefix.trim(),
       signatoryName: submitted.signatoryName.trim(),
       signatoryTitle: submitted.signatoryTitle.trim(),
+      asksRecipient: request && submitted.asksRecipient,
+      validMonths: request && months ? Number(months) : null,
     };
     setSaving(true);
     try {
@@ -478,9 +544,12 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       setEditorDescription((current) => (current === submitted.description ? updated.description : current));
       setEditorPrefix((current) => (current === submitted.referencePrefix ? updated.referencePrefix ?? '' : current));
       setEditorContent((current) => (current === submitted.content ? updated.content ?? '' : current));
+      setEditorContentMs((current) => (current === submitted.contentMs ? updated.contentMs ?? '' : current));
       setEditorFields((current) => (current === submitted.customFields ? updated.customFields ?? [] : current));
       setEditorStatus((current) => (current === submitted.status ? updated.status : current));
       setEditorPurpose((current) => (current === submitted.purpose ? updated.purpose ?? 'REQUEST' : current));
+      setEditorAsksRecipient((current) => (current === submitted.asksRecipient ? updated.asksRecipient ?? false : current));
+      setEditorValidMonths((current) => (current === submitted.validMonths ? (updated.validMonths ? String(updated.validMonths) : '') : current));
       setEditorSignatoryName((current) => (current === submitted.signatoryName ? updated.signatoryName ?? '' : current));
       setEditorSignatoryTitle((current) => (current === submitted.signatoryTitle ? updated.signatoryTitle ?? '' : current));
       setProblems({});
@@ -557,14 +626,25 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   };
 
   const handleCheckPlaceholders = () => {
-    const message = describePlaceholderProblems(findPlaceholderProblems(editorContent, editorFields.map((f) => f.name), editorPurpose));
+    const names = editorFields.map((f) => f.name);
+    const both = `${editorContent}\n${editorContentMs}`;
+    const english = describePlaceholderProblems(findPlaceholderProblems(editorContent, names, editorPurpose));
+    const malay = describePlaceholderProblems(findPlaceholderProblems(editorContentMs, names, editorPurpose));
+    const settings = [
+      RECIPIENT_TAGS.some((tag) => both.includes(tag)) && !editorAsksRecipient
+        ? 'This letter uses who it is for or semesters left. Turn on "Students say who it is for".'
+        : '',
+      both.includes('{{VALID_UNTIL}}') && !editorValidMonths.trim() ? 'This letter shows a valid-until date. Say how many months it stays valid.' : '',
+    ].filter(Boolean).join(' ');
+    const message = [english, malay && `Malay page: ${malay}`, settings].filter(Boolean).join(' ');
     if (message) {
-      setProblems((current) => ({ ...current, content: message }));
+      setProblems((current) => ({ ...current, content: english || settings || undefined, contentMs: malay || undefined }));
       triggerToast(message);
       return;
     }
     clearProblem('content');
-    const used = new Set(editorContent.match(/\{\{[A-Z_]+\}\}/g) ?? []).size;
+    clearProblem('contentMs');
+    const used = new Set(both.match(/\{\{[A-Z_]+\}\}/g) ?? []).size;
     triggerToast(`All ${used} detail${used === 1 ? '' : 's'} in this letter are supported.`);
   };
 
@@ -572,13 +652,13 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   // **bold**, *italic*, __underline__.
   const wrapSelection = (marker: string, label: string) => {
     const textarea = editorTextareaRef.current;
-    const start = textarea?.selectionStart ?? editorContent.length;
-    const end = textarea?.selectionEnd ?? editorContent.length;
-    const selected = editorContent.slice(start, end) || label;
-    const before = editorContent.slice(0, start);
-    const after = editorContent.slice(end);
+    const start = textarea?.selectionStart ?? content.length;
+    const end = textarea?.selectionEnd ?? content.length;
+    const selected = content.slice(start, end) || label;
+    const before = content.slice(0, start);
+    const after = content.slice(end);
 
-    setEditorContent(`${before}${marker}${selected}${marker}${after}`);
+    setContent(`${before}${marker}${selected}${marker}${after}`);
     pendingCursorRef.current = before.length + marker.length + selected.length;
   };
 
@@ -587,20 +667,20 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     const textarea = editorTextareaRef.current;
     const selStart = textarea?.selectionStart ?? 0;
     const selEnd = textarea?.selectionEnd ?? 0;
-    const lineStart = editorContent.lastIndexOf('\n', selStart - 1) + 1;
-    let lineEnd = editorContent.indexOf('\n', selEnd);
-    if (lineEnd === -1) lineEnd = editorContent.length;
+    const lineStart = content.lastIndexOf('\n', selStart - 1) + 1;
+    let lineEnd = content.indexOf('\n', selEnd);
+    if (lineEnd === -1) lineEnd = content.length;
 
-    const before = editorContent.slice(0, lineStart);
-    const block = editorContent.slice(lineStart, lineEnd);
-    const after = editorContent.slice(lineEnd);
+    const before = content.slice(0, lineStart);
+    const block = content.slice(lineStart, lineEnd);
+    const after = content.slice(lineEnd);
     const allBulleted = block.split('\n').every((l) => l.trim() === '' || /^\s*-\s+/.test(l));
     const newBlock = block
       .split('\n')
       .map((l) => (l.trim() === '' ? l : allBulleted ? l.replace(/^\s*-\s+/, '') : `- ${l}`))
       .join('\n');
 
-    setEditorContent(before + newBlock + after);
+    setContent(before + newBlock + after);
     pendingCursorRef.current = (before + newBlock).length;
   };
 
@@ -789,12 +869,22 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                       <h3 id="letter-body-heading" className="section-label">Letter</h3>
                       <p className="card-description mt-1">The letterhead, reference, date and signature are added for you.</p>
                     </div>
-                    <SegmentedControl<'write' | 'preview'>
-                      options={['write', 'preview'] as const}
-                      value={mode}
-                      onChange={setMode}
-                      labels={{ write: 'Write', preview: 'Preview' }}
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      {mode === 'write' && (
+                        <SegmentedControl<'en' | 'ms'>
+                          options={['en', 'ms'] as const}
+                          value={language}
+                          onChange={setLanguage}
+                          labels={{ en: 'English', ms: editorContentMs.trim() ? 'Malay' : 'Malay (optional)' }}
+                        />
+                      )}
+                      <SegmentedControl<'write' | 'preview'>
+                        options={['write', 'preview'] as const}
+                        value={mode}
+                        onChange={setMode}
+                        labels={{ write: 'Write', preview: 'Preview' }}
+                      />
+                    </div>
                   </div>
 
                   {mode === 'write' ? (
@@ -976,19 +1066,35 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                           Check for mistakes
                         </button>
                       </div>
+                      {language === 'ms' && !editorContentMs.trim() && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-blue-50/60 px-5 py-3">
+                          <p className="text-[12px] font-semibold text-blue-900">
+                            The Malay letter is printed as a second page. Leave it empty for an English-only letter.
+                          </p>
+                          {editorContent.trim() && (
+                            <PortalButton size="sm" onClick={() => setEditorContentMs(editorContent)}>
+                              Start from the English text
+                            </PortalButton>
+                          )}
+                        </div>
+                      )}
                       <textarea
                         ref={editorTextareaRef}
                         rows={16}
-                        value={editorContent}
+                        value={content}
                         onChange={(e) => {
-                          setEditorContent(e.target.value);
-                          clearProblem('content');
+                          setContent(e.target.value);
+                          clearProblem(language === 'ms' ? 'contentMs' : 'content');
                         }}
-                        aria-label="Letter content"
-                        aria-invalid={problems.content ? true : undefined}
-                        aria-describedby={problems.content ? 'letter-template-content-error' : 'letter-template-content-hint'}
+                        aria-label={language === 'ms' ? 'Malay letter content' : 'Letter content'}
+                        aria-invalid={(language === 'ms' ? problems.contentMs : problems.content) ? true : undefined}
+                        aria-describedby={problems.content || problems.contentMs ? 'letter-template-content-error' : 'letter-template-content-hint'}
                         className="block w-full resize-y border-0 bg-white px-6 py-5 text-[14px] leading-7 text-slate-800 placeholder:text-slate-400 focus:outline-none"
-                        placeholder="Write the letter. Use Student info for the student's name, matric number and other details."
+                        placeholder={
+                          language === 'ms'
+                            ? 'Tulis surat dalam Bahasa Melayu. Student info works here too.'
+                            : "Write the letter. Use Student info for the student's name, matric number and other details."
+                        }
                       />
                       <div id="letter-template-content-hint" className="space-y-2 border-t border-slate-100 px-5 py-4">
                         <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Used in this letter</p>
@@ -1026,54 +1132,33 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                         )}
                         <p className="text-[11px] font-semibold text-slate-400">
                           Words in {'{{double curly brackets}}'} are replaced with the real details when each letter is made.
+                          {' '}A line like {'| Name | {{STUDENT_NAME}} |'} becomes a row of a details table.
                         </p>
                       </div>
                     </>
                   ) : (
                     <div className="border-t border-slate-100 bg-slate-100/70 p-4 sm:p-6">
-                      <div className="bg-white border border-slate-200 rounded p-6 sm:p-8 shadow-sm min-h-[420px] text-[12px] text-slate-700 leading-relaxed max-w-2xl mx-auto">
-                        <div className="border-b-2 border-double border-slate-800 pb-3 mb-5 flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-3 select-none">
-                            <img src={LETTERHEAD.logoPath} alt="Universiti Malaya" className="h-12 w-auto object-contain" />
-                            <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide leading-tight block max-w-[130px]">
-                              {LETTERHEAD.faculty}
-                            </span>
-                          </div>
-                          <div className="text-right text-[8px] font-bold text-slate-400 leading-relaxed max-w-[200px] select-none">
-                            {LETTERHEAD.addressLines.map((line) => (
-                              <span key={line} className="block">{line}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-baseline gap-4 font-semibold text-slate-600 mb-5">
-                          <div>Our Ref: <span className="font-mono">{referencePreview}</span></div>
-                          <div>Date: <span className="font-mono">{'{{CURRENT_DATE}}'}</span></div>
-                        </div>
-                        {editorContent.trim() ? (
-                          <div
-                            className="leading-relaxed"
-                            dangerouslySetInnerHTML={{
-                              __html: renderLetterBodyHtml(editorContent, {
-                                highlightPlaceholders: true,
-                                officeFields: editorFields.map((f) => f.name),
-                              }),
-                            }}
-                          />
-                        ) : (
-                          <p className="text-slate-400 italic">Nothing written yet.</p>
-                        )}
-                        <p className="text-slate-500 font-semibold text-[10px] leading-relaxed select-none mt-5">{closing.disclaimer}</p>
-                        <div className="mt-8 pt-6 border-t border-slate-100 space-y-1">
-                          <div className="w-24 border-b border-slate-400 h-6 select-none" />
-                          <p className="font-extrabold text-slate-950">{closing.signatoryName}</p>
-                          <p className="text-slate-500 uppercase tracking-wide text-[9px] font-black leading-none select-none">{closing.signatoryOffice}</p>
-                        </div>
-                      </div>
+                      {editorContent.trim() ? (
+                        <LetterPages
+                          reference={referencePreview}
+                          referenceText={referencePreview}
+                          date="{{CURRENT_DATE}}"
+                          bodyHtml={renderLetterBodyHtml(editorContent, { highlightPlaceholders: true, officeFields: editorFields.map((f) => f.name) })}
+                          malayBodyHtml={
+                            editorContentMs.trim()
+                              ? renderLetterBodyHtml(editorContentMs, { highlightPlaceholders: true, officeFields: editorFields.map((f) => f.name) })
+                              : undefined
+                          }
+                          closing={closing}
+                        />
+                      ) : (
+                        <p className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-16 text-center text-[13px] font-semibold text-slate-400">Nothing written yet.</p>
+                      )}
                     </div>
                   )}
-                  {problems.content && (
+                  {(problems.content || problems.contentMs) && (
                     <p id="letter-template-content-error" role="alert" className="border-t border-rose-100 bg-rose-50 px-5 py-3 text-[12px] font-bold text-rose-700">
-                      {problems.content}
+                      {[problems.content, problems.contentMs && `Malay page: ${problems.contentMs}`].filter(Boolean).join(' ')}
                     </p>
                   )}
                 </section>
@@ -1098,7 +1183,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                       }}
                       aria-invalid={problems.name ? true : undefined}
                       className="form-control form-control-md"
-                      placeholder="For example: Confirmation of Enrolment"
+                      placeholder="For example: Student Confirmation Letter"
                     />
                   </Field>
                   <Field label="Short description" htmlFor="letter-template-description" hint="Students see this when choosing a letter." error={problems.description}>
@@ -1167,6 +1252,51 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                     {problems.purpose && <p role="alert" className="text-[11px] font-bold text-rose-600">{problems.purpose}</p>}
                   </fieldset>
                 </section>
+
+                {editorPurpose === 'REQUEST' && (
+                  <section aria-labelledby="template-asking-heading" className="app-card p-5 space-y-4">
+                    <h3 id="template-asking-heading" className="section-label">Asking for this letter</h3>
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-brand-navy"
+                        checked={editorAsksRecipient}
+                        onChange={(e) => {
+                          setEditorAsksRecipient(e.target.checked);
+                          clearProblem('asksRecipient');
+                        }}
+                      />
+                      <span>
+                        <span className="block text-[13px] font-bold text-slate-800">Students say who it is for</span>
+                        <span className="block text-[11px] font-semibold text-slate-500 leading-snug">
+                          They choose a bank, agency or company and type its address, as in Maya. Adds Recipient and Semesters Left to Student info.
+                        </span>
+                      </span>
+                    </label>
+                    {problems.asksRecipient && <p role="alert" className="text-[11px] font-bold text-rose-600">{problems.asksRecipient}</p>}
+                    <Field
+                      label="Valid for (months)"
+                      htmlFor="letter-template-valid-months"
+                      hint="Leave blank if the letter has no end date. Adds Valid Until to Student info."
+                      error={problems.validMonths}
+                    >
+                      <input
+                        id="letter-template-valid-months"
+                        type="text"
+                        inputMode="numeric"
+                        value={editorValidMonths}
+                        maxLength={2}
+                        onChange={(e) => {
+                          setEditorValidMonths(e.target.value.replace(/\D/g, ''));
+                          clearProblem('validMonths');
+                        }}
+                        aria-invalid={problems.validMonths ? true : undefined}
+                        className="form-control form-control-md w-28"
+                        placeholder="For example: 3"
+                      />
+                    </Field>
+                  </section>
+                )}
 
                 <section aria-labelledby="template-numbering-heading" className="app-card p-5 space-y-4">
                   <h3 id="template-numbering-heading" className="section-label">Reference and signature</h3>

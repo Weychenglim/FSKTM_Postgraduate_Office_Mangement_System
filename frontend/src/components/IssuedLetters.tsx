@@ -60,6 +60,13 @@ export const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus; replac
 
 export const shortDate = (value: string | null | undefined) => (value ? formatMalaysiaDate(value) : '');
 
+/** Who a letter is for and how long it is valid, e.g. "For Maybank · valid until 23 Jan 2027"; blank when neither applies. */
+export function letterForLine(letter: Pick<GeneratedLetter, 'requestDetails' | 'validUntil' | 'status'>): string {
+  const organisation = letter.requestDetails?.organisation;
+  const validUntil = letter.status === 'Issued' && letter.validUntil ? `valid until ${shortDate(letter.validUntil)}` : '';
+  return [organisation ? `For ${organisation}` : '', validUntil].filter(Boolean).join(' · ');
+}
+
 /** View, print and PDF for issued letters, with a per-row busy flag. */
 export function useLetterOutput(onMessage: (message: string) => void) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -166,6 +173,7 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
           referenceText={letter.referenceNumber}
           date={letter.date}
           bodyHtml={renderLetterBodyHtml(letter.content ?? '')}
+          malayBodyHtml={letter.contentMs?.trim() ? renderLetterBodyHtml(letter.contentMs) : undefined}
           closing={letterClosing(letter)}
         />
       </div>
@@ -293,6 +301,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <span className="block font-bold text-slate-800 text-[12.5px]">{letter.templateName}</span>
+                    {letterForLine(letter) && <span className="block text-[11px] font-semibold text-slate-500">{letterForLine(letter)}</span>}
                     <span className="block text-[10.5px] text-slate-400">
                       {isAppointmentLetter(letter.purpose)
                         ? `${letterOrigin(letter)} · ${shortDate(letter.requestedAt)}`
@@ -326,6 +335,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
                   <tr key={letter.id} className="hover:bg-slate-50/50 transition align-top">
                     <td className="data-td">
                       <span className="block font-bold text-slate-800">{letter.templateName}</span>
+                      {letterForLine(letter) && <span className="block text-[10.5px] font-semibold text-slate-500">{letterForLine(letter)}</span>}
                       <span className="block text-[10px] text-slate-400">{letterOrigin(letter)}</span>
                     </td>
                     <td className="data-td whitespace-nowrap">{shortDate(letter.requestedAt)}</td>
@@ -591,6 +601,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
                     </td>
                     <td className="data-td">
                       <span className="block font-bold text-slate-800">{letter.templateName}</span>
+                      {letterForLine(letter) && <span className="block text-[10.5px] font-semibold text-slate-500">{letterForLine(letter)}</span>}
                       <span className="block text-[10px] text-slate-400">{letterOrigin(letter)}</span>
                     </td>
                     <td className="data-td whitespace-nowrap">

@@ -29,6 +29,7 @@ const purposeNames: Record<string, string[]> = {
   _BOTH: ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT'],
   '(SUPERVISOR_LETTER,)': ['SUPERVISOR_APPOINTMENT'],
   '(PANEL_LETTER,)': ['PANEL_APPOINTMENT'],
+  '(REQUEST,)': ['REQUEST'],
 };
 const serverPurposes = [...purposeBlock.matchAll(/^\s+"([A-Z_]+)": ([^\n]+),$/gm)].map(([, name, value]) => ({
   tag: `{{${name}}}`,
@@ -82,7 +83,9 @@ assert.match(preview, /title="Unknown placeholder"[^>]*>\{\{OOPS\}\}/);
 // the editor runs a real check, including the template's own fields
 const editor = readFileSync(resolve('src/components/LetterTemplateManagement.tsx'), 'utf8');
 assert.doesNotMatch(editor, /visual layout assertion check/);
-assert.match(editor, /findPlaceholderProblems\(editorContent, editorFields\.map/);
+assert.match(editor, /const names = editorFields\.map\(\(f\) => f\.name\);/);
+assert.match(editor, /findPlaceholderProblems\(editorContent, names, editorPurpose\)/);
+assert.match(editor, /findPlaceholderProblems\(editorContentMs, names, editorPurpose\)/, 'the Malay page is checked too');
 assert.match(editor, /getLetterPlaceholders\(\)/);
 assert.match(editor, /<option value="Archived">/);
 assert.match(editor, /fieldNameFromLabel\(label, editorFields\.map/, 'the office only names what it should be asked');

@@ -5,10 +5,11 @@
 
 // A letter laid out on A4 sheets, scaled to fit the space it is shown in. A
 // letter too long for one sheet continues on the next, as it would in print.
+// The Malay page of a bilingual letter is a second LetterPages in Malay.
 
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
-import { LETTERHEAD } from '../utils/letterDocument';
+import { LETTERHEAD, LETTER_WORDS, malayLetterDate, type LetterLanguage } from '../utils/letterDocument';
 import { A4_CONTENT_WIDTH, A4_PAGE, paginateBlocks, splitLetterBlocks } from '../utils/letterPages';
 
 interface LetterPagesProps {
@@ -22,6 +23,10 @@ interface LetterPagesProps {
   zoom?: number;
   /** The closing lines; the faculty defaults when left out. */
   closing?: { disclaimer: string; signatoryName: string; signatoryOffice: string };
+  /** The Malay page prints its labels, date and disclaimer in Malay. */
+  language?: LetterLanguage;
+  /** The Malay page's body, shown after the English pages when there is one. */
+  malayBodyHtml?: string;
 }
 
 const DEFAULT_CLOSING = {
@@ -46,19 +51,30 @@ const Letterhead: React.FC = () => (
   </div>
 );
 
-const Signature: React.FC<{ name: string; office: string }> = ({ name, office }) => (
+const Signature: React.FC<{ name: string; office: string; stamp: string }> = ({ name, office, stamp }) => (
   <div className="pt-12">
     <div className="w-40 border-b border-slate-400 h-6" />
     <p className="mt-2 font-extrabold text-[14px] text-slate-900">{name}</p>
     <p className="text-slate-400 uppercase tracking-wide text-[10px] font-black leading-none mt-1">{office}</p>
     <p className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-bold text-indigo-600">
       <Info aria-hidden="true" className="w-3 h-3" />
-      Computer-generated. Verify with the PG Office.
+      {stamp}
     </p>
   </div>
 );
 
-export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceText, date, bodyHtml, zoom = 1, closing = DEFAULT_CLOSING }) => {
+const LetterSheets: React.FC<Omit<LetterPagesProps, 'malayBodyHtml'>> = ({
+  reference,
+  referenceText,
+  date,
+  bodyHtml,
+  zoom = 1,
+  closing = DEFAULT_CLOSING,
+  language = 'en',
+}) => {
+  const words = LETTER_WORDS[language];
+  const malay = language === 'ms';
+  const disclaimer = malay ? LETTERHEAD.malayDisclaimer : closing.disclaimer;
   const frame = useRef<HTMLDivElement>(null);
   const measurer = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number>(A4_PAGE.width);
@@ -68,12 +84,12 @@ export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceTe
   const blocks: React.ReactNode[] = [
     <Letterhead key="letterhead" />,
     <div key="reference" className="flex flex-wrap justify-between items-baseline gap-x-6 gap-y-1 text-slate-600 mb-7">
-      <div>Our Ref: <span className="font-mono font-bold text-slate-800">{reference}</span></div>
-      <div>Date: <span className="font-bold text-slate-800">{date}</span></div>
+      <div>{words.reference}: <span className="font-mono font-bold text-slate-800">{reference}</span></div>
+      <div>{words.date}: <span className="font-bold text-slate-800">{malay ? malayLetterDate(date) : date}</span></div>
     </div>,
     ...bodyBlocks.map((html, index) => <div key={`body-${index}`} dangerouslySetInnerHTML={{ __html: html }} />),
-    <p key="disclaimer" className="text-slate-500 font-semibold text-[11.5px] leading-relaxed mt-2">{closing.disclaimer}</p>,
-    <Signature key="signature" name={closing.signatoryName} office={closing.signatoryOffice} />,
+    <p key="disclaimer" className="text-slate-500 font-semibold text-[11.5px] leading-relaxed mt-2">{disclaimer}</p>,
+    <Signature key="signature" name={closing.signatoryName} office={closing.signatoryOffice} stamp={words.stamp} />,
   ];
 
   // Heights come from an unscaled, hidden copy of the content.
@@ -89,7 +105,7 @@ export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceTe
     let active = true;
     document.fonts?.ready.then(() => { if (active) measure(); });
     return () => { active = false; };
-  }, [measure, bodyHtml, referenceText, date, closing.disclaimer, closing.signatoryName, closing.signatoryOffice]);
+  }, [measure, bodyHtml, referenceText, date, disclaimer, closing.signatoryName, closing.signatoryOffice]);
 
   useLayoutEffect(() => {
     const element = frame.current;
@@ -123,7 +139,7 @@ export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceTe
         {pageGroups.map((group, pageIndex) => (
           <section
             key={pageIndex}
-            aria-label={`Page ${pageIndex + 1} of ${pageGroups.length}`}
+            aria-label={`${malay ? 'Malay page' : 'Page'} ${pageIndex + 1} of ${pageGroups.length}`}
             className="relative shrink-0 bg-white border border-slate-200 shadow-sm"
             style={{ width: A4_PAGE.width * scale, height: A4_PAGE.height * scale }}
           >
@@ -139,7 +155,7 @@ export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceTe
             >
               {pageIndex > 0 && (
                 <p className="text-[11px] font-semibold text-slate-400" style={{ height: A4_PAGE.continuation }}>
-                  Our Ref: <span className="font-mono">{referenceText}</span> (continued)
+                  {words.reference}: <span className="font-mono">{referenceText}</span> ({words.continued})
                 </p>
               )}
               {group.map((index) => (
@@ -150,7 +166,7 @@ export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceTe
                 style={{ left: A4_PAGE.marginX, right: A4_PAGE.marginX, bottom: A4_PAGE.marginY / 2 }}
               >
                 <span className="font-mono">{referenceText}</span>
-                <span>Page {pageIndex + 1} of {pageGroups.length}</span>
+                <span>{words.page} {pageIndex + 1} {words.of} {pageGroups.length}</span>
               </p>
             </div>
           </section>
@@ -160,3 +176,13 @@ export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceTe
     </div>
   );
 };
+
+export const LetterPages: React.FC<LetterPagesProps> = ({ malayBodyHtml, ...props }) =>
+  malayBodyHtml ? (
+    <div className="space-y-4">
+      <LetterSheets {...props} />
+      <LetterSheets {...props} bodyHtml={malayBodyHtml} language="ms" />
+    </div>
+  ) : (
+    <LetterSheets {...props} />
+  );

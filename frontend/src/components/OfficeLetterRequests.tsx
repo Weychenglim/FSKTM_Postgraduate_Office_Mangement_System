@@ -26,6 +26,7 @@ import {
 } from '../services';
 import { PENDING_REFERENCE, fillLetterTags, formatLetterDate, isAppointmentLetter, letterClosing, renderLetterBodyHtml } from '../utils/letterDocument';
 import { letterOrigin, recipientsLine } from '../utils/appointmentLetters';
+import { RECIPIENT_PURPOSE_LABELS, chosenDetailLabels, recipientAddressLines } from '../utils/letterRecipients';
 
 type QueueFilter = GeneratedLetterStatus | 'All';
 
@@ -203,6 +204,9 @@ const LetterRequestQueue: React.FC<{
                     <td className="data-td">
                       <span className="block font-bold text-slate-800">{row.templateName}</span>
                       <span className="block text-[10px] text-slate-400">{letterOrigin(row)}</span>
+                      {row.requestDetails?.organisation && (
+                        <span className="mt-0.5 block text-[10.5px] font-semibold text-slate-500 max-w-[280px] truncate">For {row.requestDetails.organisation}</span>
+                      )}
                       {row.note && (
                         <span className="mt-1 inline-flex items-start gap-1 text-[10.5px] font-semibold text-slate-500 max-w-[280px]">
                           <MessageSquareText aria-hidden="true" className="w-3 h-3 mt-0.5 shrink-0 text-slate-400" />
@@ -312,15 +316,28 @@ const LetterRequestReview: React.FC<{
   const today = useMemo(() => formatLetterDate(), []);
 
   // The letter as it will read: record values, what has been typed so far, and
-  // the reference and date the approval will fill in.
-  const previewHtml = useMemo(() => {
-    if (!request?.templateContent) return '';
-    const filled: Record<string, string> = { REFERENCE_NUMBER: PENDING_REFERENCE, CURRENT_DATE: today };
+  // the reference and dates the approval will fill in. The Malay page uses the
+  // Malay form of values such as dates and the mode of study.
+  const [previewHtml, previewMsHtml] = useMemo(() => {
+    if (!request?.templateContent) return ['', ''];
+    const filled: Record<string, string> = {
+      REFERENCE_NUMBER: PENDING_REFERENCE,
+      CURRENT_DATE: today,
+      VALID_UNTIL: request.previewValidUntil ?? '',
+    };
     for (const field of fields) filled[field.name] = field.needed ? values[field.name] ?? '' : field.value;
-    return renderLetterBodyHtml(fillLetterTags(request.templateContent, filled), {
-      highlightPlaceholders: true,
-      officeFields: officeNames,
-    });
+    const render = (content: string, own: Record<string, string>) =>
+      renderLetterBodyHtml(fillLetterTags(content, own), { highlightPlaceholders: true, officeFields: officeNames });
+    const typed = Object.fromEntries(
+      fields
+        .filter((field) => field.needed)
+        .map((field) => {
+          const value = values[field.name] ?? '';
+          return [field.name, field.name.startsWith('BALANCE_SEMESTERS') ? value.replace('SEMESTER(S)', 'SEMESTER') : value];
+        }),
+    );
+    const malay = { ...filled, ...request.malayValues, ...typed, REFERENCE_NUMBER: PENDING_REFERENCE };
+    return [render(request.templateContent, filled), request.templateContentMs?.trim() ? render(request.templateContentMs, malay) : ''];
   }, [request, fields, values, today, officeNames]);
 
   const setValue = (name: string, value: string) => {
@@ -445,6 +462,7 @@ const LetterRequestReview: React.FC<{
                   referenceText={request.referenceNumber}
                   date={request.date}
                   bodyHtml={renderLetterBodyHtml(request.content)}
+                  malayBodyHtml={request.contentMs?.trim() ? renderLetterBodyHtml(request.contentMs) : undefined}
                   closing={letterClosing(request)}
                 />
               </div>
@@ -524,6 +542,7 @@ const LetterRequestReview: React.FC<{
                 referenceText={PENDING_REFERENCE}
                 date={today}
                 bodyHtml={previewHtml}
+                malayBodyHtml={previewMsHtml || undefined}
                 closing={letterClosing(request)}
               />
             </div>
@@ -594,6 +613,23 @@ const RequestSummary: React.FC<{ request: GeneratedLetter; automatic: boolean; s
       <dd className="font-semibold text-slate-700">{request.templateName} <span className="text-slate-400">({request.letterType})</span></dd>
       <dt className="font-semibold text-slate-400">{automatic ? 'Made' : 'Requested'}</dt>
       <dd className="font-semibold text-slate-700">{shortDate(request.requestedAt)}</dd>
+      {request.requestDetails?.organisation && (
+        <>
+          <dt className="font-semibold text-slate-400">For</dt>
+          <dd className="font-semibold text-slate-700">
+            <span className="block font-bold text-slate-800">{request.requestDetails.organisation}</span>
+            {recipientAddressLines(request.requestDetails).map((line) => (
+              <span key={line} className="block">{line}</span>
+            ))}
+            <span className="mt-0.5 block text-[11px] text-slate-400">
+              {RECIPIENT_PURPOSE_LABELS[request.requestDetails.purpose ?? ''] ?? request.requestDetails.purpose}
+              {request.requestDetails.typedIn ? ', typed in by the student' : ''}
+            </span>
+          </dd>
+          <dt className="font-semibold text-slate-400">Also show</dt>
+          <dd className="font-semibold text-slate-700">{chosenDetailLabels(request.requestDetails).join(', ') || 'Nothing extra'}</dd>
+        </>
+      )}
       {sentTo && (
         <>
           <dt className="font-semibold text-slate-400">Goes to</dt>
@@ -721,7 +757,7 @@ const FieldRow: React.FC<{
           </p>
         </>
       ) : (
-        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-700">{field.value}</p>
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-700 whitespace-pre-line">{field.value}</p>
       )}
     </div>
   );

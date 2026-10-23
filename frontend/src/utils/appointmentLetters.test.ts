@@ -105,7 +105,7 @@ assert.equal(printData.disclaimer, LETTERHEAD.appointmentDisclaimer);
 const editor = readFileSync(resolve('src/components/LetterTemplateManagement.tsx'), 'utf8');
 assert.match(editor, /name="letter-template-purpose"/);
 assert.match(editor, /When is this letter used\?/);
-assert.match(editor, /findPlaceholderProblems\(editorContent, editorFields\.map\(\(f\) => f\.name\), editorPurpose\)/);
+assert.match(editor, /findPlaceholderProblems\(editorContent, names, editorPurpose\)/);
 assert.match(editor, /signatoryName: submitted\.signatoryName\.trim\(\)/);
 const register = readFileSync(resolve('src/components/IssuedLetters.tsx'), 'utf8');
 assert.match(register, /<MissingAppointmentLetters /);

@@ -36,9 +36,32 @@ export const LETTERHEAD = {
   appointmentDisclaimer:
     'This letter is issued by the postgraduate office for official purposes only. ' +
     'Any alteration to this document shall render it invalid.',
+  malayDisclaimer:
+    'Surat ini dikeluarkan atas permintaan pelajar untuk urusan rasmi sahaja. ' +
+    'Sebarang pindaan pada dokumen ini menjadikannya tidak sah.',
   signatoryName: 'Dean of Postgraduate Studies',
   signatoryOffice: 'FSKTM Office Executive Secretariat',
 } as const;
+
+export type LetterLanguage = 'en' | 'ms';
+
+/** The words printed around the body, on the English page and the Malay one. */
+export const LETTER_WORDS = {
+  en: { reference: 'Our Ref', date: 'Date', stamp: 'Computer-generated. Verify with the PG Office.', page: 'Page', of: 'of', continued: 'continued' },
+  ms: { reference: 'Rujukan Kami', date: 'Tarikh', stamp: 'Dijana oleh komputer. Sahkan dengan Pejabat PG.', page: 'Muka surat', of: 'daripada', continued: 'sambungan' },
+} as const;
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MALAY_MONTHS = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+
+/** A letter date in Malay: "23 October 2026" becomes "23 Oktober 2026". */
+export function malayLetterDate(date: string): string {
+  return date.replace(/[A-Za-z]+/g, (word) => {
+    const index = MONTHS.findIndex((month) => month.toLowerCase() === word.toLowerCase());
+    if (index < 0) return word;
+    return word === word.toUpperCase() ? MALAY_MONTHS[index].toUpperCase() : MALAY_MONTHS[index];
+  });
+}
 
 /** Everything needed to render one letter (body is already substituted). */
 export interface LetterData {
@@ -47,6 +70,8 @@ export interface LetterData {
   date: string;
   /** Letter body with placeholders already filled in. Blank lines = paragraphs. */
   bodyParagraphs: string;
+  /** The Malay page's body, printed as a second page when there is one. */
+  bodyParagraphsMs?: string;
   /** Used only to name the saved PDF file. */
   studentName: string;
   matricNumber: string;
@@ -89,7 +114,11 @@ const PURPOSE_PLURAL: Record<LetterPurpose, string> = {
 
 export const isAppointmentLetter = (purpose: LetterPurpose | undefined) => purpose === 'SUPERVISOR_APPOINTMENT' || purpose === 'PANEL_APPOINTMENT';
 
-/** Extra tags for appointment letters, filled from the approved appointment. */
+/**
+ * Tags only some letter kinds may use: appointment letters' tags, filled from
+ * the approved appointment, and request letters' tags, filled from who the
+ * student said the letter is for.
+ */
 export const APPOINTMENT_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string; purposes: ReadonlyArray<LetterPurpose> }> = [
   { tag: '{{RESEARCH_TITLE}}', label: 'Research Title', purposes: APPOINTMENT_LETTERS },
   { tag: '{{RESEARCH_AREA}}', label: 'Research Area', purposes: APPOINTMENT_LETTERS },
@@ -103,6 +132,10 @@ export const APPOINTMENT_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: strin
   { tag: '{{APPROVED_DATE}}', label: 'Approved On', purposes: APPOINTMENT_LETTERS },
   { tag: '{{APPOINTMENT_DATE}}', label: 'Appointment Date', purposes: APPOINTMENT_LETTERS },
   { tag: '{{SEMESTER}}', label: 'Semester', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{RECIPIENT}}', label: 'Recipient', purposes: ['REQUEST'] },
+  { tag: '{{VALID_UNTIL}}', label: 'Valid Until', purposes: ['REQUEST'] },
+  { tag: '{{BALANCE_SEMESTERS_MIN}}', label: 'Semesters Left (Minimum)', purposes: ['REQUEST'] },
+  { tag: '{{BALANCE_SEMESTERS_MAX}}', label: 'Semesters Left (Maximum)', purposes: ['REQUEST'] },
 ];
 
 const KNOWN_TAGS = new Set(LETTER_PLACEHOLDERS.map((p) => p.tag));
@@ -194,8 +227,11 @@ function applyInlineMarkup(raw: string, highlightPlaceholders: boolean, officeTa
  * student preview, and the printed PDF so all three look identical.
  *
  * Supported markup: `**bold**`, `*italic*`, `__underline__`, blank lines start a
- * new paragraph, and lines beginning with `- ` become a bullet list.
+ * new paragraph, lines beginning with `- ` become a bullet list, and lines like
+ * `| Name | {{STUDENT_NAME}} |` become rows of a details table.
  */
+const DETAIL_ROW_RE = /^\s*\|(.*)\|\s*$/;
+
 export function renderLetterBodyHtml(
   body: string,
   opts?: { highlightPlaceholders?: boolean; officeFields?: readonly string[] },
@@ -221,6 +257,20 @@ export function renderLetterBodyHtml(
           )
           .join('');
         return `<ul style="margin:0 0 14px;padding-left:22px;list-style:disc;">${items}</ul>`;
+      }
+      if (nonEmpty.length > 0 && nonEmpty.every((l) => DETAIL_ROW_RE.test(l))) {
+        const rows = nonEmpty
+          .map((l) => {
+            const [label, ...rest] = (l.match(DETAIL_ROW_RE)?.[1] ?? '').split('|').map((cell) => cell.trim());
+            const cell = 'padding:1px 0;vertical-align:top;';
+            return (
+              `<tr><td style="${cell}width:36%;padding-right:10px;">${applyInlineMarkup(label, highlight, officeTags)}</td>` +
+              `<td style="${cell}width:14px;">:</td>` +
+              `<td style="${cell}">${applyInlineMarkup(rest.join(' '), highlight, officeTags)}</td></tr>`
+            );
+          })
+          .join('');
+        return `<table style="width:100%;border-collapse:collapse;margin:0 0 14px;"><tbody>${rows}</tbody></table>`;
       }
       const html = lines.map((l) => applyInlineMarkup(l, highlight, officeTags)).join('<br>');
       return `<p style="margin:0 0 14px;">${html}</p>`;
@@ -298,6 +348,7 @@ export function letterDataFromIssued(letter: GeneratedLetter): LetterData {
     refNo: letter.referenceNumber,
     date: letter.date,
     bodyParagraphs: letter.content ?? '',
+    ...(letter.contentMs?.trim() ? { bodyParagraphsMs: letter.contentMs } : {}),
     studentName: letter.studentName,
     matricNumber: letter.matricNumber,
     ...letterClosing(letter),
@@ -330,12 +381,42 @@ export function buildLetterHtml(data: LetterData): string {
   const logoUrl = `${window.location.origin}${LETTERHEAD.logoPath}`;
   const title = letterFileName(data);
 
-  // Render the (already-substituted) body through the shared markup formatter,
-  // so the printed letter matches the on-screen preview exactly (bold / italic /
-  // underline / bullet lists, paragraphs split on blank lines).
-  const bodyHtml = renderLetterBodyHtml(data.bodyParagraphs);
-
   const addressHtml = LETTERHEAD.addressLines.map((line) => esc(line)).join('<br>');
+
+  // The body goes through the shared markup formatter, so the printed letter
+  // matches the on-screen preview exactly.
+  const sheet = (body: string, language: LetterLanguage) => {
+    const words = LETTER_WORDS[language];
+    const disclaimer = language === 'ms' ? LETTERHEAD.malayDisclaimer : data.disclaimer ?? LETTERHEAD.disclaimer;
+    return `<div class="sheet">
+    <div class="header">
+      <div class="brand">
+        <img src="${logoUrl}" alt="Universiti Malaya" />
+        <div class="faculty">${esc(LETTERHEAD.faculty)}</div>
+      </div>
+      <div class="address">${addressHtml}</div>
+    </div>
+
+    <div class="meta">
+      <div>${words.reference}: <span class="value">${esc(data.refNo)}</span></div>
+      <div>${words.date}: <span class="value">${esc(language === 'ms' ? malayLetterDate(data.date) : data.date)}</span></div>
+    </div>
+
+    ${renderLetterBodyHtml(body)}
+
+    <p class="disclaimer">${esc(disclaimer)}</p>
+
+    <div class="signature">
+      <div>
+        <div class="line"></div>
+        <div class="name">${esc(data.signatoryName ?? LETTERHEAD.signatoryName)}</div>
+        <div class="office">${esc(data.signatoryOffice ?? LETTERHEAD.signatoryOffice)}</div>
+      </div>
+      <div class="stamp">${esc(words.stamp)}</div>
+    </div>
+  </div>`;
+  };
+  const sheets = [sheet(data.bodyParagraphs, 'en'), ...(data.bodyParagraphsMs?.trim() ? [sheet(data.bodyParagraphsMs, 'ms')] : [])];
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -421,42 +502,18 @@ export function buildLetterHtml(data: LetterData): string {
       font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
       color: #4f46e5; border: 1px solid #c7d2fe; background: #eef2ff;
       border-radius: 8px; padding: 6px 10px; text-align: center; line-height: 1.5;
+      max-width: 170px;
     }
+    .sheet + .sheet { margin-top: 12px; break-before: page; page-break-before: always; }
     @media print {
       body { background: #ffffff; }
       .sheet { width: auto; margin: 0; padding: 0; box-shadow: none; }
+      .sheet + .sheet { margin-top: 0; }
     }
   </style>
 </head>
 <body>
-  <div class="sheet">
-    <div class="header">
-      <div class="brand">
-        <img src="${logoUrl}" alt="Universiti Malaya" />
-        <div class="faculty">${esc(LETTERHEAD.faculty)}</div>
-      </div>
-      <div class="address">${addressHtml}</div>
-    </div>
-
-    <div class="meta">
-      <div>Our Ref: <span class="value">${esc(data.refNo)}</span></div>
-      <div>Date: <span class="value">${esc(data.date)}</span></div>
-    </div>
-
-    ${bodyHtml}
-
-    <p class="disclaimer">${esc(data.disclaimer ?? LETTERHEAD.disclaimer)}</p>
-
-    <div class="signature">
-      <div>
-        <div class="line"></div>
-        <div class="name">${esc(data.signatoryName ?? LETTERHEAD.signatoryName)}</div>
-        <div class="office">${esc(data.signatoryOffice ?? LETTERHEAD.signatoryOffice)}</div>
-      </div>
-      <div class="stamp">Computer-generated<br>Verify with the PG Office</div>
-    </div>
-  </div>
-
+  ${sheets.join('\n  ')}
 </body>
 </html>`;
 }

@@ -57,6 +57,42 @@ export interface LetterTemplate {
   /** Printed under the signature line; blank keeps the faculty default. */
   signatoryName?: string;
   signatoryTitle?: string;
+  /** The same letter in Malay, printed as a second page; only staff get it. */
+  contentMs?: string;
+  /** Students say who the letter is for (a bank, an agency...) when they ask. */
+  asksRecipient?: boolean;
+  /** How many months an issued letter stays valid; null for no limit. */
+  validMonths?: number | null;
+}
+
+/** One kind of organisation a confirmation letter can be for, with its built-in list. */
+export interface LetterRecipientPurpose {
+  code: string;
+  label: string;
+  /** What one organisation is called, e.g. "Bank". */
+  organisationLabel: string;
+  organisations: string[];
+}
+
+/** What the student chooses from on a confirmation letter request. */
+export interface LetterRecipientOptions {
+  purposes: LetterRecipientPurpose[];
+  optionalDetails: { code: string; label: string }[];
+}
+
+/** Who a letter is for, as the student entered it. */
+export interface LetterRequestDetails {
+  purpose: string;
+  organisation: string;
+  /** Typed in by the student rather than chosen from the list. */
+  typedIn?: boolean;
+  addressLine1: string;
+  addressLine2: string;
+  postcode: string;
+  city: string;
+  state: string;
+  /** The optional details to show, e.g. MIN_PERIOD. */
+  include: string[];
 }
 
 /** Someone an appointment letter was sent to, besides the office. */
@@ -146,6 +182,10 @@ export interface GeneratedLetter {
   programName: string;
   /** The student's note to the office. */
   note: string;
+  /** Who the letter is for, when the template asks; empty otherwise. */
+  requestDetails?: Partial<LetterRequestDetails>;
+  /** The last day the letter is valid (YYYY-MM-DD), when the template sets it. */
+  validUntil?: string | null;
   decidedAt: string | null;
   decidedBy: string;
   rejectReason: string;
@@ -153,10 +193,17 @@ export interface GeneratedLetter {
   revokedAt: string | null;
   revokeReason: string;
   content?: string;
+  /** The Malay page, when the letter has one. */
+  contentMs?: string;
   /** Office only: what the office typed in when approving. */
   officeValues?: Record<string, string>;
   /** Office only, while pending: the template's current wording and needs. */
   templateContent?: string;
+  templateContentMs?: string;
+  /** Office only, while pending: values that read differently on the Malay page, by tag name. */
+  malayValues?: Record<string, string>;
+  /** Office only, while pending: the valid-until date as it would be printed today. */
+  previewValidUntil?: string;
   templateStatus?: LetterTemplateStatus | null;
   referencePrefix?: string;
   fields?: LetterRequestField[];
