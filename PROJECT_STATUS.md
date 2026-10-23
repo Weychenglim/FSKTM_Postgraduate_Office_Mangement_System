@@ -480,6 +480,24 @@ Final validation: all 168 frontend test checks pass, including production demo/C
 
 Browser coverage: Office attention and exact pending recommendation were inspected locally. The user requested no further browser checks; cross-role desktop/mobile browser acceptance and new decision previews were not completed or claimed. Shared rendering, navigation, capability, privacy and outcome contracts have automated coverage. Temporary viewport override was reset. API restarted at 127.0.0.1:8000; portal remains localhost:3001. Implementation stays local and uncommitted; the earlier requested snapshot was already pushed separately.
 
+## Letters: Student Confirmation Letter As In Maya (2026-10-23)
+
+The supervisor asked for UM Maya's confirmation letter request to be part of the system.
+
+- **The student says who the letter is for.**
+  - They choose a purpose (Banking, Government agencies, Mobility, Non-government agencies, Sponsorship or Transportation), then the organisation from a built-in list they can search: 47 Malaysian banks, 27 agencies and embassies, sponsors, NGOs and transport companies. An organisation not listed can be typed in.
+  - They type the address to print, and tick what else to show: minimum period of study, maximum period of study, current semester. Lines they do not tick are left out.
+- **The letter** follows the Maya sample: the recipient block, a details table (name, IC/passport, matric number, programme, method of study, faculty, date valid, semesters left), and a Malay second page ("Surat Pengesahan Pelajar") with Malay dates, programme name and mode of study.
+  - Date valid is the issue date plus the template's months (3 for this letter).
+  - Semesters left are worked out from the registry when it can be read; otherwise the office types them in at approval.
+- **The office** still approves each request. The review shows who the letter is for and previews both pages. A new letter replaces only the student's copy for the same organisation, so a Maybank letter and a KTMB letter can both be valid.
+- **Template editor.** An English/Malay switch for writing, an "Asking for this letter" card ("Students say who it is for", "Valid for (months)"), a preview of both A4 pages, and `| Label | value |` lines for details tables. The PDF and the print view have the Malay page too.
+- **Migrations** `letters.0006` (fields) and `letters.0007` (adds the Student Confirmation Letter and archives Confirmation of Enrolment). The dev DB was migrated after the backup `db-backups/fsktm_pg_office_before_confirmation_letters_2026-10-23.dump`.
+- **Verification.**
+  - The backend passes 1706 tests (20 new for confirmation letters).
+  - All 203 frontend scripts pass, along with lint and the build.
+  - In the browser, TG-STU-01 requested a letter for Maybank (searching "maybank" in the bank list), and TG-OFFICE-01 reviewed both pages, typed the missing semesters left and approved it (`UMF/PG/SCL/2026/0001`). The issued letter, its PDF (two pages) and the template editor were checked, with no page errors.
+
 ## Module-by-Module Check of Xiang's Modules (2026-10-17)
 
 Each of Xiang's modules was tested in turn: the backend rules through the API, every button in the browser, and the layout at 1440, 1024, 768 and 390 px. The latest code was already on `Xiang` (GitHub's `main` and every teammate branch were merged in), so nothing was pulled. It ran on private servers (email printed to the console, never sent) with throwaway smoke accounts, all removed afterwards.
