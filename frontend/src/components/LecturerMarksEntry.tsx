@@ -1,4 +1,6 @@
+import { MarksHeading, MarksSummaryCard } from './MarksPrimitives';
 import { PortalSelect } from './PortalSelect';
+import { WorkspaceFilterCard } from './RequestWorkspacePrimitives';
 import { completeDecision } from '../utils/decisionSubmission';
 import { ApiError } from '../services/apiClient';
 import { useListState } from './ListState';
@@ -8,24 +10,7 @@ import { useListState } from './ListState';
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  CheckSquare, 
-  Clock, 
-  Mail, 
-  CheckCircle, 
-  Search, 
-  AlertTriangle, 
-  HelpCircle,
-  ArrowLeft,
-  Save,
-  CheckCircle2,
-  Info,
-  ChevronRight,
-  Calculator,
-  Sliders,
-  Sparkles
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { CheckSquare, Clock, Mail, CheckCircle, Search, type LucideIcon } from 'lucide-react';
 import { MarkEntryDetail } from './MarkEntryDetail';
 import { MarksEntryHistory } from './MarksEntryHistory';
 import { SubmittedMarkDetail } from './SubmittedMarkDetail';
@@ -62,46 +47,13 @@ interface LecturerMarksEntryProps {
 interface CustomSummaryCardProps {
   title: string;
   value: number;
-  subtext: string;
-  icon: React.ComponentType<any>;
-  themeColor: string;
-  iconBg: string;
-  iconColor: string;
+  subtext?: string;
+  icon: LucideIcon;
 }
 
-export const CustomSummaryCard: React.FC<CustomSummaryCardProps> = ({
-  title,
-  value,
-  subtext,
-  icon: Icon,
-  themeColor,
-  iconBg,
-  iconColor
-}) => {
-  return (
-    <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs text-left flex justify-between items-start select-none group hover:shadow-xs transition-all relative overflow-hidden">
-      <div className="space-y-4">
-        {/* Visual Brand Icon Block */}
-        <div className={`w-11 h-11 ${iconBg} rounded-xl flex items-center justify-center border border-slate-100`}>
-          <Icon className={`w-5 h-5 ${iconColor}`} />
-        </div>
-        
-        <div className="space-y-1">
-          <span className="card-label text-slate-400 font-sans block">
-            {title}
-          </span>
-          <span className="card-description text-slate-500 leading-normal block">
-            {subtext}
-          </span>
-        </div>
-      </div>
-
-      <span className="text-4xl font-extrabold text-brand-navy pr-2 tracking-tight">
-        {value}
-      </span>
-    </div>
-  );
-};
+export const CustomSummaryCard: React.FC<CustomSummaryCardProps> = ({ title, value, subtext, icon }) => (
+  <MarksSummaryCard title={title} value={value} description={subtext} icon={icon} />
+);
 
 // ==================== MAIN COMPONENT ====================
 
@@ -132,11 +84,6 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   const [selectedSemester, setSelectedSemester] = useListState('LecturerMarksEntry', 'selectedSemester', 'All Semesters');
   const [selectedStatus, setSelectedStatus] = useListState('LecturerMarksEntry', 'selectedStatus', 'All Statuses');
   
-  // Confirmed filter states
-  const [filteredSearch, setFilteredSearch] = useListState('LecturerMarksEntry', 'filteredSearch', '');
-  const [filteredSemester, setFilteredSemester] = useListState('LecturerMarksEntry', 'filteredSemester', 'All Semesters');
-  const [filteredStatus, setFilteredStatus] = useListState('LecturerMarksEntry', 'filteredStatus', 'All Statuses');
-
   // View state: 'dashboard' | 'history'
   const [currentView, setCurrentView] = useListState<'dashboard' | 'history'>('LecturerMarksEntry', 'currentView', 'dashboard');
 
@@ -153,16 +100,15 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   };
 
   // 3. Filter actions
-  const handleApplyFilters = () => {
-    setFilteredSearch(searchTerm);
-    setFilteredSemester(selectedSemester);
-    setFilteredStatus(selectedStatus);
-    triggerToast("Search filters applied successfully!");
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedSemester('All Semesters');
+    setSelectedStatus('All Statuses');
   };
 
   // Filter computation
   const semesterOptions = getMarkTaskSemesters(tasks);
-  const filteredTasks = filterMarkTasks(tasks, filteredSearch, filteredSemester, filteredStatus);
+  const filteredTasks = filterMarkTasks(tasks, searchTerm, selectedSemester, selectedStatus);
 
   // Calculate dynamic summary stats
   const statAssigned = tasks.length;
@@ -179,22 +125,22 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   const StatusChip: React.FC<{ type: EvaluationStatus }> = ({ type }) => {
     switch (type) {
       case 'NOT STARTED':
-        return <StatusBadge tone="neutral" className="text-[9px] px-2.5 py-0.5">Not Started</StatusBadge>;
+        return <StatusBadge tone="neutral" className="text-xs px-2.5 py-0.5">Not Started</StatusBadge>;
       case 'DRAFT SAVED':
-        return <StatusBadge tone="info" className="text-[9px] px-2.5 py-0.5">Draft Saved</StatusBadge>;
+        return <StatusBadge tone="info" className="text-xs px-2.5 py-0.5">Draft Saved</StatusBadge>;
       case 'SUBMITTED':
-        return <StatusBadge tone="success" className="text-[9px] px-2.5 py-0.5">Submitted</StatusBadge>;
+        return <StatusBadge tone="success" className="text-xs px-2.5 py-0.5">Submitted</StatusBadge>;
       default:
         return null;
     }
   };
 
   return (
-    <div id="lecturer-marks-entry-container" className="space-y-6">
+    <div id="lecturer-marks-entry-container" className="marks-workspace space-y-6">
       
-      <PortalToast message={toastMessage} />
+      <PortalToast message={toastMessage} tone="success" />
 
-      <AnimatePresence mode="wait">
+      <>
         {currentView === 'history' ? (
             <MarksEntryHistory
               onBack={() => setCurrentView('dashboard')}
@@ -203,13 +149,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             />
           ) : (
             /* ==================== 1. MAIN ENTRY TASKS DASHBOARD VIEW ==================== */
-            <motion.div
-              key="dashboard-view"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="space-y-6"
-          >
+            <div className="space-y-6">
             <PageHeader
               title="Marks Entry"
               subtitle="Enter and submit marks for your assigned evaluation tasks."
@@ -217,118 +157,57 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             />
 
             {/* 4 Summary Cards Grid matching reference */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {!loading && !error ? <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
               <CustomSummaryCard 
-                title="ASSIGNED TASKS" 
+                title="Assigned tasks"
                 value={statAssigned} 
-                subtext="Evaluation tasks assigned to you." 
                 icon={CheckSquare}
-                themeColor="slate-400"
-                iconBg="bg-slate-50/50"
-                iconColor="text-slate-600"
               />
               <CustomSummaryCard 
-                title="NOT STARTED" 
+                title="Not started"
                 value={statNotStarted} 
-                subtext="Tasks yet to be opened." 
                 icon={Clock}
-                themeColor="amber-500"
-                iconBg="bg-[#fffbeb] border-[#fef3c7]"
-                iconColor="text-amber-600"
               />
               <CustomSummaryCard 
-                title="DRAFT SAVED" 
+                title="Draft saved"
                 value={statDraft} 
-                subtext="Tasks with saved progress." 
                 icon={Mail}
-                themeColor="blue-500"
-                iconBg="bg-[#eff6ff] border-[#dbeafe]"
-                iconColor="text-blue-600"
               />
               <CustomSummaryCard 
-                title="SUBMITTED" 
+                title="Submitted"
                 value={statSubmitted} 
-                subtext="Tasks completed and sent." 
                 icon={CheckCircle}
-                themeColor="emerald-500"
-                iconBg="bg-[#e6fbf2] border-[#bef5db]"
-                iconColor="text-emerald-600"
               />
-            </div>
+            </div> : null}
 
-            {/* Filters panel section layout matches exactly */}
-            <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs text-left grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
-              <div className="col-span-1 md:col-span-5 space-y-1.5">
-                <label className="form-label">
-                  Search Students
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Search className="w-4 h-4" />
-                  </span>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search by student name, ID, or research title"
-                    className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-9.5 pr-4 py-2.5 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 transition"
-                  />
-                </div>
-              </div>
-
-              <div className="col-span-1 md:col-span-3 space-y-1.5">
-                <label className="form-label">
-                  Semester
-                </label>
-                <PortalSelect
-                  value={selectedSemester}
-                  onChange={(e) => setSelectedSemester(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-slate-400 transition"
-                >
+            <WorkspaceFilterCard onReset={clearFilters} fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+              <label htmlFor="lecturer-marks-search" className="form-label min-w-0 sm:col-span-2 xl:col-span-1">Search students
+                <span className="relative mt-1 block">
+                  <Search aria-hidden="true" className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input id="lecturer-marks-search" type="search" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Student, ID or research title" className="form-control form-control-sm pl-10 pr-4" />
+                </span>
+              </label>
+              <label className="form-label min-w-0">Semester
+                <PortalSelect aria-label="Semester" value={selectedSemester} onChange={event => setSelectedSemester(event.target.value)} className="form-control form-control-sm mt-1">
                   <option>All Semesters</option>
-                  {semesterOptions.map(semester => (
-                    <option key={semester} value={semester}>{semester}</option>
-                  ))}
+                  {semesterOptions.map(semester => <option key={semester} value={semester}>{semester}</option>)}
                 </PortalSelect>
-              </div>
-
-              <div className="col-span-1 md:col-span-3 space-y-1.5">
-                <label className="form-label">
-                  Status
-                </label>
-                <PortalSelect
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-slate-400 transition"
-                >
-                  <option>All Statuses</option>
-                  <option>NOT STARTED</option>
-                  <option>DRAFT SAVED</option>
-                  <option>SUBMITTED</option>
+              </label>
+              <label className="form-label min-w-0">Status
+                <PortalSelect aria-label="Task status" value={selectedStatus} onChange={event => setSelectedStatus(event.target.value)} className="form-control form-control-sm mt-1">
+                  <option value="All Statuses">All statuses</option>
+                  <option value="NOT STARTED">Not started</option>
+                  <option value="DRAFT SAVED">Draft saved</option>
+                  <option value="SUBMITTED">Submitted</option>
                 </PortalSelect>
-              </div>
-
-              <div className="col-span-1 md:col-span-1">
-                <button
-                  type="button"
-                  onClick={handleApplyFilters}
-                  className="w-full py-2.5 bg-brand-navy hover:bg-slate-800 text-white border border-brand-navy rounded-xl text-xs font-extrabold tracking-wider uppercase transition cursor-pointer"
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
+              </label>
+            </WorkspaceFilterCard>
 
             {/* My Mark Entry Tasks Table Card matches layout & alignment perfectly */}
             <div id="mark-entry-tasks-list-block" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs text-left space-y-5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
                 <div className="space-y-0.5">
-                  <h3 className="section-label">
-                    My Mark Entry Tasks
-                  </h3>
-                  <p className="card-description">
-                    Open an assigned evaluation task to enter rubric marks and submit your evaluation.
-                  </p>
+                  <MarksHeading icon={CheckSquare}>My mark entry tasks</MarksHeading>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
@@ -336,25 +215,26 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                     onClick={() => setCurrentView('history')}
                     className="inline-flex items-center gap-1.5 border border-[#e2e8f0]/80 bg-white hover:bg-slate-50 py-2 px-4 rounded-xl text-xs font-bold text-slate-700 transition cursor-pointer shadow-3xs"
                   >
-                    <span>View Marks Entry History</span>
+                    <span>View submission history</span>
                   </button>
 
                 </div>
               </div>
 
               {/* Data Table */}
-              <div className="overflow-x-auto">
+              <div role="region" aria-label="My mark entry tasks" tabIndex={0} className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue-600">
                     <table className="data-table min-w-[900px] text-xs">
+                  <caption className="sr-only">Your evaluation tasks matching the current filters</caption>
                   <thead>
-                    <tr className="border-b border-slate-150 border-slate-100 font-extrabold text-slate-400 text-[10px] uppercase tracking-wider select-none">
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Student ID</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Student Name</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Research Title</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Role</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Semester</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Deadline</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Status</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4 text-center">Action</th>
+                    <tr className="data-thead">
+                      <th scope="col" className="data-th">Student ID</th>
+                      <th scope="col" className="data-th">Student name</th>
+                      <th scope="col" className="data-th">Research title</th>
+                      <th scope="col" className="data-th">Role</th>
+                      <th scope="col" className="data-th">Semester</th>
+                      <th scope="col" className="data-th">Deadline</th>
+                      <th scope="col" className="data-th">Status</th>
+                      <th scope="col" className="data-th text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100/60 font-sans text-brand-navy/90">
@@ -383,7 +263,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                             {/* Name */}
                             <td className="text-xs font-semibold text-slate-500 py-4.5 pr-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-[30px] h-[30px] rounded-lg bg-indigo-50 border border-blue-100/50 text-blue-650 text-blue-600 font-black text-[10px] flex items-center justify-center shrink-0">
+                                <div className="w-[30px] h-[30px] rounded-lg bg-indigo-50 border border-blue-100/50 text-blue-650 text-blue-600 font-black text-xs flex items-center justify-center shrink-0">
                                   {task.initials}
                                 </div>
                                 <span className="card-value text-slate-900 leading-snug">
@@ -398,7 +278,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                               </p>
                             </td>
                             <td className="text-xs font-semibold text-slate-500 py-4.5 pr-4">
-                              <span className="inline-flex px-3 py-1 rounded-full bg-slate-50 text-[9px] font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200">
+                              <span className="inline-flex px-3 py-1 rounded-full bg-slate-50 text-xs font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200">
                                 {evaluatorRoleLabel(task)}
                               </span>
                             </td>
@@ -422,13 +302,13 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                             {/* Action Button */}
                             <td className="text-xs font-semibold text-slate-500 py-4.5 text-center">
                               <div className="flex flex-col items-center gap-1.5">
-                                <button
+                                {onNavigateToDossier ? <button
                                   type="button"
-                                  onClick={() => onNavigateToDossier?.(task.studentId)}
-                                  className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                                  onClick={() => onNavigateToDossier(task.studentId)}
+                                  className="text-xs font-black uppercase text-blue-700 hover:underline"
                                 >
                                   View student record
-                                </button>
+                                </button> : null}
                                 {task.status === 'SUBMITTED' || task.canEdit !== true ? (
                                   <button
                                     type="button"
@@ -455,7 +335,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                       <tr>
                         <td colSpan={8} className="card-description py-12 text-center">
                           <div className="card-description text-slate-400">
-                            No matching valuation tasks found. Adjust search terms.
+                            {tasks.length === 0 ? 'No evaluation tasks assigned yet.' : 'No tasks match your filters. Try another search or clear the filters.'}
                           </div>
                         </td>
                       </tr>
@@ -464,52 +344,11 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                 </table>
               </div>
 
-              {/* Pagination Component */}
-              <div className="flex items-center justify-between pt-4 border-t border-slate-50 select-none card-description text-slate-400">
-                <span>
-                  Showing 1 to {filteredTasks.length} of {filteredTasks.length} tasks
-                </span>
-                
-                <div className="flex items-center gap-1.5">
-                  <button 
-                    disabled 
-                    className="w-8 h-8 rounded-lg border border-slate-100 flex items-center justify-center text-slate-300 bg-slate-50 cursor-not-allowed"
-                  >
-                    &lt;
-                  </button>
-                  <button className="w-8 h-8 rounded-lg border border-brand-navy bg-brand-navy text-white flex items-center justify-center font-black">
-                    1
-                  </button>
-                  <button 
-                    disabled 
-                    className="w-8 h-8 rounded-lg border border-slate-100 flex items-center justify-center text-slate-300 bg-slate-50 cursor-not-allowed"
-                  >
-                    &gt;
-                  </button>
-                </div>
-              </div>
+              {!loading && !error ? <p role="status" className="card-description border-t border-slate-100 pt-4">
+                {filteredTasks.length} of {tasks.length} tasks
+              </p> : null}
             </div>
-
-            {/* Bottom Row Notice & Support box layout match exactly */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-              
-              {/* Important Notice */}
-              <div className="lg:col-span-12 bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs hover:shadow-3xs transition text-left flex gap-4 items-start font-sans">
-                <div className="w-[38px] h-[38px] rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                  <Info className="w-4.5 h-4.5 text-blue-600 stroke-[2.3]" />
-                </div>
-                <div className="space-y-1 pt-0.5">
-                  <h4 className="section-label flex items-center gap-1.5">
-                    Important Notice
-                  </h4>
-                  <p className="card-description">
-                    Please ensure all marks follow the configured rubric. Submission locks the record immediately; contact Office Staff if a correction requires reopening.
-                  </p>
-                </div>
-              </div>
-
-            </div>
-          </motion.div>
+          </div>
           )}
         {activeFormTask ? activeFormTask.status === 'SUBMITTED' ? (
           <SubmittedMarkDetail
@@ -523,14 +362,10 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             backLabel={currentView === 'history' ? 'Back to Marks Entry History' : 'Back to Marks Entry'}
             onBack={() => setActiveFormTask(null)}
             onSave={async (updatedTask) => {
-              try {
-                const savedTask = await saveMarkDraft(updatedTask);
-                setTasks((current) => replaceEvaluationTask(current, savedTask));
-                setActiveFormTask(null);
-                triggerToast(`Draft saved successfully for ${savedTask.studentName}!`);
-              } catch (reason) {
-                triggerToast(reason instanceof Error ? reason.message : 'Failed to save mark draft.');
-              }
+              const savedTask = await saveMarkDraft(updatedTask);
+              setTasks((current) => replaceEvaluationTask(current, savedTask));
+              setActiveFormTask(null);
+              triggerToast(`Draft saved successfully for ${savedTask.studentName}!`);
             }}
             onReload={async () => {
               try {
@@ -555,7 +390,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             }, () => loadTasks(true))}
           />
         ) : null}
-      </AnimatePresence>
+      </>
 
     </div>
   );

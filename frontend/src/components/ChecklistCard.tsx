@@ -4,7 +4,9 @@
  */
 
 import React from 'react';
-import { CheckCircle2, ChevronRight, Clock3 } from 'lucide-react';
+import { CalendarRange, ChevronRight, ClipboardList, ListChecks, SlidersHorizontal } from 'lucide-react';
+import { MarksHeading, MarksIcon } from './MarksPrimitives';
+import { StatusBadge } from './PortalPrimitives';
 
 export interface ChecklistItem {
   id: string;
@@ -13,69 +15,24 @@ export interface ChecklistItem {
   actionLabel: string;
 }
 
-interface ChecklistCardProps {
-  items: ChecklistItem[];
-  onItemAction: (item: ChecklistItem) => void;
-}
-
-export const ChecklistCard: React.FC<ChecklistCardProps> = ({
-  items,
-  onItemAction
-}) => {
-  return (
-    <div id="checklist-card-section" className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
-      <div className="flex justify-between items-start mb-1">
-        <h3 className="section-heading">
-          Evaluation Setup Checklist
-        </h3>
-      </div>
-      <p className="card-description mb-6">
-        Complete these setup steps before lecturers begin mark entry.
-      </p>
-
-      {/* Checklist Rows list */}
-      <div id="checklist-rows" className="space-y-4">
-        {items.map((item) => (
-          <div 
-            key={item.id} 
-            className="flex items-center justify-between p-4 bg-slate-50/70 border border-slate-100 rounded-2xl hover:bg-slate-50 transition-colors group"
-          >
-            <div className="flex items-center gap-3.5">
-              {/* Checkmark bullet */}
-              <div className="shrink-0">
-                {item.status === 'COMPLETED' ? (
-                  <CheckCircle2 className="w-5.5 h-5.5 text-emerald-500 fill-emerald-50/50" />
-                ) : (
-                  <Clock3 className="w-5.5 h-5.5 text-amber-500" />
-                )}
-              </div>
-              <span className="card-value group-hover:text-slate-950 transition-colors">
-                {item.taskName}
-              </span>
-            </div>
-
-            {/* Status indicators & Actions */}
-            <div className="flex items-center gap-4">
-              <span className={`px-2.5 py-1 text-[10px] font-extrabold tracking-wider border rounded-md ${
-                item.status === 'COMPLETED'
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-100/60'
-                  : 'bg-amber-50 text-amber-800 border-amber-100'
-              }`}>
-                {item.status}
-              </span>
-              
-              <button
-                type="button"
-                onClick={() => onItemAction(item)}
-                className="text-xs font-extrabold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer select-none"
-              >
-                <span>{item.actionLabel}</span>
-                <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+export function ChecklistCard({ items, onItemAction, unavailable = false }: { items: ChecklistItem[]; onItemAction: (item: ChecklistItem) => void; unavailable?: boolean }) {
+  return <section id="checklist-card-section" aria-label="Evaluation setup" className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
+    <MarksHeading icon={ListChecks}>Evaluation setup</MarksHeading>
+    <p className="card-description mt-2">All non-archived periods and the active rubric.</p>
+    <div id="checklist-rows" className="mt-4 divide-y divide-slate-100">
+      {items.filter(item => item.id !== 'monitor').map(item => {
+        const complete = item.status === 'COMPLETED';
+        const icon = item.id === 'period' ? CalendarRange : item.id === 'rubric' ? SlidersHorizontal : ClipboardList;
+        const title = item.id === 'period' ? 'Mark entry periods' : item.id === 'rubric' ? 'Rubric components' : 'Evaluation tasks';
+        const status = unavailable ? 'Not loaded' : complete ? item.id === 'period' ? 'Configured' : item.id === 'rubric' ? 'Ready' : 'Generated' : 'Needs setup';
+        return <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+          <div className="flex min-w-0 items-center gap-3"><MarksIcon icon={icon} /><div className="min-w-0"><h3 className="text-sm font-semibold text-brand-navy">{title}</h3><div className="mt-1"><StatusBadge className="marks-state" tone={unavailable || complete ? 'neutral' : 'warning'}>{status}</StatusBadge></div></div></div>
+          <button type="button" onClick={() => onItemAction(item)} aria-label={`Manage ${title.toLowerCase()}`}
+            className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+            Manage<ChevronRight aria-hidden="true" focusable="false" className="h-4 w-4 shrink-0" />
+          </button>
+        </div>;
+      })}
     </div>
-  );
-};
+  </section>;
+}

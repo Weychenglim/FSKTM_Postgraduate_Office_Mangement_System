@@ -1,3 +1,4 @@
+import { MarksIcon } from './MarksPrimitives';
 import { ApiError } from '../services/apiClient';
 import { RecordPage } from './RecordPage';
 /**
@@ -114,7 +115,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   return (
       <RecordPage
         title="Mark Entry Record Detail"
-        subtitle={`${record.recordId} · persisted evaluator submission and audit history`}
+        subtitle={record.recordId}
         backLabel={backLabel}
         onBack={onBack}
         actions={(
@@ -131,7 +132,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         onReload={async () => { await loadRecord(true); }}/>
 
 
-    <div id="mark-entry-record-detail" className="space-y-7 animate-fade-in text-left">
+    <div id="mark-entry-record-detail" className="marks-workspace space-y-7 animate-fade-in text-left">
       <div className="grid grid-cols-2 lg:grid-cols-4 border-y border-slate-200">
         {[
           ['Total mark', `${totalMark} / ${record.rubric.targetMark}`],
@@ -141,7 +142,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         ].map(([label, value]) => (
           <div key={label} className="min-w-0 border-b border-r border-slate-200 p-4 last:border-r-0 lg:border-b-0">
             <span className="card-label block">{label}</span>
-            <span className="card-value mt-1 block truncate" title={value}>{value}</span>
+            <span className="card-value mt-1 block break-words" title={value}>{value}</span>
           </div>
         ))}
       </div>
@@ -150,32 +151,32 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         <div className="space-y-6">
           <PortalCard padding="lg" className="rounded-lg">
             <div className="mb-5 flex items-center gap-2">
-              <UserRound className="h-4 w-4 text-slate-500" />
+              <MarksIcon icon={UserRound} />
               <h2 className="section-label">
                 Student and assignment
               </h2>
             </div>
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 text-xs">
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Student</dt>
+                <dt className="font-semibold text-slate-500">Student</dt>
                 <dd className="mt-1 text-sm font-extrabold text-brand-navy">{record.student.name}</dd>
                 <dd className="mt-0.5 font-mono text-blue-700">{record.student.studentId}</dd>
               </div>
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Programme</dt>
+                <dt className="font-semibold text-slate-500">Programme</dt>
                 <dd className="mt-1 font-bold text-slate-700">{record.student.programme}</dd>
               </div>
               <div className="md:col-span-2">
-                <dt className="font-extrabold uppercase text-slate-400">Research title</dt>
+                <dt className="font-semibold text-slate-500">Research title</dt>
                 <dd className="mt-1 font-bold leading-relaxed text-slate-700">{record.student.researchTitle}</dd>
               </div>
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Evaluator</dt>
+                <dt className="font-semibold text-slate-500">Evaluator</dt>
                 <dd className="mt-1 font-extrabold text-slate-800">{record.evaluator.name}</dd>
                 <dd className="mt-0.5 text-slate-500">{record.evaluator.staffId || record.evaluator.email}</dd>
               </div>
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Assigned</dt>
+                <dt className="font-semibold text-slate-500">Assigned</dt>
                 <dd className="mt-1 font-bold text-slate-700">{displayDateTime(record.assignment.assignedAt)}</dd>
                 <dd className="mt-0.5 text-slate-500">By {record.assignment.assignedBy || 'automatic assignment'}</dd>
               </div>
@@ -207,7 +208,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
           <PortalCard padding="none" className="overflow-hidden rounded-lg">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
               <div className="flex items-center gap-2">
-                <ClipboardCheck className="h-4 w-4 text-slate-500" />
+                <MarksIcon icon={ClipboardCheck} />
                 <h2 className="section-label">
                   Rubric breakdown
                 </h2>
@@ -216,14 +217,15 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                 <StatusBadge tone="neutral" icon={Lock}>Read-only</StatusBadge>
               ) : null}
             </div>
-            <div className="overflow-x-auto">
+            <div role="region" aria-label="Rubric breakdown" tabIndex={0} className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue-600">
               <table className="data-table min-w-[700px]">
+                <caption className="sr-only">Awarded marks and feedback by rubric component</caption>
                 <thead>
                   <tr className="data-thead">
-                    <th className="data-th">Component</th>
-                    <th className="data-th text-center">Maximum</th>
-                    <th className="data-th text-center">Awarded</th>
-                    <th className="data-th">Feedback</th>
+                    <th scope="col" className="data-th">Component</th>
+                    <th scope="col" className="data-th text-center">Maximum</th>
+                    <th scope="col" className="data-th text-center">Awarded</th>
+                    <th scope="col" className="data-th">Feedback</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -262,25 +264,25 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         <aside className="space-y-6">
           <PortalCard padding="lg" className="rounded-lg">
             <div className="mb-5 flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-slate-500" />
+              <MarksIcon icon={CalendarClock} />
               <h2 className="section-label">Period status</h2>
             </div>
             <dl className="space-y-4 text-xs">
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Period</dt>
+                <dt className="font-semibold text-slate-500">Period</dt>
                 <dd className="mt-1 font-bold text-slate-700">{record.period.name}</dd>
               </div>
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Window</dt>
+                <dt className="font-semibold text-slate-500">Window</dt>
                 <dd className="mt-1 font-bold text-slate-700">{displayDateTime(record.period.opensAt)}</dd>
                 <dd className="mt-0.5 font-bold text-slate-700">{displayDateTime(record.period.closesAt)}</dd>
               </div>
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Submitted</dt>
+                <dt className="font-semibold text-slate-500">Submitted</dt>
                 <dd className="mt-1 font-bold text-slate-700">{displayDateTime(record.entry.submittedAt)}</dd>
               </div>
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Last updated</dt>
+                <dt className="font-semibold text-slate-500">Last updated</dt>
                 <dd className="mt-1 font-bold text-slate-700">{displayDateTime(record.entry.updatedAt)}</dd>
               </div>
             </dl>
@@ -288,7 +290,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
 
           <PortalCard padding="lg" className="rounded-lg">
             <div className="mb-5 flex items-center gap-2">
-              <History className="h-4 w-4 text-slate-500" />
+              <MarksIcon icon={History} />
               <h2 className="section-label">Correction history</h2>
             </div>
             <MarkCorrectionHistoryView events={record.correctionHistory} components={record.rubric.components}/>
@@ -318,7 +320,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                     <p className="card-value">{event.reason}</p>
                     <p className="card-description mt-1">{event.actorName} · {displayDateTime(event.createdAt)}</p>
                     {Object.keys(event.draftSnapshot).length > 0 && (
-                      <pre className="mt-2 max-h-40 overflow-auto rounded bg-slate-100 p-2 text-[10px] text-slate-600 whitespace-pre-wrap">
+                      <pre className="mt-2 max-h-40 overflow-auto rounded bg-slate-100 p-2 text-xs text-slate-600 whitespace-pre-wrap">
                         {JSON.stringify(event.draftSnapshot, null, 2)}
                       </pre>
                     )}

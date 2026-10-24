@@ -1,4 +1,6 @@
+import { MarksHeading } from './MarksPrimitives';
 import { PortalSelect } from './PortalSelect';
+import { WorkspaceFilterCard } from './RequestWorkspacePrimitives';
 import { useListState } from './ListState';
 /**
  * @license
@@ -54,54 +56,63 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
   );
 
   return (
-    <div id="marks-entry-history" className="space-y-6 text-left">
+    <div id="marks-entry-history" className="marks-workspace space-y-6 text-left">
       <PageHeader
         title="Marks Entry History"
-        subtitle="Review your persisted submitted evaluations. Submitted records remain locked."
+        subtitle="Review your submitted evaluations."
         backLabel="Back to Marks Entry"
         onBack={onBack}
       />
 
-      <PortalCard padding="md" className="rounded-lg">
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_240px] gap-3">
-          <label className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+      <PortalCard padding="md" className="rounded-2xl space-y-4">
+        <MarksHeading icon={Search}>Find submitted evaluations</MarksHeading>
+        <WorkspaceFilterCard onReset={() => { setQuery(''); setSemester('All semesters'); }} fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,240px)]">
+          <label htmlFor="marks-history-search" className="form-label min-w-0">Search submitted evaluations
+            <span className="relative mt-1 block">
+            <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
+              id="marks-history-search"
+              type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search student, matric number, or research title"
-              className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3 text-xs font-bold"
+              placeholder="Student, ID or research title"
+              className="form-control form-control-sm pl-10 pr-3"
             />
+            </span>
           </label>
+          <label className="form-label min-w-0">Semester
           <PortalSelect
+            aria-label="Semester"
             value={semester}
             onChange={(event) => setSemester(event.target.value)}
-            className="rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-bold"
+            className="form-control form-control-sm mt-1"
           >
             <option>All semesters</option>
             {semesters.map((value) => <option key={value}>{value}</option>)}
           </PortalSelect>
-        </div>
+          </label>
+        </WorkspaceFilterCard>
       </PortalCard>
 
       {submitted.length === 0 ? (
         <EmptyState
-          title="No submitted evaluations"
-          description="Submitted marks matching the current filters will appear here."
+          title={tasksState.some(task => task.status === 'SUBMITTED') ? 'No submissions match your filters' : 'No submitted evaluations yet'}
+          description={tasksState.some(task => task.status === 'SUBMITTED') ? 'Try another search or clear the filters.' : 'Your submitted evaluations will appear here.'}
         />
       ) : (
         <PortalCard padding="none" className="overflow-hidden rounded-lg">
-          <div className="overflow-x-auto">
+          <div role="region" aria-label="Submitted evaluation results" tabIndex={0} className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue-600">
             <table className="data-table min-w-[820px]">
+              <caption className="sr-only">Your submitted evaluations matching the current filters</caption>
               <thead>
                 <tr className="data-thead">
-                  <th className="data-th">Student</th>
-                  <th className="data-th">Research title</th>
-                  <th className="data-th">Semester</th>
-                  <th className="data-th">Evaluator role</th>
-                  <th className="data-th">Total</th>
-                  <th className="data-th">Submitted</th>
-                  <th className="data-th text-right">Action</th>
+                  <th scope="col" className="data-th">Student</th>
+                  <th scope="col" className="data-th">Research title</th>
+                  <th scope="col" className="data-th">Semester</th>
+                  <th scope="col" className="data-th">Evaluator role</th>
+                  <th scope="col" className="data-th">Total</th>
+                  <th scope="col" className="data-th">Submitted</th>
+                  <th scope="col" className="data-th text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,6 +136,7 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
                         size="icon"
                         variant="ghost"
                         icon={Eye}
+                        aria-label={`View submitted marks for ${task.studentName}`}
                         title="View submitted marks"
                         onClick={() => onSelectRecord(task)}
                       />

@@ -1,4 +1,8 @@
+import { WorkspaceFilterCard } from './RequestWorkspacePrimitives';
+import { MarksHeading } from './MarksPrimitives';
 import { PortalSelect } from './PortalSelect';
+import { OfficeMonitoringNotice, useOfficeMonitoring } from './OfficeMonitoringContext';
+import { filterMonitoringMarks } from '../utils/officeMonitoring';
 import { useListState } from './ListState';
 /**
  * @license
@@ -8,19 +12,20 @@ import { useListState } from './ListState';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Search,
+  Files,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { MarkRecord } from '../types';
 import { getMarkRecords } from '../services';
 import {
   filterMarkRecordsByStatusTab,
-  getMarkRecordSummary,
   MarkRecordStatusTab,
 } from '../utils/markRecords';
 import { formatDeadlineText } from '../utils/workflowAgeing';
+import { pageWindow } from '../utils/pageWindow';
 
 interface MarkEntryRecordsProps {
   onBack: () => void;
@@ -32,12 +37,15 @@ interface MarkEntryRecordsProps {
 
 export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
   onBack,
-  backLabel = 'Back to Marks & Evaluation Management',
+  backLabel = 'Back to Marks overview',
   onViewRecordDetail,
   onNavigateToDossier,
-  initialStatusTab = 'All Records',
+  initialStatusTab: requestedStatusTab = 'All Records',
 }) => {
-  const [records, setRecords] = useState<MarkRecord[]>([]);
+  const [allRecords, setRecords] = useState<MarkRecord[]>([]);
+  const monitoring = useOfficeMonitoring();
+  const initialStatusTab = monitoring ? 'All Records' : requestedStatusTab;
+  const records = useMemo(() => filterMonitoringMarks(allRecords, monitoring?.view ?? null), [allRecords, monitoring?.view]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,36 +62,21 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
     loadRecords();
   }, [loadRecords]);
 
-  // Form Filter State
+  // Live filters retained in the authenticated shell.
   const [searchQuery, setSearchQuery] = useListState('MarkEntryRecords', 'searchQuery', '');
   const [programmeFilter, setProgrammeFilter] = useListState('MarkEntryRecords', 'programmeFilter', 'All Programmes');
   const [semesterFilter, setSemesterFilter] = useListState('MarkEntryRecords', 'semesterFilter', 'All Semesters');
-  const [statusFilter, setStatusFilter] = useListState('MarkEntryRecords', 'statusFilter', 'All Statuses');
   const [panelFilter, setPanelFilter] = useListState('MarkEntryRecords', 'panelFilter', 'All Members');
 
-  // Interactive pill filter selection mapping directly to Status Pill Buttons
+  // One status filter, retained in authenticated-shell list memory.
   const [activeTab, setActiveTab] = useListState<MarkRecordStatusTab>('MarkEntryRecords', 'activeTab', initialStatusTab);
 
-  // Active query parameters (applied on clicking 'Apply Filters')
-  const [appliedFilters, setAppliedFilters] = useListState('MarkEntryRecords', 'appliedFilters', {
-    search: '',
-    programme: 'All Programmes',
-    semester: 'All Semesters',
-    status: 'All Statuses',
-    panelMember: 'All Members',
-  });
+  // Retain only the legacy status fallback from the former explicit-Apply UI.
+  const [legacyFilters, setLegacyFilters] = useListState('MarkEntryRecords', 'appliedFilters', { status: 'All Statuses' });
 
   // Current page
   const [currentPage, setCurrentPage] = useListState('MarkEntryRecords', 'currentPage', 1);
   const itemsPerPage = 5;
-
-  // Notification system
-  const [toast, setToast] = useState<string | null>(null);
-
-  const triggerToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const [routeStatus, setRouteStatus] = useListState('MarkEntryRecords', 'routeStatus', initialStatusTab);
   useEffect(() => {
@@ -91,31 +84,21 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
     setRouteStatus(initialStatusTab);
   }, [initialStatusTab, routeStatus, setActiveTab, setCurrentPage, setRouteStatus]);
 
-  // Run Apply filter logic
-  const handleApplyFilters = () => {
-    setAppliedFilters({
-      search: searchQuery,
-      programme: programmeFilter,
-      semester: semesterFilter,
-      status: statusFilter,
-      panelMember: panelFilter
-    });
-    setCurrentPage(1);
-    triggerToast("Record filters applied successfully.");
+  // Preserve a previously applied dropdown status when returning from older list state.
+  const selectedStatus: MarkRecordStatusTab = activeTab !== 'All Records' ? activeTab
+    : legacyFilters.status === 'Draft' ? 'Draft Saved'
+    : ['Submitted', 'Not Started', 'Overdue'].includes(legacyFilters.status)
+      ? legacyFilters.status as MarkRecordStatusTab : 'All Records';
+  const statusFilters = (['All Records', 'Submitted', 'Draft Saved', 'Not Started', 'Overdue'] as const)
+    .map(key => ({ key, count: filterMarkRecordsByStatusTab(records, key).length }));
+  const hasFilters = selectedStatus !== 'All Records' || !!searchQuery
+    || programmeFilter !== 'All Programmes' || semesterFilter !== 'All Semesters'
+    || panelFilter !== 'All Members';
+  const clearFilters = () => {
+    setSearchQuery(''); setProgrammeFilter('All Programmes'); setSemesterFilter('All Semesters');
+    setPanelFilter('All Members'); setActiveTab('All Records'); setCurrentPage(1);
+    setLegacyFilters({ status: 'All Statuses' });
   };
-
-  // Calculated Stats
-  const summary = useMemo(
-    () => getMarkRecordSummary(
-      records.filter((record) => record.taskLifecycleStatus === 'ACTIVE'),
-    ),
-    [records],
-  );
-  const totalRecordCount = summary.total;
-  const submittedCount = summary.submitted;
-  const draftSavedCount = summary.draft;
-  const notStartedCount = summary.notStarted;
-  const overdueCount = summary.overdue;
   const programmeOptions = useMemo(
     () => Array.from(new Set(records.map((record) => record.programme))).filter(Boolean).sort(),
     [records],
@@ -131,9 +114,9 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
 
   // Derived filtered dataset matching active constraints
   const filteredRecords = useMemo(() => {
-    return filterMarkRecordsByStatusTab(records, activeTab).filter(rec => {
+    return filterMarkRecordsByStatusTab(records, selectedStatus).filter(rec => {
       // 1. Text Search matching student name, student ID, panel member, or research title
-      const searchText = appliedFilters.search.toLowerCase();
+      const searchText = searchQuery.toLowerCase();
       if (searchText) {
         const matchesStudentName = rec.studentName.toLowerCase().includes(searchText);
         const matchesStudentID = rec.studentId.toLowerCase().includes(searchText);
@@ -145,255 +128,88 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
       }
 
       // 2. Programme filter
-      if (appliedFilters.programme !== 'All Programmes' && rec.programme !== appliedFilters.programme) {
+      if (programmeFilter !== 'All Programmes' && rec.programme !== programmeFilter) {
         return false;
       }
 
       // 3. Semester filter
-      if (appliedFilters.semester !== 'All Semesters' && rec.semester !== appliedFilters.semester) {
+      if (semesterFilter !== 'All Semesters' && rec.semester !== semesterFilter) {
         return false;
       }
 
       // 4. Panel Member filter
-      if (appliedFilters.panelMember !== 'All Members' && rec.panelMember !== appliedFilters.panelMember) {
+      if (panelFilter !== 'All Members' && rec.panelMember !== panelFilter) {
         return false;
-      }
-
-      // 5. Status filter dropdown applies only when the status pill is All Records.
-      if (activeTab === 'All Records' && appliedFilters.status !== 'All Statuses') {
-        if (appliedFilters.status === 'Submitted' && rec.status !== 'Submitted') return false;
-        if (appliedFilters.status === 'Draft' && rec.status !== 'Draft') return false;
-        if (appliedFilters.status === 'Not Started' && rec.status !== 'Not Started') return false;
-        if (appliedFilters.status === 'Overdue' && rec.status !== 'Overdue') return false;
       }
 
       return true;
     });
-  }, [records, appliedFilters, activeTab]);
+  }, [records, searchQuery, programmeFilter, semesterFilter, panelFilter, selectedStatus]);
 
   // Pagination indexing calculations
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
+  useEffect(() => {
+    if (!loading && !error && currentPage > totalPages) setCurrentPage(totalPages);
+  }, [loading, error, currentPage, totalPages, setCurrentPage]);
+  const paginationPages = pageWindow(currentPage, totalPages);
   const paginatedRecords = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredRecords.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredRecords, currentPage]);
 
   return (
-    <div id="mark-entry-records-dashboard" className="space-y-8 animate-fade-in text-left relative">
+    <div id="mark-entry-records-dashboard" className="marks-workspace space-y-5 text-left relative">
       
-      <PortalToast message={toast} />
-
       {/* Breadcrumb back link & Title header */}
       <PageHeader
         title="Mark Entry Records"
-        subtitle="Search and monitor mark entry records by student, panel member, semester, and status."
+        subtitle="Find evaluation records and review submission progress."
         backLabel={backLabel}
         onBack={onBack}
         subtitleClassName="leading-relaxed"
       />
 
-      {/* 4 Summary Cards Row with exact look (number text + solid bottom line) */}
-      <div id="records-metrics-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-        
-        {/* Total Records */}
-        <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
-          <span className="card-label text-slate-400 block">
-            Total Records
-          </span>
-          <span className="card-metric text-brand-navy block">
-            {totalRecordCount}
-          </span>
-          {/* Bottom solid indicator bar */}
-          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-blue-600" />
+      <OfficeMonitoringNotice />
+
+      <div id="mark-records-table-container" className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-3xs">
+        <div id="records-filters-card" className="space-y-4 p-5 md:p-6">
+          <MarksHeading icon={Files}>Mark records</MarksHeading>
+          <WorkspaceFilterCard onReset={clearFilters}
+            fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <label htmlFor="records-search" className="form-label min-w-0 sm:col-span-2">Search records
+                <span className="relative mt-1 block">
+                  <Search aria-hidden="true" className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input id="records-search" type="search" value={searchQuery} onChange={event => { setSearchQuery(event.target.value); setCurrentPage(1); }}
+                    placeholder="Student, ID, evaluator or research title" className="form-control form-control-sm pl-10 pr-4" />
+                </span>
+              </label>
+              <label className="form-label min-w-0">Status
+                <PortalSelect aria-label="Record status" className="form-control form-control-sm mt-1" value={selectedStatus} disabled={loading || !!error}
+                  onChange={event => { setActiveTab(event.target.value as MarkRecordStatusTab); setLegacyFilters(previous => ({ ...previous, status: 'All Statuses' })); setCurrentPage(1); }}>
+                  {statusFilters.map(({ key, count }) => <option key={key} value={key}>{key} ({loading || error ? '—' : count})</option>)}
+                </PortalSelect>
+              </label>
+              <label className="form-label min-w-0">Programme
+                <PortalSelect aria-label="Programme" value={programmeFilter} onChange={event => { setProgrammeFilter(event.target.value); setCurrentPage(1); }} className="form-control form-control-sm mt-1">
+                  <option value="All Programmes">All Programmes</option>
+                  {programmeOptions.map(value => <option key={value} value={value}>{value}</option>)}
+                </PortalSelect>
+              </label>
+              <label className="form-label min-w-0">Semester
+                <PortalSelect aria-label="Semester" value={semesterFilter} onChange={event => { setSemesterFilter(event.target.value); setCurrentPage(1); }} className="form-control form-control-sm mt-1">
+                  <option value="All Semesters">All Semesters</option>
+                  {semesterOptions.map(value => <option key={value} value={value}>{value}</option>)}
+                </PortalSelect>
+              </label>
+              <label className="form-label min-w-0">Evaluator
+                <PortalSelect aria-label="Evaluator" value={panelFilter} onChange={event => { setPanelFilter(event.target.value); setCurrentPage(1); }} className="form-control form-control-sm mt-1">
+                  <option value="All Members">All Members</option>
+                  {evaluatorOptions.map(value => <option key={value} value={value}>{value}</option>)}
+                </PortalSelect>
+              </label>
+          </WorkspaceFilterCard>
+          {!loading && !error && (monitoring || records.length > 0) ? <p className="card-caption">{monitoring ? 'Counts for this dashboard monitoring view, before search filters.' : 'Status counts before search filters; paused and retired assignments included.'}</p> : null}
         </div>
-
-        {/* Submitted */}
-        <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
-          <span className="card-label text-slate-400 block">
-            Submitted
-          </span>
-          <span className="card-metric text-emerald-500 block">
-            {submittedCount}
-          </span>
-          {/* Bottom solid green line */}
-          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-emerald-500" />
-        </div>
-
-        {/* Draft Saved */}
-        <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
-          <span className="card-label text-slate-400 block">
-            Draft Saved
-          </span>
-          <span className="card-metric text-blue-500 block">
-            {draftSavedCount}
-          </span>
-          {/* Bottom solid cyan line */}
-          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-blue-400" />
-        </div>
-
-        {/* Not Started */}
-        <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
-          <span className="card-label text-slate-400 block">
-            Not Started
-          </span>
-          <span className="card-metric text-slate-500 block">
-            {notStartedCount}
-          </span>
-          {/* Bottom solid gray line */}
-          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-slate-350" />
-        </div>
-
-        {/* Overdue */}
-        <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
-          <span className="card-label text-slate-400 block">
-            Overdue
-          </span>
-          <span className="card-metric text-rose-600 block">
-            {overdueCount}
-          </span>
-          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-rose-500" />
-        </div>
-
-      </div>
-
-      {/* Advanced search and filters container box */}
-      <div id="records-filters-card" className="bg-white rounded-2xl border border-slate-200/90 p-5 md:p-6 text-left shadow-3xs space-y-5">
-        
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
-          {/* Search field */}
-          <div className="md:col-span-6 flex flex-col">
-            <label className="form-label">
-              Search
-            </label>
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by student name, ID, panel member, or research title"
-                className="form-control form-control-md pl-10 pr-4"
-              />
-            </div>
-          </div>
-
-          {/* Programme dropdown selector */}
-          <div className="md:col-span-3 flex flex-col">
-            <label className="form-label">
-              Programme
-            </label>
-            <PortalSelect
-              value={programmeFilter}
-              onChange={(e) => setProgrammeFilter(e.target.value)}
-              className="form-control form-control-md cursor-pointer"
-            >
-              <option value="All Programmes">All Programmes</option>
-              {programmeOptions.map((programme) => (
-                <option key={programme} value={programme}>{programme}</option>
-              ))}
-            </PortalSelect>
-          </div>
-
-          {/* Semester dropdown selector */}
-          <div className="md:col-span-3 flex flex-col">
-            <label className="form-label">
-              Semester
-            </label>
-            <PortalSelect
-              value={semesterFilter}
-              onChange={(e) => setSemesterFilter(e.target.value)}
-              className="form-control form-control-md cursor-pointer"
-            >
-              <option value="All Semesters">All Semesters</option>
-              {semesterOptions.map((semester) => (
-                <option key={semester} value={semester}>{semester}</option>
-              ))}
-            </PortalSelect>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end pt-2">
-          {/* Status Select dropdown */}
-          <div className="md:col-span-4 flex flex-col">
-            <label className="form-label">
-              Status
-            </label>
-            <PortalSelect
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="form-control form-control-md cursor-pointer"
-            >
-              <option value="All Statuses">All Statuses</option>
-              <option value="Submitted">Submitted</option>
-              <option value="Draft">Draft Saved</option>
-              <option value="Not Started">Not Started</option>
-              <option value="Overdue">Overdue</option>
-            </PortalSelect>
-          </div>
-
-          {/* Panel Member select */}
-          <div className="md:col-span-4 flex flex-col">
-            <label className="form-label">
-              Panel Member
-            </label>
-            <PortalSelect
-              value={panelFilter}
-              onChange={(e) => setPanelFilter(e.target.value)}
-              className="form-control form-control-md cursor-pointer"
-            >
-              <option value="All Members">All Members</option>
-              {evaluatorOptions.map((member) => (
-                <option key={member} value={member}>{member}</option>
-              ))}
-            </PortalSelect>
-          </div>
-
-          {/* Core Apply Filters Action Trigger */}
-          <div className="md:col-span-4">
-            <PortalButton
-              variant="primary"
-              size="lg"
-              fullWidth
-              onClick={handleApplyFilters}
-            >
-              Apply Filters
-            </PortalButton>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Pill tabs list according to status filter tabs */}
-      <div id="records-status-pills-row" className="flex flex-wrap items-center gap-2">
-        {([
-          { key: 'All Records', label: 'All Records' },
-          { key: 'Submitted', label: 'Submitted' },
-          { key: 'Draft Saved', label: 'Draft Saved' },
-          { key: 'Not Started', label: 'Not Started' },
-          { key: 'Overdue', label: 'Overdue' }
-        ] as const).map((tab) => {
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => {
-                setActiveTab(tab.key);
-                setCurrentPage(1);
-              }}
-              className={`px-4 py-2 text-xs font-bold rounded-full transition-all cursor-pointer select-none ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-650'
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Main Records Data Table Container */}
-      <div id="mark-records-table-container" className="bg-white rounded-2xl border border-slate-200/80 shadow-3xs overflow-hidden">
 
         {loading ? (
           <LoadingState message="Loading mark records…" />
@@ -401,62 +217,63 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
           <ErrorState message={error} onRetry={loadRecords} />
         ) : (
         <>
-        <div className="overflow-x-auto">
-          <table className="data-table min-w-[1050px]">
+        {filteredRecords.length === 0 ? (
+          <div className="mx-5 mb-5 rounded-xl bg-slate-50 px-4 py-6 md:mx-6 md:mb-6">
+            <h3 className="text-sm font-semibold text-brand-navy">{records.length === 0 ? monitoring ? 'No records in this monitoring view' : 'No mark records yet' : 'No records match your filters'}</h3>
+            <p className="card-description mt-1">{records.length === 0 ? monitoring ? 'No assignments currently match this dashboard view. Clear the monitoring view to see other records.' : 'Records appear once evaluation tasks are generated.' : 'Try a different search or clear the filters to see all records in this view.'}</p>
+          </div>
+        ) : <>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-3 md:px-6" role="status">
+          <p className="text-sm font-semibold text-brand-navy">{filteredRecords.length} {filteredRecords.length === 1 ? 'record' : 'records'} found</p>
+          {hasFilters && <span className="card-caption">Filters applied</span>}
+        </div>
+        <div className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue-600" role="region" aria-label="Mark record results" tabIndex={0}>
+          <table className="data-table min-w-[980px]">
+            <caption className="sr-only">Mark records matching the selected status and search filters</caption>
             <thead>
               <tr className="data-thead bg-slate-50/30">
-                <th className="data-th">Record ID</th>
-                <th className="data-th">Student</th>
-                <th className="data-th">Research Title</th>
-                <th className="data-th">Panel Member</th>
-                <th className="data-th">Semester</th>
-                <th className="data-th">Deadline</th>
-                <th className="data-th text-center">Total Mark</th>
-                <th className="data-th text-center">Status</th>
-                <th className="data-th text-center">Submitted Date</th>
-                <th className="data-th text-right">Action</th>
+                <th scope="col" className="data-th">Student</th>
+                <th scope="col" className="data-th">Research Title</th>
+                <th scope="col" className="data-th">Evaluator</th>
+                <th scope="col" className="data-th">Semester</th>
+                <th scope="col" className="data-th">Deadline</th>
+                <th scope="col" className="data-th text-center">Total Mark</th>
+                <th scope="col" className="data-th text-center">Status</th>
+                <th scope="col" className="data-th text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-sans">
-              {paginatedRecords.length > 0 ? (
-                paginatedRecords.map((rec) => (
+              {paginatedRecords.map((rec) => (
                   <tr key={rec.id} className="hover:bg-slate-55/40 transition-colors">
                     
-                    {/* Record ID styled code link */}
-                    <td className="py-4 px-5 text-xs font-bold text-blue-600 font-mono">
-                      <button 
-                        onClick={() => onViewRecordDetail(rec.id)}
-                        className="hover:underline text-left cursor-pointer focus:outline-none"
-                      >
-                        {rec.id}
-                      </button>
-                    </td>
-
                     {/* Student details with initial circle badge */}
-                    <td className="data-td py-4 px-5">
+                    <td className="data-td min-w-[180px] py-4 px-5">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100/70 border border-blue-200/50 flex items-center justify-center text-blue-700 text-[10px] font-extrabold shrink-0">
-                          {rec.studentInitials}
+                        <div aria-hidden="true" className="w-8 h-8 rounded-full bg-blue-100/70 border border-blue-200/50 flex items-center justify-center text-blue-700 text-xs font-extrabold shrink-0">
+                          {rec.studentInitials || rec.studentName.slice(0, 2).toUpperCase()}
                         </div>
                         <div className="flex flex-col text-left">
                           <span className="card-value text-blue-900 leading-tight">
                             {rec.studentName}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono mt-0.5 leading-none">
+                          <span className="text-xs text-slate-400 font-mono mt-0.5 leading-none">
                             {rec.studentId}
                           </span>
+                          <button onClick={() => onViewRecordDetail(rec.id)} aria-label={`View mark record ${rec.id}`}
+                            className="mt-1 text-left text-xs font-semibold text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600">{rec.id}</button>
                         </div>
                       </div>
                     </td>
 
                     {/* Thesis title */}
-                    <td className="data-td max-w-[200px] truncate" title={rec.researchTitle}>
+                    <td className="data-td min-w-[200px] max-w-[240px] whitespace-normal break-words" title={rec.researchTitle}>
                       {rec.researchTitle}
                     </td>
 
                     {/* Panel member examiner */}
                     <td className="data-td">
                       {rec.panelMember}
+                      {rec.evaluatorRoleLabel && <span className="card-caption mt-1 block">{rec.evaluatorRoleLabel}</span>}
                     </td>
 
                     {/* Academic semester */}
@@ -491,53 +308,51 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                     {/* Styled Status badge */}
                     <td className="data-td py-4 px-5 text-center">
                       {rec.taskLifecycleStatus === 'RETIRED' ? (
-                        <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-[9px] font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200" title={rec.retirementReason || undefined}>
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-xs font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200" title={rec.retirementReason || undefined}>
                           Retired
                         </span>
                       ) : rec.taskLifecycleStatus === 'PAUSED' ? (
-                        <span className="inline-flex px-2.5 py-1 rounded-full bg-amber-50 text-[9px] font-extrabold tracking-wider text-amber-700 uppercase border border-amber-200" title={rec.pauseReason || undefined}>
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-amber-50 text-xs font-extrabold tracking-wider text-amber-700 uppercase border border-amber-200" title={rec.pauseReason || undefined}>
                           Paused
                         </span>
                       ) : rec.status === 'Submitted' ? (
-                        <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-50 text-[9px] font-extrabold tracking-wider text-emerald-600 uppercase border border-emerald-100">
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-50 text-xs font-extrabold tracking-wider text-emerald-600 uppercase border border-emerald-100">
                           Submitted
                         </span>
                       ) : rec.status === 'Draft' ? (
-                        <span className="inline-flex px-2.5 py-1 rounded-full bg-blue-50 text-[9px] font-extrabold tracking-wider text-blue-500 uppercase border border-blue-100">
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-blue-50 text-xs font-extrabold tracking-wider text-blue-500 uppercase border border-blue-100">
                           Draft Saved
                         </span>
                       ) : rec.status === 'Not Started' ? (
-                        <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-50 text-[9px] font-extrabold tracking-wider text-slate-500 uppercase border border-slate-200">
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-50 text-xs font-extrabold tracking-wider text-slate-500 uppercase border border-slate-200">
                           Not Started
                         </span>
                       ) : rec.status === 'Overdue' ? (
-                        <span className="inline-flex px-2.5 py-1 rounded-full bg-rose-50 text-[9px] font-extrabold tracking-wider text-rose-600 uppercase border border-rose-100">
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-rose-50 text-xs font-extrabold tracking-wider text-rose-600 uppercase border border-rose-100">
                           Overdue
                         </span>
                       ) : (
-                        <span className="inline-flex px-2.5 py-1 rounded-full bg-gray-100 text-[9px] font-extrabold tracking-wider text-gray-600 uppercase border border-gray-200">
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-gray-100 text-xs font-extrabold tracking-wider text-gray-600 uppercase border border-gray-200">
                           Closed
                         </span>
                       )}
-                    </td>
-
-                    {/* Submitted Date */}
-                    <td className="data-td text-center">
-                      {rec.submittedDate}
+                      {rec.submittedDate && rec.submittedDate !== '-' && <span className="card-caption mt-1 block">Submitted {rec.submittedDate}</span>}
                     </td>
 
                     {/* Row inspection trigger button */}
-                    <td className="data-td py-4 px-5 text-right">
+                    <td className="data-td py-4 px-5 text-right whitespace-nowrap">
                       <div className="flex flex-col items-end gap-1.5">
-                        <button
-                          onClick={() => onNavigateToDossier?.(rec.studentId)}
-                          className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                        {onNavigateToDossier && <button
+                          aria-label={`View student record for ${rec.studentName}`}
+                          onClick={() => onNavigateToDossier(rec.studentId)}
+                          className="min-h-11 text-xs font-semibold text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600"
                         >
                           View student record
-                        </button>
+                        </button>}
                         <button
+                          aria-label={`Open mark record ${rec.id}`}
                           onClick={() => onViewRecordDetail(rec.id)}
-                          className="py-1.5 px-3 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-lg text-[10px] font-extrabold tracking-wide uppercase transition duration-150 cursor-pointer shadow-2xs"
+                          className="min-h-11 py-1.5 px-3 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-lg text-xs font-extrabold tracking-wide uppercase transition duration-150 cursor-pointer shadow-2xs"
                         >
                           View
                         </button>
@@ -545,14 +360,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                     </td>
 
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={10} className="card-description py-10 text-center text-slate-400 font-sans">
-                    No matching postgrad evaluation registry records found.
-                  </td>
-                </tr>
-              )}
+                ))}
             </tbody>
           </table>
         </div>
@@ -560,21 +368,24 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
         {/* Pagination bar block row */}
         <div id="records-pagination-footer" className="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
           <span className="card-description text-slate-500 font-sans text-left">
-            Showing {filteredRecords.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredRecords.length)} of {filteredRecords.length} filtered records ({totalRecordCount} total).
+            Showing {filteredRecords.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredRecords.length)} of {filteredRecords.length} filtered records ({records.length} loaded).
           </span>
 
-          <div className="flex items-center gap-1.5 font-sans">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 font-sans">
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              aria-label="Previous page"
               disabled={currentPage === 1}
               className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-white hover:text-slate-800 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
-              <button
-                key={pageNum}
+            {paginationPages.map((pageNum, index) => (
+              <React.Fragment key={pageNum ?? `gap-${index}`}>
+              {pageNum === null ? <span aria-hidden="true" className="px-1 text-slate-400">…</span> : <button
+                aria-label={`Page ${pageNum}`}
+                aria-current={currentPage === pageNum ? 'page' : undefined}
                 onClick={() => setCurrentPage(pageNum)}
                 className={`w-8 h-8 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
                   currentPage === pageNum
@@ -583,11 +394,13 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                 }`}
               >
                 {pageNum}
-              </button>
+              </button>}
+              </React.Fragment>
             ))}
 
             <button
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              aria-label="Next page"
               disabled={currentPage === totalPages}
               className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-white hover:text-slate-800 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
             >
@@ -595,6 +408,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
             </button>
           </div>
         </div>
+        </>}
         </>
         )}
 

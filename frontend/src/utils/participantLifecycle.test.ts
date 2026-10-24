@@ -1,3 +1,5 @@
+import {filterMonitoringMarks} from './officeMonitoring';
+import type {MarkRecord} from '../types';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
@@ -35,6 +37,8 @@ assert.match(workspace, /Audit history/);
 assert.match(studentSupervisor, /workflowEligible/);
 assert.match(coordinatorSupervisor, /participantEligible === false/);
 assert.match(lecturerPanel, /recommendation\.participantEligible !== false/);
-assert.match(markRecords, /taskLifecycleStatus === 'ACTIVE'/);
-assert.match(markRecords, /taskLifecycleStatus === 'PAUSED'/);
+assert.match(markRecords, /filterMonitoringMarks/);
+const lifecycleRecords = ['ACTIVE', 'PAUSED', 'RETIRED'].map((taskLifecycleStatus, index) => ({id: `LIFECYCLE-${index}`, status: 'Not Started', taskLifecycleStatus})) as MarkRecord[];
+assert.deepEqual(filterMonitoringMarks(lifecycleRecords, null).map(row => row.taskLifecycleStatus), ['ACTIVE', 'PAUSED', 'RETIRED'], 'ordinary browsing preserves all lifecycle records');
+assert.deepEqual(filterMonitoringMarks(lifecycleRecords, 'incomplete').map(row => row.taskLifecycleStatus), ['ACTIVE'], 'dashboard incomplete monitoring includes active tasks only');
 assert.match(markDetail, /Paused evaluation task/);
