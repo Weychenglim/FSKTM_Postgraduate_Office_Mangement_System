@@ -1,11 +1,10 @@
 import { PortalSelect } from './PortalSelect';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertMessage } from './AlertMessage';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Filter,
   Clock3,
   Download,
   FileSpreadsheet,
-  RefreshCw,
   ShieldAlert,
 } from 'lucide-react';
 
@@ -28,6 +27,7 @@ import {
 import { APP_ROUTES, routeForStudentProgress } from '../constants/routes';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { useListState } from './ListState';
+import { WorkspaceFilterCard } from './RequestWorkspacePrimitives';
 import {
   PageHeader,
   PortalButton,
@@ -177,12 +177,17 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   const office = currentUserRole === 'Office Staff/Admin';
   const [report, setReport] = useState<WorkflowReport | null>(null);
   const [filters, setFilters] = useReportViewState<WorkflowReportFilters>(office, 'filters', { semester: 'active' });
-  const [draftFilters, setDraftFilters] = useReportViewState<WorkflowReportFilters>(office, 'draftFilters', { semester: 'active' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const validationError = filters.startDate && filters.endDate && filters.startDate > filters.endDate
+    ? 'End date must be on or after start date.' : null;
+  const requestGeneration = useRef(0);
+  const [loadedQuery, setLoadedQuery] = useState<string | null>(null);
+  const reportQuery = buildWorkflowReportQuery(filters);
+  const reportPending = loading || (!validationError && !error && loadedQuery !== reportQuery);
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastTone, setToastTone] = useState<'success' | 'danger'>('success');
   const [attentionPage, setAttentionPage] = useReportViewState(office, 'attentionPage', 1);
   const [officeSection, setOfficeSection] = useReportViewState(office, 'section', 'attention');
   const attentionView = getOfficeReportAttentionPage(report?.attention ?? [], attentionPage);
@@ -191,48 +196,46 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   const attentionItems = office ? attentionView.rows : report?.attention ?? [];
 
   const loadReport = useCallback(() => {
-    setLoading(true);
+    const generation = ++requestGeneration.current;
     setError(null);
+    if (validationError) { setLoading(false); return; }
+    setLoading(true);
     getWorkflowReport(filters)
-      .then(setReport)
-      .catch((reason) => {
-        setError(reason instanceof Error ? reason.message : 'Unable to load workflow reports.');
+      .then(result => {
+        if (generation !== requestGeneration.current) return;
+        setReport(result);
+        setLoadedQuery(buildWorkflowReportQuery(filters));
       })
-      .finally(() => setLoading(false));
-  }, [filters]);
+      .catch(reason => {
+        if (generation === requestGeneration.current) setError(reason instanceof Error ? reason.message : 'Unable to load workflow reports.');
+      })
+      .finally(() => { if (generation === requestGeneration.current) setLoading(false); });
+  }, [filters, validationError]);
 
   useEffect(() => {
     loadReport();
+    return () => { requestGeneration.current++; };
   }, [loadReport]);
 
-  const applyFilters = () => {
-    if (
-      draftFilters.startDate
-      && draftFilters.endDate
-      && draftFilters.startDate > draftFilters.endDate
-    ) {
-      setValidationError('End date must be on or after start date.');
-      return;
-    }
-    setValidationError(null);
+  const updateFilters = (patch: Partial<WorkflowReportFilters>) => {
     setAttentionPage(1);
-    setFilters({ ...draftFilters });
+    setFilters(current => ({ ...current, ...patch }));
   };
-
   const resetFilters = () => {
     setAttentionPage(1);
-    setValidationError(null);
-    setDraftFilters({ semester: 'active' });
     setFilters({ semester: 'active' });
   };
 
   const exportWorkbook = async () => {
+    if (!report || reportPending || validationError || error || exporting) return;
     setExporting(true);
     try {
       await downloadWorkflowReport(filters);
+      setToastTone('success');
       setToast('Downloaded workflow_analytics_report.xlsx');
       window.setTimeout(() => setToast(null), 3200);
     } catch (reason) {
+      setToastTone('danger');
       setToast(reason instanceof Error ? reason.message : 'Unable to download the workbook.');
       window.setTimeout(() => setToast(null), 3200);
     } finally {
@@ -320,7 +323,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
 
   return (
     <div id="workflow-reports-workspace" className="space-y-6 pb-16 text-left">
-      <PortalToast message={toast} />
+      <PortalToast message={toast} tone={toastTone} />
       <PageHeader
         title={office ? 'Workflow reports' : 'Workflow Analytics'}
         subtitle={currentUserRole === 'Lecturer' ? 'Review waiting requests and assigned evaluation work, then explore workflow outcomes.' : 'Current persisted state across authorised workflow, marks, and timeline records.'}
@@ -338,7 +341,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
               icon={Download}
               onClick={exportWorkbook}
               isLoading={exporting}
-              disabled={!report || loading || !!error}
+              disabled={!report || reportPending || !!validationError || !!error}
             >
               Download XLSX
             </PortalButton>
@@ -347,36 +350,36 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
       />
 
       <PortalCard padding="md" role="region" aria-label="Report filters">
-        <div className="flex items-center gap-2 mb-4">
-          <Filter aria-hidden="true" className="w-4 h-4 text-blue-600" />
-          <h2 className="section-label">Report filters</h2>
-        </div>
-        <form onSubmit={event => { event.preventDefault(); applyFilters(); }} className="space-y-4">
-          <div className="filter-toolbar flex flex-wrap gap-4 items-end">
-            <label className="form-label min-w-0 flex-[1_1_12rem] space-y-1.5">
-              <span>Start date</span>
+        <h2 className="section-label mb-4">Report filters</h2>
+        <WorkspaceFilterCard onReset={resetFilters} fieldsClassName={`grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 ${office ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
+            <label className="form-label min-w-0">
+              <span className="block mb-1">Start date</span>
               <input
                 type="date"
-                value={draftFilters.startDate ?? ''}
-                onChange={(event) => setDraftFilters((current) => ({ ...current, startDate: event.target.value }))}
-                className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                value={filters.startDate ?? ''}
+                aria-invalid={!!validationError}
+                aria-describedby={validationError ? 'report-date-error' : undefined}
+                onChange={(event) => updateFilters({ startDate: event.target.value })}
+                className="form-control form-control-sm"
               />
             </label>
-            <label className="form-label min-w-0 flex-[1_1_12rem] space-y-1.5">
-              <span>End date</span>
+            <label className="form-label min-w-0">
+              <span className="block mb-1">End date</span>
               <input
                 type="date"
-                value={draftFilters.endDate ?? ''}
-                onChange={(event) => setDraftFilters((current) => ({ ...current, endDate: event.target.value }))}
-                className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                value={filters.endDate ?? ''}
+                aria-invalid={!!validationError}
+                aria-describedby={validationError ? 'report-date-error' : undefined}
+                onChange={(event) => updateFilters({ endDate: event.target.value })}
+                className="form-control form-control-sm"
               />
             </label>
-            <label className="form-label min-w-0 flex-[1_1_12rem] space-y-1.5">
-              <span>Academic semester</span>
+            <label className="form-label min-w-0">
+              <span className="block mb-1">Academic semester</span>
               <PortalSelect
-                value={draftFilters.semester ?? 'active'}
-                onChange={(event) => setDraftFilters((current) => ({ ...current, semester: event.target.value }))}
-                className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                value={filters.semester ?? 'active'}
+                onChange={(event) => updateFilters({ semester: event.target.value })}
+                className="form-control form-control-sm"
               >
                 <option value="active">Active semester</option>
                 <option value="all">All semesters</option>
@@ -389,12 +392,12 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
               </PortalSelect>
             </label>
             {currentUserRole === 'Office Staff/Admin' && (
-              <label className="form-label min-w-0 flex-[1_1_12rem] space-y-1.5">
-                <span>Programme</span>
+              <label className="form-label min-w-0">
+                <span className="block mb-1">Programme</span>
                 <PortalSelect
-                  value={draftFilters.programme ?? ''}
-                  onChange={(event) => setDraftFilters((current) => ({ ...current, programme: event.target.value }))}
-                  className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                  value={filters.programme ?? ''}
+                  onChange={(event) => updateFilters({ programme: event.target.value })}
+                  className="form-control form-control-sm"
                 >
                   <option value="">All authorised programmes</option>
                   {report?.filters.availableProgrammes.map((programme) => (
@@ -403,22 +406,14 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                 </PortalSelect>
               </label>
             )}
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="card-description min-w-0" aria-live="polite">Showing: {report?.filters.selectedSemester && filters.semester === report.filters.semester ? report.filters.selectedSemester.semester : filters.semester === 'all' ? 'All semesters' : filters.semester === 'unassigned' ? 'Legacy / Unassigned' : filters.semester === 'active' ? 'Active semester' : filters.semester}; {filters.startDate || 'Any start date'} to {filters.endDate || 'any end date'}{filters.programme ? `; ${filters.programme}` : ''}.</p>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-              <PortalButton size="sm" className="shrink-0 whitespace-nowrap" variant="secondary" icon={RefreshCw} disabled={loading} onClick={resetFilters}>Reset filters</PortalButton>
-              <PortalButton size="sm" className="shrink-0 whitespace-nowrap" type="submit" variant="primary" icon={Filter} disabled={loading}>Apply filters</PortalButton>
-            </div>
-          </div>
-        </form>
-        {buildWorkflowReportQuery(draftFilters) !== buildWorkflowReportQuery(filters) ? <p className="card-description mt-1 text-amber-700">Filter changes have not been applied. Downloads use the applied filters.</p> : null}
+        </WorkspaceFilterCard>
+        {!reportPending && !validationError && !error && report && <p className="card-description mt-3" aria-live="polite">Showing: {report.filters.selectedSemester && filters.semester === report.filters.semester ? report.filters.selectedSemester.semester : filters.semester === 'all' ? 'All semesters' : filters.semester === 'unassigned' ? 'Legacy / Unassigned' : filters.semester === 'active' ? 'Active semester' : filters.semester}; {filters.startDate || 'Any start date'} to {filters.endDate || 'any end date'}{filters.programme ? `; ${filters.programme}` : ''}.</p>}
         {validationError && (
-          <p role="alert" className="card-value text-rose-600 mt-3">{validationError}</p>
+          <div id="report-date-error" className="mt-3"><AlertMessage type="error" title="Check the report dates" message={validationError} /></div>
         )}
       </PortalCard>
 
-      {loading ? (
+      {validationError ? null : reportPending ? (
         <LoadingState message="Loading workflow analytics..." />
       ) : error ? (
         <ErrorState message={error} onRetry={loadReport} />

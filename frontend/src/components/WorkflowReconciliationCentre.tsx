@@ -3,42 +3,50 @@ import { DecisionDialog } from './DecisionDialog';
 import { completeDecision } from '../utils/decisionSubmission';
 import { useReturnToFocusReload } from '../utils/returnToFocus';
 import { RecordPage } from './RecordPage';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
+  ClipboardList,
+  FileSearch,
   Gauge,
-  Search,
+  RefreshCw,
   ShieldCheck,
   Wrench,
 } from 'lucide-react';
 
 import type {
+  ReconciliationAcceptance,
   ReconciliationAllowedResolution,
-  ReconciliationAudit,
   ReconciliationFilters,
   ReconciliationIssue,
   ReconciliationListResponse,
   ReconciliationPreview,
 } from '../types';
 import {
+  acceptReconciliationIssue,
   applyReconciliationIssue,
-  getReconciliationAudits,
   getReconciliationIssues,
   previewReconciliationIssue,
-} from '../services';
+} from '../services/workflowReconciliationApi';
 import {
   reconciliationErrorMessage,
+  reconciliationExplanation,
+  reconciliationIdentity,
+  reconciliationListSummary,
+  reconciliationRepairDetails,
   reconciliationRecordRoute,
   resolutionPayload,
 } from '../utils/workflowReconciliation';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
-import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
 import { APP_ROUTES } from '../constants/routes';
-import {OfficeToolSection} from './OfficeToolPrimitives';
+import { OfficeToolSection } from './OfficeToolPrimitives';
+import { CoordinatorDataTable } from './CoordinatorBrowsePrimitives';
+import { AppointmentViewSwitch, WorkspaceFilterCard, WorkspacePagination } from './RequestWorkspacePrimitives';
+import { AppointmentSummaryCard } from './AppointmentPrimitives';
+import { ReconciliationEvidence, ReconciliationAuditHistory, humanizeReconciliationLabel } from './ReconciliationEvidence';
+export { humanizeReconciliationLabel } from './ReconciliationEvidence';
 
 interface WorkflowReconciliationCentreProps {
   onBack: () => void;
@@ -47,13 +55,6 @@ interface WorkflowReconciliationCentreProps {
   onOpenCapacity?: () => void;
 }
 
-export const humanizeReconciliationLabel = (value: string) => value
-  .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-  .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
-  .toLowerCase()
-  .replaceAll('_', ' ')
-  .replace(/\b\w/g, (letter) => letter.toUpperCase())
-  .replace(/\bIds\b/g, 'IDs').replace(/\bId\b/g, 'ID');
 const humanize = humanizeReconciliationLabel;
 
 const capacityIssueTypes = new Set(['CAPACITY_PLAN_MISSING', 'CAPACITY_MULTIPLE_PUBLISHED', 'CAPACITY_PLAN_INCOMPLETE', 'CAPACITY_ENTRY_ROLE_MISMATCH', 'CAPACITY_LEGACY_LIMIT_DIVERGENCE', 'CAPACITY_AVAILABILITY_OVERLAP']);
@@ -65,14 +66,6 @@ export function reconciliationOwningRoute(issue: ReconciliationIssue) {
   return reconciliationRecordRoute(issue.navigation.targetModule, issue.navigation.recordType, issue.navigation.recordId);
 }
 
-const stateValue = (value: unknown) => {
-  if (value === null || value === undefined || value === '') return 'Not set';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (Array.isArray(value)) return value.map(String).join(', ');
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-};
-
 export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentreProps> = ({
   onBack,
   backLabel = 'Back to Office Dashboard',
@@ -80,9 +73,14 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
   onOpenCapacity,
 }) => {
   const [data, setData] = useState<ReconciliationListResponse | null>(null);
-  const [filters, setFilters] = useState<ReconciliationFilters>({ page: 1, pageSize: 25 });
+  const [filters, setFilters] = useState<ReconciliationFilters>({ page: 1, pageSize: 10 });
   const [preview, setPreview] = useState<ReconciliationPreview | null>(null);
-  const [audits, setAudits] = useState<ReconciliationAudit[]>([]);
+  const [requestedIssue, setRequestedIssue] = useState<ReconciliationIssue | null>(null);
+  const previewVersion = useRef(0);
+  const listVersion = useRef(0);
+  const [repairApplied, setRepairApplied] = useState(false);
+  const [acceptedApplied, setAcceptedApplied] = useState<ReconciliationAcceptance | null>(null);
+  const [decisionMode, setDecisionMode] = useState<'repair' | 'accept'>('repair');
   const [selectedResolution, setSelectedResolution] = useState<ReconciliationAllowedResolution | null>(null);
   const [programme, setProgramme] = useState('');
   const [reason, setReason] = useState('');
@@ -93,51 +91,71 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [drawerError, setDrawerError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
 
   const load = useCallback(async (propagateError = false) => {
+    const version = ++listVersion.current;
+    let correctingPage = false;
     setLoading(true);
     setError(null);
     try {
-      const [issues, auditResponse] = await Promise.all([
-        getReconciliationIssues(filters),
-        getReconciliationAudits(),
-      ]);
+      const issues = await getReconciliationIssues(filters);
+      if (version !== listVersion.current) return;
+      const lastPage = Math.max(1, Math.ceil(issues.count / issues.pageSize));
+      if (issues.page > lastPage) {
+        correctingPage = true;
+        setFilters(current => ({ ...current, page: lastPage }));
+        return;
+      }
       setData(issues);
-      setAudits(auditResponse.results);
     } catch (loadError) {
-      setError(reconciliationErrorMessage(loadError));
+      if (version === listVersion.current) setError(reconciliationErrorMessage(loadError));
       if (propagateError) throw loadError;
     } finally {
-      setLoading(false);
+      if (version === listVersion.current && !correctingPage) setLoading(false);
     }
   }, [filters]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 180);
-    return () => window.clearTimeout(timer);
+    return () => { window.clearTimeout(timer); listVersion.current += 1; };
   }, [load]);
 
-  useReturnToFocusReload(() => void load(), !loading && !saving && !previewing && !preview && !reason.trim());
+  useReturnToFocusReload(() => void load(), !loading && !saving && !previewing && !requestedIssue && !reason.trim());
   const openIssue = async (issue: ReconciliationIssue, propagateError = false) => {
+    const version = ++previewVersion.current;
+    const sameIssue = requestedIssue?.issueId === issue.issueId;
+    setRequestedIssue(issue);
     setPreviewing(true);
     setDrawerError(null);
-    setReason('');
     setConfirmed(false);
-    setProgramme(issue.programme ?? '');
+    if (!sameIssue) {
+      setRepairApplied(false);
+      setAcceptedApplied(null);
+      setDecisionMode('repair');
+      setPreview(null);
+      setSelectedResolution(null);
+      setReason('');
+      setProgramme(issue.programme ?? '');
+    }
     try {
       const response = await previewReconciliationIssue(issue.issueId);
+      if (version !== previewVersion.current) return;
       setPreview(response);
-      setSelectedResolution(response.allowedResolutions[0] ?? null);
+      setSelectedResolution(current => (sameIssue && response.allowedResolutions.find(item => item.action === current?.action)) || response.allowedResolutions[0] || null);
     } catch (previewError) {
-      setDrawerError(reconciliationErrorMessage(previewError));
+      if (version === previewVersion.current) setDrawerError(reconciliationErrorMessage(previewError));
       if (propagateError) throw previewError;
     } finally {
-      setPreviewing(false);
+      if (version === previewVersion.current) setPreviewing(false);
     }
   };
 
   const closePreview = () => {
+    previewVersion.current += 1;
+    setRequestedIssue(null);
+    setRepairApplied(false);
+    setAcceptedApplied(null);
+    setPreviewing(false);
     setPreview(null);
     setSelectedResolution(null);
     setReason('');
@@ -146,247 +164,193 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
   };
 
   const applyRepair = async () => {
-    if (!preview || !selectedResolution || !reason.trim() || !confirmed) return false;
+    if (repairApplied || !preview || !selectedResolution || !reason.trim() || !confirmed) return false;
     setSaving(true);
     try {
-      return await completeDecision(() => applyReconciliationIssue(preview.issue.issueId, {
-        expectedFingerprint: preview.issue.fingerprint, reason: reason.trim(),
-        resolution: resolutionPayload(selectedResolution, programme),
-      }), async () => { await load(true); await openIssue(preview.issue, true); });
+      return await completeDecision(async () => {
+        await applyReconciliationIssue(preview.issue.issueId, {
+          expectedFingerprint: preview.issue.fingerprint, reason: reason.trim(),
+          resolution: resolutionPayload(selectedResolution, programme),
+        });
+        setRepairApplied(true); setReason(''); setConfirmed(false);
+      }, () => load(true));
     } finally { setSaving(false); }
   };
 
-  const setFilter = (key: keyof ReconciliationFilters, value: string) => {
-    setFilters((current) => ({ ...current, [key]: value || undefined, page: 1 }));
+  const acceptWarning = async () => {
+    if (acceptedApplied || preview?.issue.acceptance || !preview?.canAccept || !reason.trim() || !confirmed) return false;
+    setSaving(true);
+    try {
+      return await completeDecision(async () => {
+        const response = await acceptReconciliationIssue(preview.issue.issueId, { expectedFingerprint: preview.issue.fingerprint, reason: reason.trim() });
+        setAcceptedApplied(response.acceptance); setReason(''); setConfirmed(false);
+      }, () => load(true));
+    } finally { setSaving(false); }
   };
 
-  const selectedAudits = useMemo(() => (
-    preview
-      ? audits.filter((audit) => (
-        audit.entityType === preview.issue.recordType
-        && audit.entityId === preview.issue.recordId
-      ))
-      : []
-  ), [audits, preview]);
+  const updateFilters = (next: React.SetStateAction<ReconciliationFilters>) => {
+    listVersion.current += 1;
+    setLoading(true);
+    setFilters(next);
+  };
+  const setFilter = (key: keyof ReconciliationFilters, value: string) => updateFilters(current => ({ ...current, [key]: value || undefined, page: 1 }));
 
   const pageCount = data ? Math.max(1, Math.ceil(data.count / data.pageSize)) : 1;
+  const acceptance = acceptedApplied ?? preview?.issue.acceptance;
+  const acceptedView = filters.reviewStatus === 'ACCEPTED';
+  const canAccept = Boolean(!acceptedApplied && !preview?.issue.acceptance && !previewing && !drawerError && preview?.canAccept && reason.trim() && confirmed);
   const canApply = Boolean(
-    preview?.issue.repairability === 'REPAIRABLE'
+    !repairApplied && !acceptance && !previewing && !drawerError
+    && preview?.issue.repairability === 'REPAIRABLE'
     && selectedResolution
     && reason.trim()
     && confirmed
     && (!selectedResolution?.requiresProgramme || programme),
   );
   const owningRoute = preview ? reconciliationOwningRoute(preview.issue) : null;
-  const capacityIssue = preview ? capacityIssueTypes.has(preview.issue.issueType) : false;
+  const explanation = preview ? reconciliationExplanation(preview.issue) : null;
+  const identity = preview ? reconciliationIdentity(preview.issue) : null;
+  const repairDetails = preview ? reconciliationRepairDetails(preview.issue, selectedResolution, programme) : [];
+  const changePage = (page: number) => updateFilters(current => ({ ...current, page }));
+  const filterActive = Boolean(filters.search || filters.module || filters.severity || filters.repairability || filters.programme);
+  const rows = data?.results.map(issue => {
+    const identity = reconciliationIdentity(issue);
+    const summary = reconciliationListSummary(issue);
+    const context = issue.studentId ? `${humanize(issue.recordType)} #${issue.recordId}` : identity.context;
+    return { key: issue.issueId, cells: [
+      <><p className="card-value">{summary.title}</p>{summary.fact && <p className="card-description mt-1">{summary.fact}</p>}</>,
+      <><p className="card-value">{identity.name}</p>{context && <p className="card-description mt-1">{context}</p>}{issue.module === 'WORKFLOW_TRACKING' && !capacityIssueTypes.has(issue.issueType) && <p className="card-description mt-1">{humanize(issue.module)}</p>}</>,
+      <StatusBadge tone={issue.severity === 'BLOCKING' ? 'danger' : 'warning'}>{humanize(issue.severity)}</StatusBadge>,
+      issue.acceptance ? <StatusBadge tone="neutral">Accepted</StatusBadge> : <p className="card-description">{issue.repairability === 'REPAIRABLE' ? 'Repair available' : 'Source review'}</p>,
+      <PortalButton size="sm" onClick={() => void openIssue(issue)} aria-label={`Review ${issue.title} for ${identity.name}`}>Review issue</PortalButton>,
+    ] };
+  }) ?? [];
 
   return (
-    <div className="space-y-6 pb-16 text-left text-xs">
-      <PortalToast message={toast} />
-      <DecisionDialog isOpen={confirmOpen} kind="confirmation" decisionKey={preview?.issue.issueId}
-        title="Apply this audited repair?" context={<p>{preview?.issue.title}</p>}
-        message={<><p>{selectedResolution?.label} will change this record and create permanent repair audit history.</p><p>Reason: {reason}</p></>}
-        confirmLabel="Apply audited repair" successMessage="Repair completed and recorded in audit history."
-        canConfirm={canApply} busy={saving} onConfirm={applyRepair} onClose={() => setConfirmOpen(false)}
-        onReload={async () => { if (preview) await openIssue(preview.issue, true); }} />
-      <PageHeader
-        className="office-tool-heading"
-        title="Workflow Reconciliation Centre"
-        subtitle="Check inconsistent records. Review each issue and use verified, individually audited repairs where available."
-        backLabel={backLabel}
-        onBack={onBack}
-        actions={(
-          <>
-            {onOpenCapacity && <PortalButton size="sm" icon={Gauge} onClick={onOpenCapacity}>Lecturer Capacity</PortalButton>}
-
-          </>
-        )}
-      />
-
-      {data && (
-        <section className="office-tool-summary grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Reconciliation summary">
-          {([
-            ['Total issues', data.summary.total, 'neutral'],
-            ['Blocking', data.summary.blocking, 'danger'],
-            ['Warnings', data.summary.warnings, 'warning'],
-            ['Repairable', data.summary.repairable, 'success'],
-            ['Review required', data.summary.reviewRequired, 'info'],
-          ] as const).map(([label, value, tone]) => (
-            <div key={label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-3xs">
-              <StatusBadge tone={tone}>{label}</StatusBadge>
-              <p className="card-metric mt-3">{value}</p>
-            </div>
-          ))}
-        </section>
-      )}
-
-      <OfficeToolSection title="Issue records" description="Filter the issues, then preview a record before reviewing any repair.">
-        <div className="office-tool-filters grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="form-label sm:col-span-2 lg:col-span-4">Find an issue
-            <span className="relative mt-1 block"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-            <input
-              className="form-control form-control-md w-full pl-9 font-sans not-italic normal-case tracking-normal text-xs font-bold"
-              placeholder="Search record, student, or programme"
-              aria-label="Search record, student, or programme"
-              value={filters.search ?? ''}
-              onChange={(event) => setFilter('search', event.target.value)}
-            />
-          </span></label>
-          <label className="form-label">Module
-          <PortalSelect className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" aria-label="Module" value={filters.module ?? ''} onChange={(event) => setFilter('module', event.target.value)}>
-            <option value="">All modules</option>
-            <option value="DASHBOARD">Dashboard / Timeline</option>
-            <option value="SUPERVISOR_APPOINTMENTS">Supervisor</option>
-            <option value="PANEL_APPOINTMENTS">Panel</option>
-            <option value="MARKS">Marks</option>
-            <option value="WORKFLOW_TRACKING">Workflow Tracking</option>
-          </PortalSelect></label>
-          <label className="form-label">Severity
-          <PortalSelect className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" aria-label="Severity" value={filters.severity ?? ''} onChange={(event) => setFilter('severity', event.target.value)}>
-            <option value="">All severities</option>
-            <option value="BLOCKING">Blocking</option>
-            <option value="WARNING">Warning</option>
-          </PortalSelect></label>
-          <label className="form-label">Repair state
-          <PortalSelect className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" aria-label="Repair state" value={filters.repairability ?? ''} onChange={(event) => setFilter('repairability', event.target.value)}>
-            <option value="">All repair states</option>
-            <option value="REPAIRABLE">Repairable</option>
-            <option value="REVIEW_REQUIRED">Review required</option>
-          </PortalSelect></label>
-          <label className="form-label">Programme
-          <PortalSelect className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" aria-label="Programme" value={filters.programme ?? ''} onChange={(event) => setFilter('programme', event.target.value)}>
-            <option value="">All programmes</option>
-            {data?.availableProgrammes.map((item) => <option key={item} value={item}>{item}</option>)}
-          </PortalSelect></label>
+    <div className="reconciliation-workspace space-y-6 pb-16 text-left">
+      <DecisionDialog isOpen={confirmOpen} kind="confirmation" decisionKey={`${preview?.issue.issueId}:${decisionMode}`}
+        title={decisionMode === 'accept' ? 'Accept this warning as intentional?' : 'Apply this audited repair?'} context={<div><p>{preview?.issue.title}</p>{decisionMode === 'accept' && <p className="card-description mt-1">{identity?.name}</p>}</div>}
+        message={decisionMode === 'accept' ? <><p>This records your review without correcting the underlying record. The warning returns if the evidence changes.</p></> : <><p>{selectedResolution?.label} will change this record and create permanent repair audit history.</p>
+          <ReconciliationRepairSummary details={repairDetails} /><p>Reason: {reason}</p></>}
+        confirmLabel={decisionMode === 'accept' ? 'Accept as intentional' : 'Apply audited repair'} successMessage={decisionMode === 'accept' ? 'Warning accepted and recorded in history.' : 'Repair completed and recorded in audit history.'}
+        canConfirm={decisionMode === 'accept' ? canAccept : canApply} busy={saving} onConfirm={decisionMode === 'accept' ? acceptWarning : applyRepair} onClose={() => setConfirmOpen(false)}
+        onReload={async () => { if (preview) await openIssue(preview.issue, true); }}>
+        {decisionMode === 'accept' && <div className="space-y-5">
+          <label className="form-label">Reason for acceptance<textarea className="form-control form-control-md mt-2 min-h-24" placeholder="Explain what you verified and why no correction is needed." value={reason} onChange={event => setReason(event.target.value)} /></label>
+          <label className="card-description flex items-start gap-3"><input type="checkbox" className="mt-0.5 shrink-0" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>I reviewed the evidence and accept this warning as an intentional exception.</span></label>
+        </div>}
+      </DecisionDialog>
+      <PageHeader className="office-tool-heading" title="Workflow reconciliation"
+        subtitle="Review records that have missing links or conflicting workflow information."
+        backLabel={backLabel} onBack={onBack}
+        actions={<>
+          {onOpenCapacity && <PortalButton size="sm" icon={Gauge} onClick={onOpenCapacity}>Lecturer capacity</PortalButton>}
+          <PortalButton size="sm" icon={RefreshCw} onClick={() => void load()} disabled={loading}>Recheck records</PortalButton>
+        </>} />
+      <div className="space-y-3">
+        {!loading && !error && data?.checkedAt && <p className="card-description">Checked {new Date(data.checkedAt).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })} (Malaysia time)</p>}
+        <details className="reconciliation-check-help">
+          <summary className="card-value cursor-pointer">How are issues flagged?</summary>
+          <div className="reconciliation-check-copy card-description mt-3 space-y-2">
+            <p><strong>When:</strong> checks run when you load, filter or recheck this page, and when you open an issue.</p>
+            <p><strong>Meaning:</strong> warnings need review; blocking issues can hold up a workflow. Approved capacity increases are not issues.</p>
+            <p><strong>Changes:</strong> reading never changes records. Repairs and acceptance require a reason and confirmation. Accepted warnings return if evidence changes.</p>
+          </div>
+        </details>
+      </div>
+      {!loading && !error && data && <section aria-label="Reconciliation summary" className="space-y-3">
+        <p className="card-description">Across all modules. Filters narrow the issue list below.</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <AppointmentSummaryCard title="Open issues" icon={ClipboardList} value={data.summary.total} description={`${data.summary.blocking} blocking; ${data.summary.warnings} warnings.`} />
+          <AppointmentSummaryCard title="Repair available" icon={Wrench} value={data.summary.repairable} description="A verified repair can be reviewed here." />
+          <AppointmentSummaryCard title="Source review" icon={FileSearch} value={data.summary.reviewRequired} description="Review in the owning module or with a system administrator." />
         </div>
-
-        {loading ? (
-          <LoadingState message="Scanning persisted workflow records..." />
-        ) : error ? (
-          <ErrorState message={error} onRetry={() => void load()} />
-        ) : !data?.results.length ? (
-          <EmptyState title="No matching inconsistencies" description="The current persisted records are consistent for these filters." />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table min-w-[800px]">
-              <thead><tr className="data-thead">
-                <th className="data-th text-left">Issue</th>
-                <th className="data-th text-left">Module</th>
-                <th className="data-th text-left">Affected record</th>
-                <th className="data-th text-left">Classification</th>
-                <th className="data-th text-right">Review</th>
-              </tr></thead>
-              <tbody>{data.results.map((issue) => (
-                <tr key={issue.issueId} className="data-row">
-                  <td className="data-td max-w-[360px]">
-                    <p className="card-value">{issue.title}</p>
-                  </td>
-                  <td className="data-td-strong text-slate-600">{humanize(issue.module)}</td>
-                  <td className="data-td">
-                    <p className="card-value">{humanize(issue.recordType)} #{issue.recordId}</p>
-                    <p className="card-description">{issue.studentId ?? issue.programme ?? 'Faculty-wide'}</p>
-                  </td>
-                  <td className="data-td space-x-2">
-                    <StatusBadge tone={issue.severity === 'BLOCKING' ? 'danger' : 'warning'}>{humanize(issue.severity)}</StatusBadge>
-                    <StatusBadge tone={issue.repairability === 'REPAIRABLE' ? 'success' : 'info'}>{humanize(issue.repairability)}</StatusBadge>
-                  </td>
-                  <td className="data-td text-right">
-                    <PortalButton size="sm" icon={ChevronRight} iconPosition="right" onClick={() => void openIssue(issue)}>Preview</PortalButton>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        )}
-
-        {data && data.count > data.pageSize && (
-          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
-            <p className="card-value">Page {data.page} of {pageCount}</p>
-            <div className="flex gap-2">
-              <PortalButton size="icon" icon={ChevronLeft} title="Previous page" disabled={data.page <= 1} onClick={() => setFilters((current) => ({ ...current, page: Math.max(1, data.page - 1) }))} />
-              <PortalButton size="icon" icon={ChevronRight} title="Next page" disabled={data.page >= pageCount} onClick={() => setFilters((current) => ({ ...current, page: data.page + 1 }))} />
-            </div>
-          </div>
-        )}
+      </section>}
+      <OfficeToolSection title={acceptedView ? 'Accepted warnings' : 'Issues to review'} icon={acceptedView ? ShieldCheck : ClipboardList} actions={<AppointmentViewSwitch
+        label="Reconciliation views" currentLabel="Open issues" pastLabel="Accepted warnings" view={acceptedView ? 'past' : 'current'}
+        onChange={view => updateFilters(current => ({ ...current, reviewStatus: view === 'past' ? 'ACCEPTED' : 'OPEN', page: 1 }))} />}>
+        <div className="space-y-5 p-5">
+          <WorkspaceFilterCard onReset={() => updateFilters({ page: 1, pageSize: filters.pageSize, reviewStatus: filters.reviewStatus })}>
+            <label className="form-label sm:col-span-2 xl:col-span-4">Find an issue
+              <input type="search" className="form-control form-control-md mt-1" placeholder="Issue, lecturer, staff number, student or semester"
+                value={filters.search ?? ''} onChange={event => setFilter('search', event.target.value)} />
+            </label>
+            <label className="form-label">Module<PortalSelect className="form-control form-control-md mt-1" value={filters.module ?? ''} onChange={event => setFilter('module', event.target.value)}>
+              <option value="">All modules</option><option value="DASHBOARD">Dashboard / Timeline</option>
+              <option value="SUPERVISOR_APPOINTMENTS">Supervisor appointments</option><option value="PANEL_APPOINTMENTS">Panel appointments</option>
+              <option value="MARKS">Marks</option><option value="WORKFLOW_TRACKING">Workflow and capacity</option>
+            </PortalSelect></label>
+            <label className="form-label">Severity<PortalSelect className="form-control form-control-md mt-1" value={filters.severity ?? ''} onChange={event => setFilter('severity', event.target.value)}>
+              <option value="">All severities</option><option value="BLOCKING">Blocking</option><option value="WARNING">Warning</option>
+            </PortalSelect></label>
+            <label className="form-label">Next step<PortalSelect className="form-control form-control-md mt-1" value={filters.repairability ?? ''} onChange={event => setFilter('repairability', event.target.value)}>
+              <option value="">All next steps</option><option value="REPAIRABLE">Repair available</option><option value="REVIEW_REQUIRED">Source review</option>
+            </PortalSelect></label>
+            <label className="form-label">Programme<PortalSelect className="form-control form-control-md mt-1" value={filters.programme ?? ''} onChange={event => setFilter('programme', event.target.value)}>
+              <option value="">All programmes</option>{data?.availableProgrammes.map(item => <option key={item} value={item}>{item}</option>)}
+            </PortalSelect></label>
+          </WorkspaceFilterCard>
+          {loading ? <LoadingState message="Checking saved workflow records…" />
+            : error ? <ErrorState message={error} onRetry={() => void load()} />
+            : !data?.results.length ? <EmptyState title={filterActive ? 'No matching issues' : acceptedView ? 'No accepted warnings' : 'No issues found'} description={filterActive ? 'Try changing or clearing the filters.' : acceptedView ? 'Accepted warnings appear here while the reviewed evidence is unchanged.' : 'The current checks found no inconsistencies in the saved records.'} />
+            : <>
+              <p className="card-description">Showing {(data.page - 1) * data.pageSize + 1}–{Math.min(data.page * data.pageSize, data.count)} of {data.count} issues</p>
+              <CoordinatorDataTable label="Reconciliation issues" columns={['Issue', 'Affected record', 'Severity', 'Next step', 'Action']} rows={rows} />
+              <WorkspacePagination page={data.page} pageCount={pageCount} total={data.count} noun="issues" pageSize={data.pageSize}
+                onPage={changePage} onPageSize={pageSize => updateFilters(current => ({ ...current, page: 1, pageSize }))} />
+            </>}
+        </div>
       </OfficeToolSection>
-
-      {(previewing || preview) && (
-        <RecordPage title={preview?.issue.title ?? 'Workflow issue'} backLabel="Back to Workflow Reconciliation" onBack={closePreview} pageKey="reconciliation-review" dirty={!!reason.trim() || confirmed} busy={saving}>
-            {previewing && !preview ? <LoadingState message="Validating current issue state..." /> : preview && (
-              <div className="space-y-6">
-                <p className="card-description">{preview.issue.summary}</p>
-
-                <div className="flex flex-wrap gap-2">
-                  <StatusBadge tone={preview.issue.severity === 'BLOCKING' ? 'danger' : 'warning'} icon={AlertTriangle}>{preview.issue.severity}</StatusBadge>
-                  <StatusBadge tone={preview.issue.repairability === 'REPAIRABLE' ? 'success' : 'info'} icon={preview.issue.repairability === 'REPAIRABLE' ? Wrench : ShieldCheck}>{humanize(preview.issue.repairability)}</StatusBadge>
-                </div>
-
-                <section className="space-y-2">
-                  <h3 className="section-label">Affected record</h3>
-                  <p className="card-value">{humanize(preview.issue.recordType)} #{preview.issue.recordId}</p>
-                  <p className="card-description">{preview.issue.studentId ?? preview.issue.programme ?? 'Faculty-wide'}</p>
-                </section>
-                <details className="rounded-lg border border-slate-200">
-                  <summary className="section-label cursor-pointer rounded px-4 py-3 focus-visible:outline-2 focus-visible:outline-blue-600">Technical facts and identifiers</summary>
-                  <dl className="divide-y divide-slate-100">
-                    {Object.entries(preview.issue.currentState).map(([key, value]) => (
-                      <div key={key} className="grid gap-2 px-4 py-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-3">
-                        <dt className="font-bold text-slate-500">{humanize(key)}</dt>
-                        <dd className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] font-semibold text-slate-700">{stateValue(value)}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </details>
-
-                {owningRoute && (
-                  <PortalButton
-                    icon={ArrowUpRight}
-                    onClick={() => onNavigateToRoute(owningRoute)}
-                  >{capacityIssue ? 'Review lecturer capacity' : 'Open source record'}</PortalButton>
-                )}
-
-                {drawerError && <ErrorState message={drawerError} onRetry={() => void openIssue(preview.issue)} />}
-
-                {preview.issue.repairability === 'REPAIRABLE' && preview.allowedResolutions.length > 0 ? (
-                  <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
-                    <div className="flex items-center gap-2 text-emerald-800"><CheckCircle2 className="h-4 w-4" /><h3 className="section-label text-emerald-800">Verified repair available</h3></div>
-                    <PortalSelect className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={selectedResolution?.action ?? ''} onChange={(event) => setSelectedResolution(preview.allowedResolutions.find((item) => item.action === event.target.value) ?? null)}>
-                      {preview.allowedResolutions.map((item) => <option key={item.action} value={item.action}>{item.label}</option>)}
-                    </PortalSelect>
-                    {selectedResolution?.requiresProgramme && (
-                      <PortalSelect className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={programme} onChange={(event) => setProgramme(event.target.value)}>
-                        <option value="">Select managed programme</option>
-                        {data?.availableProgrammes.map((item) => <option key={item} value={item}>{item}</option>)}
-                      </PortalSelect>
-                    )}
-                    <textarea className="form-control form-control-md min-h-24 w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" placeholder="Mandatory reason for this repair" value={reason} onChange={(event) => setReason(event.target.value)} />
-                    <label className="card-description flex items-start gap-3 rounded-lg border border-emerald-200 bg-white p-3">
-                      <input type="checkbox" className="mt-0.5" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
-                      <span>I confirm this individual repair after reviewing the current state and affected identifiers.</span>
-                    </label>
-                    <PortalButton variant="success" icon={Wrench} fullWidth isLoading={saving} disabled={!canApply} onClick={() => setConfirmOpen(true)}>Apply Audited Repair</PortalButton>
-                  </section>
-                ) : (
-                  <section className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                    <div className="flex items-center gap-2 text-blue-800"><ShieldCheck className="h-4 w-4" /><h3 className="section-label text-blue-800">Review required</h3></div>
-                    <p className="card-description mt-2 text-blue-700">Portal repair is unsafe because it could rewrite or merge authoritative history.</p>
-                    {preview.issue.dependencies.map((item) => <p key={item} className="card-value mt-2 text-blue-800">{item}</p>)}
-                  </section>
-                )}
-
-                <details className="rounded-lg border border-slate-200">
-                  <summary className="section-label cursor-pointer rounded px-4 py-3 focus-visible:outline-2 focus-visible:outline-blue-600">Repair audit history · {selectedAudits.length} records in the current audit response</summary>
-                  {selectedAudits.length === 0 ? <p className="card-description p-4">No prior repair audit for this record.</p> : selectedAudits.map((audit) => (
-                    <div key={audit.id} className="border-b border-slate-100 p-4 last:border-0">
-                      <div className="flex justify-between gap-3"><p className="card-value">{humanize(audit.action)}</p><time className="card-caption text-slate-400">{new Date(audit.createdAt).toLocaleString('en-MY')}</time></div>
-                      <p className="card-description mt-1">{audit.actor.name}: {audit.reason}</p>
-                    </div>
-                  ))}
-                </details>
-              </div>
-            )}
-          </RecordPage>
-      )}
+      {requestedIssue && <RecordPage title={preview?.issue.title ?? requestedIssue.title} backLabel="Back to Workflow Reconciliation" onBack={closePreview}
+        pageKey="reconciliation-review" dirty={!!reason.trim() || confirmed} busy={saving}>
+        {drawerError && <ErrorState compact title="Unable to validate this issue" message={drawerError} onRetry={() => void openIssue(requestedIssue)} />}
+        {previewing && !preview ? <LoadingState message="Validating current issue state…" /> : preview && explanation && identity && <div className="reconciliation-review space-y-5">
+          {!repairApplied && <OfficeToolSection title={identity.name} description={identity.context} actions={<StatusBadge tone={preview.issue.severity === 'BLOCKING' ? 'danger' : 'warning'} icon={AlertTriangle}>{humanize(preview.issue.severity)}</StatusBadge>}>
+            <div className="space-y-6 p-5">
+              <div className="space-y-2"><h3 className="section-heading">Why this was flagged</h3><p className="card-description text-slate-700">{explanation.why}</p></div>
+              <div className="reconciliation-effect"><h3 className="card-value">What this affects</h3><p className="card-description mt-2">{explanation.effect}</p></div>
+              <ReconciliationEvidence issue={preview.issue} />
+            </div>
+          </OfficeToolSection>}
+          {repairApplied ? <OfficeToolSection title="Repair completed" description={`${identity.name}: the change has been saved and recorded in repair history.`} actions={<StatusBadge tone="success">Saved</StatusBadge>}>
+            <div className="p-5"><PortalButton onClick={closePreview}>Return to issues</PortalButton></div>
+          </OfficeToolSection> : acceptance ? <OfficeToolSection title="Accepted as intentional" actions={<StatusBadge tone="neutral">Accepted</StatusBadge>}>
+            <div className="space-y-4 p-5">
+              <p className="card-description">Reviewed by {acceptance.actor.name} on {new Date(acceptance.createdAt).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })} (Malaysia time).</p>
+              <div><h3 className="card-value">Reason</h3><p className="card-description mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]">{acceptance.reason}</p></div>
+              <p className="card-description">The underlying record was not changed. This warning returns to Open issues if the evidence changes.</p>
+              <PortalButton onClick={closePreview}>Return to issues</PortalButton>
+            </div>
+          </OfficeToolSection> : <OfficeToolSection title={preview.issue.repairability === 'REPAIRABLE' ? 'Review the proposed repair' : 'Recommended next step'}>
+            <div className="space-y-5 p-5">
+              <p className="card-description">{explanation.next}</p>
+              {preview.issue.dependencies.length > 0 && <ul className="card-description list-disc space-y-2 pl-5">{preview.issue.dependencies.map(item => <li key={item}>{item}</li>)}</ul>}
+              {owningRoute && <PortalButton icon={ArrowUpRight} disabled={saving} onClick={() => onNavigateToRoute(owningRoute)}>{explanation.actionLabel}</PortalButton>}
+              {preview.issue.repairability === 'REPAIRABLE' && preview.allowedResolutions.length > 0 ? <fieldset disabled={saving || previewing || !!drawerError} className="min-w-0 space-y-5 border-t border-slate-200 pt-5">
+                <label className="form-label">Proposed change<PortalSelect className="form-control form-control-md mt-2" value={selectedResolution?.action ?? ''} onChange={event => setSelectedResolution(preview.allowedResolutions.find(item => item.action === event.target.value) ?? null)}>
+                  {preview.allowedResolutions.map(item => <option key={item.action} value={item.action}>{item.label}</option>)}
+                </PortalSelect></label>
+                <ReconciliationRepairSummary details={repairDetails} />
+                {selectedResolution?.requiresProgramme && <label className="form-label">Managed programme<PortalSelect className="form-control form-control-md mt-2" value={programme} onChange={event => setProgramme(event.target.value)}>
+                  <option value="">Select managed programme</option>{data?.availableProgrammes.map(item => <option key={item} value={item}>{item}</option>)}
+                </PortalSelect></label>}
+                <label className="form-label">Reason for repair<textarea className="form-control form-control-md mt-2 min-h-24" placeholder="Explain what you verified and why this repair is appropriate." value={reason} onChange={event => setReason(event.target.value)} /></label>
+                <label className="card-description flex items-start gap-3"><input type="checkbox" className="mt-0.5 shrink-0" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>I confirm this individual repair after reviewing the current state and affected identifiers.</span></label>
+                <PortalButton variant="primary" icon={Wrench} isLoading={saving} disabled={!canApply} onClick={() => { setDecisionMode('repair'); setConfirmOpen(true); }}>Review and confirm repair</PortalButton>
+              </fieldset> : preview.canAccept ? <div className="flex justify-end border-t border-slate-200 pt-4">
+                <PortalButton size="sm" icon={ShieldCheck} className="w-full sm:w-auto" disabled={saving || previewing || !!drawerError} onClick={() => { setDecisionMode('accept'); setConfirmOpen(true); }}>Accept as intentional</PortalButton>
+              </div> : <p className="card-description flex items-center gap-2"><ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />Review required. No automatic repair is offered for this check.</p>}
+            </div>
+          </OfficeToolSection>}
+          <ReconciliationAuditHistory key={`${preview.issue.issueId}:${repairApplied}:${acceptance?.id ?? ''}`} issue={preview.issue} />
+        </div>}
+      </RecordPage>}
     </div>
   );
 };
+
+function ReconciliationRepairSummary({ details }: { details: { label: string; value: string }[] }) {
+  return details.length ? <dl className="my-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+    {details.map(item => <div key={item.label} className="min-w-0"><dt className="card-description">{item.label}</dt><dd className="card-value mt-1 [overflow-wrap:anywhere]">{item.value}</dd></div>)}
+  </dl> : null;
+}

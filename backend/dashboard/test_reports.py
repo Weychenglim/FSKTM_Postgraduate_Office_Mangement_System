@@ -284,11 +284,22 @@ class WorkflowReportTests(APITestCase):
             panel_limit=0,
             expected_fingerprint=capacity_plan_content_fingerprint(replacement),
         )
+        # New publications cannot fall below current reservations. Publish first,
+        # then restore a historical reservation to exercise over-capacity reports.
+        self.pending_panel.delete()
         publish_capacity_plan(
             replacement,
             actor=self.office,
             reason="Exercise over-capacity reporting.",
             expected_fingerprint=capacity_plan_content_fingerprint(replacement),
+        )
+        self.pending_panel = PanelRecommendation.objects.create(
+            academic_semester=self.academic_semester,
+            profile=self.profile,
+            supervisor=self.supervisor,
+            recommended_member=self.panel,
+            status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+            submitted_at=self.now - timedelta(days=8),
         )
         today = timezone.localdate()
         LecturerAvailabilityWindow.objects.create(

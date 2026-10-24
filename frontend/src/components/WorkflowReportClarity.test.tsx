@@ -10,8 +10,9 @@ for (const role of ['Lecturer', 'Programme Coordinator', 'Office Staff/Admin'] a
   const controls = html.match(/<input\b[^>]*>|<button\b(?=[^>]*role="combobox")[^>]*>/g) ?? [];
   assert.equal(controls.length, role === 'Office Staff/Admin' ? 4 : 3);
   for (const control of controls) assert.match(control, /class="[^"]*\bform-control\b/, `${role} filters use the shared visible control`);
-  assert.match(html, /Apply filters/i);
-  assert.match(html, /Showing:/);
+  assert.match(html, /data-workspace-filter-card/);
+  assert.match(html, /Clear filters/);
+  assert.doesNotMatch(html, /Apply filters|Reset filters|Filter changes have not been applied/i);
 }
 
 const report: WorkflowReport = {

@@ -2,6 +2,9 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
+from unittest.mock import patch
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -310,6 +313,58 @@ class WorkflowReconciliationApiTests(TestCase):
             {item["issueId"] for item in refreshed.data["results"]},
         )
 
+    def test_semester_matching_uses_malaysia_calendar_dates_at_midnight(self):
+        midnight = datetime.combine(self.semester.starts_on, time(0, 30), tzinfo=ZoneInfo("Asia/Kuala_Lumpur"))
+        application = SupervisorApplication.objects.create(
+            student=self.student, proposed_supervisor=self.lecturer,
+            research_title="Midnight application", research_area="Integrity", research_abstract="Local semester boundary.",
+            submitted_at=midnight,
+        )
+        profile = StudentResearchProfile.objects.create(
+            student=self.student_user, matric_no=self.student.matric_no, student_name=self.student_user.full_name,
+            programme=PROGRAMME, semester=self.semester.label, proposed_topic="Local calendar boundary", supervisor=self.lecturer,
+        )
+        recommendation = PanelRecommendation.objects.create(
+            profile=profile, supervisor=self.lecturer, recommended_member=self.panel_member, submitted_at=midnight,
+        )
+        rubric = Rubric.objects.create(name="Boundary rubric", code="boundary", family_code="boundary", target_mark="100")
+        period = EvaluationPeriod.objects.create(
+            name="Boundary period", semester=self.semester.label, rubric=rubric,
+            opens_at=midnight, closes_at=midnight + timezone.timedelta(hours=2),
+        )
+        self.authenticate(self.office)
+        for record_type, row in (("SUPERVISOR_APPLICATION", application), ("PANEL_RECOMMENDATION", recommendation), ("EVALUATION_PERIOD", period)):
+            with self.subTest(record_type=record_type):
+                issue = self.issue("SEMESTER_UNASSIGNED", record_type=record_type, record_id=row.pk)
+                self.assertEqual(issue["suggestion"].get("semesterId"), self.semester.pk)
+                self.assertEqual(issue["repairability"], "REPAIRABLE")
+
+    def test_semester_repair_rechecks_evidence_after_acquiring_record_lock(self):
+        from dashboard import reconciliation
+
+        application = SupervisorApplication.objects.create(
+            student=self.student, proposed_supervisor=self.lecturer,
+            research_title="Concurrent semester evidence", research_area="Integrity",
+            research_abstract="The record changes while the repair is waiting for its lock.",
+            status=SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
+        )
+        self.authenticate(self.office)
+        issue = self.issue("SEMESTER_UNASSIGNED", record_id=application.pk)
+        original = reconciliation._apply_semester_assignment
+
+        def change_before_lock(*args):
+            SupervisorApplication.objects.filter(pk=application.pk).update(
+                submitted_at=timezone.now() - timezone.timedelta(days=500)
+            )
+            return original(*args)
+
+        with patch.object(reconciliation, "_apply_semester_assignment", side_effect=change_before_lock):
+            response = self.apply_issue(issue, {"action": "ASSIGN_SEMESTER", "semesterId": self.semester.pk})
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        application.refresh_from_db()
+        self.assertIsNone(application.academic_semester_id)
+        self.assertFalse(WorkflowReconciliationAudit.objects.exists())
+
     def test_reconciliation_filters_paginates_and_rejects_invalid_page_values(self):
         for index in range(3):
             SupervisorApplication.objects.create(
@@ -364,6 +419,8 @@ class WorkflowReconciliationApiTests(TestCase):
             record_type="ACADEMIC_SEMESTER",
             record_id=next_semester.pk,
         )
+        self.assertEqual(issue["suggestion"].get("sourceSemesterLabel"), self.semester.label)
+        self.assertEqual(issue["suggestion"].get("sourcePlanVersion"), 1)
 
         response = self.apply_issue(
             issue,
@@ -415,6 +472,48 @@ class WorkflowReconciliationApiTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertFalse(WorkflowReconciliationAudit.objects.exists())
 
+    def test_intentional_capacity_increase_is_not_a_reconciliation_issue(self):
+        profile = self.lecturer.lecturer.supervisor
+        profile.max_supervisees = 9
+        profile.save(update_fields=["max_supervisees"])
+        self.authenticate(self.office)
+        response = self.client.get("/api/dashboard/reconciliation/")
+        self.assertNotIn("CAPACITY_LEGACY_LIMIT_DIVERGENCE", [row["issueType"] for row in response.data["results"]])
+
+    def test_blocking_issues_are_prioritized_before_pagination(self):
+        for index in range(12):
+            SupervisorApplication.objects.create(
+                student=self.student, proposed_supervisor=self.lecturer,
+                research_title=f"Historical application {index}", research_area="Integrity",
+                research_abstract="Missing semester link.",
+                status=SupervisorApplication.Status.REJECTED_BY_SUPERVISOR,
+            )
+        StudentResearchProfile.objects.create(
+            student=None, matric_no=self.student.matric_no, student_name=self.student_user.full_name,
+            programme=PROGRAMME, semester=self.semester.label,
+            proposed_topic="Unlinked profile", supervisor=self.lecturer,
+        )
+        self.authenticate(self.office)
+        response = self.client.get("/api/dashboard/reconciliation/", {"pageSize": 1})
+        self.assertEqual(response.data["results"][0]["severity"], "BLOCKING")
+
+    def test_record_audit_scope_is_applied_before_the_recent_limit(self):
+        self.authenticate(self.office)
+        records = [WorkflowReconciliationAudit(
+            issue_type="SEMESTER_UNASSIGNED", entity_type="PANEL_RECOMMENDATION",
+            entity_id=str(i), action="ASSIGN_SEMESTER", actor=self.office,
+            reason="Verified semester ownership.", fingerprint="a" * 64,
+            before_values={}, after_values={}, affected_records={},
+        ) for i in range(205)]
+        WorkflowReconciliationAudit.objects.bulk_create(records)
+        response = self.client.get("/api/dashboard/reconciliation/audits/", {
+            "entityType": "PANEL_RECOMMENDATION", "entityId": "0",
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data.get("count"), 1)
+        self.assertEqual(response.data["results"][0]["entityId"], "0")
+
     def test_capacity_policy_role_and_legacy_limit_drift_are_review_only(self):
         plan = self.semester.capacity_plans.get()
         Panel.objects.create(
@@ -437,10 +536,87 @@ class WorkflowReconciliationApiTests(TestCase):
         issue_types = {item["issueType"] for item in plan_issues}
         self.assertIn("CAPACITY_PLAN_INCOMPLETE", issue_types)
         self.assertIn("CAPACITY_ENTRY_ROLE_MISMATCH", issue_types)
-        self.assertIn("CAPACITY_LEGACY_LIMIT_DIVERGENCE", issue_types)
+        self.assertNotIn("CAPACITY_LEGACY_LIMIT_DIVERGENCE", issue_types)
         self.assertTrue(
             all(item["repairability"] == "REVIEW_REQUIRED" for item in plan_issues)
         )
+
+    def legacy_semester_issue(self):
+        from dashboard.models import SemesterTimeline
+        row = SemesterTimeline.objects.create(semester="Semester II", session="1990/1991", uploaded_by=self.office, is_active=False)
+        return row, self.issue("SEMESTER_UNASSIGNED", record_type="SEMESTER_TIMELINE", record_id=row.pk)
+
+    def accept_issue(self, issue, reason="Historical record retained without a verified semester match."):
+        return self.client.post(f"/api/dashboard/reconciliation/issues/{issue['issueId']}/accept/", {
+            "expectedFingerprint": issue["fingerprint"], "reason": reason,
+        }, format="json")
+
+    def test_acceptance_is_audited_hides_only_exact_evidence_and_reopens_changes(self):
+        from dashboard.reconciliation import detect_reconciliation_issues
+        self.authenticate(self.office)
+        row, issue = self.legacy_semester_issue()
+        result = self.accept_issue(issue)
+        self.assertEqual(result.status_code, 200)
+        self.assertTrue(result.data["accepted"])
+        self.assertNotIn("resolved", result.data)
+        row.refresh_from_db()
+        self.assertIsNone(row.academic_semester_id)
+        audit = WorkflowReconciliationAudit.objects.get(action="ACCEPT_INTENTIONAL")
+        self.assertEqual(audit.actor, self.office)
+        self.assertEqual(audit.before_values, audit.after_values)
+        self.assertEqual(audit.fingerprint, issue["fingerprint"])
+        self.assertNotIn(issue["issueId"], [item.issue_id for item in detect_reconciliation_issues()])
+        accepted = self.client.get("/api/dashboard/reconciliation/", {"reviewStatus": "ACCEPTED", "pageSize": 1})
+        self.assertEqual(accepted.data["count"], 1)
+        self.assertEqual(accepted.data["summary"]["accepted"], 1)
+        self.assertEqual(accepted.data["results"][0]["acceptance"]["actor"]["name"], self.office.full_name)
+        preview = self.client.get(f"/api/dashboard/reconciliation/issues/{issue['issueId']}/preview/")
+        self.assertFalse(preview.data["canAccept"])
+        self.assertEqual(preview.data["issue"]["acceptance"]["reason"], audit.reason)
+        self.assertEqual(self.accept_issue(issue).status_code, 409)
+        row.session = "1992/1993"
+        row.save(update_fields=["session"])
+        reopened = self.issue("SEMESTER_UNASSIGNED", record_type="SEMESTER_TIMELINE", record_id=row.pk)
+        self.assertNotEqual(reopened["fingerprint"], issue["fingerprint"])
+        self.assertEqual(self.accept_issue(issue).status_code, 409)
+        self.assertEqual(self.client.get("/api/dashboard/reconciliation/", {"reviewStatus": "ACCEPTED"}).data["count"], 0)
+        self.assertEqual(WorkflowReconciliationAudit.objects.filter(action="ACCEPT_INTENTIONAL").count(), 1)
+
+    def test_acceptance_requires_office_reason_and_eligible_warning(self):
+        self.authenticate(self.office)
+        _, issue = self.legacy_semester_issue()
+        self.assertEqual(self.accept_issue(issue, "  ").status_code, 400)
+        self.authenticate(self.student_user)
+        self.assertEqual(self.accept_issue(issue).status_code, 403)
+        self.authenticate(self.office)
+        application = SupervisorApplication.objects.create(student=self.student, proposed_supervisor=self.lecturer,
+            research_title="Verified semester", research_area="Integrity", research_abstract="Known date.")
+        repairable = self.issue("SEMESTER_UNASSIGNED", record_type="SUPERVISOR_APPLICATION", record_id=application.pk)
+        self.assertEqual(repairable["repairability"], "REPAIRABLE")
+        self.assertEqual(self.accept_issue(repairable).status_code, 409)
+        StudentResearchProfile.objects.create(student=None, matric_no="UNLINKED", student_name="Unlinked", programme=PROGRAMME,
+            semester=self.semester.label, proposed_topic="Unlinked", supervisor=self.lecturer)
+        blocking = self.issue("RESEARCH_PROFILE_UNLINKED")
+        self.assertEqual(self.accept_issue(blocking).status_code, 409)
+        self.assertFalse(WorkflowReconciliationAudit.objects.filter(action="ACCEPT_INTENTIONAL").exists())
+        self.assertEqual(self.client.get("/api/dashboard/reconciliation/", {"reviewStatus": "INVALID"}).status_code, 400)
+
+    def test_acceptance_does_not_hide_ongoing_unassigned_work_or_a_reactivated_timeline(self):
+        self.authenticate(self.office)
+        row, issue = self.legacy_semester_issue()
+        self.assertEqual(self.accept_issue(issue).status_code, 200)
+        row.is_active = True
+        row.save(update_fields=["is_active"])
+        current = self.issue("SEMESTER_UNASSIGNED", record_type="SEMESTER_TIMELINE", record_id=row.pk)
+        self.assertNotEqual(current["fingerprint"], issue["fingerprint"])
+        self.assertEqual(self.accept_issue(current).status_code, 409)
+        application = SupervisorApplication.objects.create(student=self.student, proposed_supervisor=self.lecturer,
+            research_title="Ongoing but unmatched", research_area="Integrity", research_abstract="Cannot dismiss active work.")
+        application.submitted_at = timezone.now() - timezone.timedelta(days=500)
+        application.save(update_fields=["submitted_at"])
+        pending = self.issue("SEMESTER_UNASSIGNED", record_type="SUPERVISOR_APPLICATION", record_id=application.pk)
+        self.assertEqual(pending["repairability"], "REVIEW_REQUIRED")
+        self.assertEqual(self.accept_issue(pending).status_code, 409)
 
     def test_coordinator_profile_and_programme_repairs_require_valid_role(self):
         coordinator_user = User.objects.create_user(

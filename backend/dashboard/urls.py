@@ -20,6 +20,7 @@ urlpatterns = [
     path("reports/", views.workflow_report_view),
     path("reports/export/", views.workflow_report_export_view),
     path("reconciliation/", views.workflow_reconciliation_view),
+    path("reconciliation/issues/<str:issue_id>/accept/", views.workflow_reconciliation_accept_view),
     path(
         "reconciliation/issues/<str:issue_id>/preview/",
         views.workflow_reconciliation_preview_view,
