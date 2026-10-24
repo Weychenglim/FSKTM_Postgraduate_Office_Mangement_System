@@ -10,6 +10,7 @@ urlpatterns = [
     path('semesters/<int:pk>/capacity-workspace/', capacity_workspace_view),
     path("semesters/<int:pk>/closure-preview/", views.semester_closure_preview_view),
     path("semesters/<int:pk>/handover-preview/", views.semester_handover_preview_view),
+    path("semesters/<int:pk>/activation-readiness/", views.semester_activation_readiness_view),
     path("semesters/active/", views.active_semester_view),
     path("semesters/", views.semester_list_view),
     path("semesters/<int:pk>/", views.semester_detail_view),
@@ -35,6 +36,7 @@ urlpatterns = [
         views.publish_capacity_plan_view,
     ),
     path("capacity-plans/<int:pk>/discard/", views.discard_capacity_plan_view),
+    path("capacity-plans/<int:pk>/entries/bulk/", views.capacity_plan_bulk_entries_view),
     path(
         "capacity-plans/<int:pk>/lecturers/<int:lecturer_id>/",
         views.capacity_plan_entry_view,

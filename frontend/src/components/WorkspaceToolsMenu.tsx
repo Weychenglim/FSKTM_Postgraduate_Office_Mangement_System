@@ -4,7 +4,7 @@ import { PortalButton } from './PortalPrimitives';
 
 export interface WorkspaceToolGroup {
   label: string;
-  items: { title: string; description: string; icon: LucideIcon; onSelect: () => void }[];
+  items: { title: string; description: string; icon: LucideIcon; onSelect: () => void; disabled?: boolean }[];
 }
 
 /** Return the menu offset from the trigger, retaining a 16px viewport inset. */
@@ -45,7 +45,7 @@ export function WorkspaceToolsMenu({ label, groups }: { label: string; groups: W
     return () => window.removeEventListener('resize', positionMenu);
   }, [open]);
 
-  const itemClass = 'group flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30';
+  const itemClass = 'group flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30 disabled:opacity-50 disabled:cursor-not-allowed';
   const iconClass = 'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200/70 bg-slate-50 text-slate-500 group-hover:border-slate-300 group-hover:text-brand-navy';
   const visibleGroups = groups.filter(group => group.items.length);
   return <div ref={wrapper} className="relative" onKeyDown={event => {
@@ -63,9 +63,9 @@ export function WorkspaceToolsMenu({ label, groups }: { label: string; groups: W
       {visibleGroups.map((group, index) => <React.Fragment key={group.label}>
         {index ? <div className="mx-3 my-2 border-t border-slate-100" /> : null}
         <p className="px-3 pb-1 pt-1.5 text-xs font-medium text-slate-500">{group.label}</p>
-        {group.items.map(({ title, description, icon: Icon, onSelect }) => <button key={title} type="button" className={itemClass} onClick={() => { setOpen(false); onSelect(); }}>
+        {group.items.map(({ title, description, icon: Icon, onSelect, disabled }) => <button key={title} type="button" disabled={disabled} className={itemClass} onClick={() => { if (disabled) return; setOpen(false); onSelect(); }}>
           <span className={iconClass}><Icon aria-hidden="true" className="h-4 w-4" /></span>
-          <span className="min-w-0"><span className="block text-sm font-semibold leading-5 text-slate-800">{title}</span><span className="mt-0.5 block text-xs font-normal leading-5 text-slate-500">{description}</span></span>
+          <span className="min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere]"><span className="block text-sm font-semibold leading-5 text-slate-800">{title}</span><span className="mt-0.5 block text-xs font-normal leading-5 text-slate-500">{description}</span></span>
         </button>)}
       </React.Fragment>)}
     </div>

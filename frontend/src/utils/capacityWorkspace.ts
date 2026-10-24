@@ -1,6 +1,12 @@
 import type {CapacityRole,LecturerCapacityEntry,SemesterCapacityPlan} from '../types';
 import type {CapacityPlanningBaseline,CapacityWorkspaceLecturer} from '../services/capacityWorkspaceApi';
 
+/** Capacity is role-specific appointment load, including existing reservations. */
+export function committedCapacityLoad(row:Pick<LecturerCapacityEntry,'supervisor'|'panel'>,role:CapacityRole):number|null {
+  const resolution=role==='SUPERVISOR'?row.supervisor:row.panel;
+  return resolution ? resolution.activeLoad + resolution.reservedLoad : null;
+}
+
 /** Draft values and current published resolutions remain separate, including missing rows. */
 export function capacityWorkspaceRows(roster:CapacityWorkspaceLecturer[],plan:SemesterCapacityPlan|null):CapacityWorkspaceLecturer[] {
   if(!plan)return roster;
@@ -14,7 +20,10 @@ export function capacityWorkspaceRows(roster:CapacityWorkspaceLecturer[],plan:Se
   return rows;
 }
 export function capacityRowIssues(row:Pick<LecturerCapacityEntry,'staffNo'>,plan:SemesterCapacityPlan|null):string[] {
-  return plan?.readinessErrors.filter(message=>message.startsWith(`${row.staffNo}:`)).map(message=>message.slice(row.staffNo.length+1).trim())??[];
+  return plan?.readinessErrors.filter(message=>message.startsWith(`${row.staffNo}:`)).map(message=>{
+    const detail=message.slice(row.staffNo.length+1).trim();
+    return detail==='capacity entry is required for this Lecturer.' ? 'Capacity limits not set.' : detail;
+  })??[];
 }
 /** Include historic lecturers unique to either version without inventing selected values. */
 export function capacityComparisonRows(roster:CapacityWorkspaceLecturer[],selected:SemesterCapacityPlan,comparison:SemesterCapacityPlan):CapacityWorkspaceLecturer[] {

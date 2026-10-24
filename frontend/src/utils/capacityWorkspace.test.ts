@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
-import {capacityPlanningBaseline, capacityWorkspaceRows, capacityComparisonRows, capacityRowIssues,capacityHasRole} from './capacityWorkspace';
+import {capacityPlanningBaseline, capacityWorkspaceRows, capacityComparisonRows, capacityRowIssues,capacityHasRole, committedCapacityLoad} from './capacityWorkspace';
 import type {SemesterCapacityPlan} from '../types';
 import type {CapacityWorkspaceLecturer} from '../services/capacityWorkspaceApi';
 
 const roster=[{id:1,lecturerId:1,staffNo:'STAFF-1',lecturerName:'Lecturer One',participantLifecycle:'ACTIVE',supervisorLimit:5,panelLimit:10,supervisor:{limit:5,activeLoad:3,reservedLoad:0,state:'AVAILABLE'},panel:{limit:10,activeLoad:2,reservedLoad:1,state:'AVAILABLE'},activeStudentCount:5,primaryStudentCount:2,supportingStudentCount:1,panelStudentCount:2}] as CapacityWorkspaceLecturer[];
 const draft={entries:[],readinessErrors:['STAFF-1: capacity entry is required for this Lecturer.']} as SemesterCapacityPlan;
+assert.equal(committedCapacityLoad(roster[0], 'SUPERVISOR'), 3, 'Use role workload, not the distinct student total');
+assert.equal(committedCapacityLoad(roster[0], 'PANEL'), 3, 'Pending Panel reservations count towards the minimum');
+assert.equal(committedCapacityLoad({...roster[0], panel:null}, 'PANEL'), null, 'Missing role workload is not zero');
 const missing=capacityWorkspaceRows(roster,draft);
 assert.equal(missing.length,1,'A blank draft must include configurable lecturer rows');
 assert.equal(missing[0].supervisorLimit,null,'Published limits must not masquerade as saved draft limits');

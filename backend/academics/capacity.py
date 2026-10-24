@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
 
+from django.db.models import Count
 from django.utils import timezone
 
 from accounts.models import Lecturer, Panel, Supervisor
@@ -50,6 +51,38 @@ def _non_negative(value):
         return max(int(value), 0)
     except (TypeError, ValueError):
         return 0
+
+
+def capacity_workload_counts(user_ids):
+    """Batch global commitments for plan previews and locked publication checks."""
+    from appointments.models import (
+        CoSupervisorAppointment, PanelAppointment, PanelRecommendation,
+        SupervisorAppointment,
+    )
+
+    user_ids = set(user_ids)
+
+    def counts(model, field, statuses):
+        return {
+            row[field]: row["total"]
+            for row in model.objects.filter(
+                **{f"{field}__in": user_ids, "status__in": statuses}
+            ).order_by().values(field).annotate(total=Count("pk"))
+        }
+
+    supervisor = counts(SupervisorAppointment, "supervisor_id", ["ACTIVE"])
+    for user_id, total in counts(
+        CoSupervisorAppointment, "supervisor_id", ["ACTIVE"]
+    ).items():
+        supervisor[user_id] = supervisor.get(user_id, 0) + total
+    return {
+        "supervisorLoad": supervisor,
+        "panelLoad": counts(PanelAppointment, "panel_member_id", ["ACTIVE"]),
+        "panelReservations": counts(
+            PanelRecommendation, "recommended_member_id",
+            PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+        ),
+    }
 
 
 def _workloads(*, user, role, exclude_panel_recommendation_id=None):

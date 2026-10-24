@@ -13,9 +13,10 @@ interface SemesterTimelineProps {
   loading: boolean;
   error: string | null;
   onRetry: () => void;
+  actions?: React.ReactNode;
 }
 
-export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ timeline, loading, error, onRetry }) => {
+export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ timeline, loading, error, onRetry, actions }) => {
   return (
     <div
       id="semester-master-schedule-timeline-container"
@@ -24,17 +25,17 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ timeline, lo
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h3 id="semester-master-schedule-header" className="section-label">
-            Semester Master Schedule
+            Semester schedule
           </h3>
           <p className="card-description mt-1">
             Manage the selected semester timeline by project phase.
           </p>
         </div>
-        {!loading && !error && timeline?.available && (
-          <span className="card-label uppercase tracking-wider text-slate-400">
-            {timeline.semester} {timeline.session}
+        {actions ?? (!loading && !error && timeline?.available && (
+          <span className="card-description">
+            {timeline.semester.includes(timeline.session) ? timeline.semester : `${timeline.semester} ${timeline.session}`}
           </span>
-        )}
+        ))}
       </div>
 
       {loading ? (

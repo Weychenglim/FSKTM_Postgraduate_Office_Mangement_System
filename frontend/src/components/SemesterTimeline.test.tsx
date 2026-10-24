@@ -28,3 +28,6 @@ assert.match(failed, /Selected semester failed to load/);
 assert.doesNotMatch(failed, /Selected Draft Milestone|Semester II/);
 assert.match(render(null), /No timeline/);
 console.log('selected-semester Timeline rendering and stale-content safeguards passed');
+
+const labelled = render({...draft, semester: 'Semester II 2099/2100'});
+assert.doesNotMatch(labelled, /2099\/2100.*2099\/2100/);

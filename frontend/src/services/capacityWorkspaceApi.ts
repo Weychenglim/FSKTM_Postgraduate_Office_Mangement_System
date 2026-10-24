@@ -2,6 +2,7 @@ import {request} from './apiClient';
 import type {LecturerCapacityEntry} from '../types';
 
 export type CapacityWorkspaceLecturer = Omit<LecturerCapacityEntry,'updatedBy'|'createdAt'|'updatedAt'> & {
+  availabilitySummary?: {current: number; scheduled: number};
   activeStudentCount:number|null;
   primaryStudentCount:number|null;
   supportingStudentCount:number|null;

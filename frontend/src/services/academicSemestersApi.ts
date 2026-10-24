@@ -6,6 +6,11 @@ import type {
   ActiveAcademicSemesterResponse,
 } from '../types';
 import { request } from './apiClient';
+import type {SemesterActivationReadiness} from '../types/academicSemester';
+
+export function getSemesterActivationReadiness(id: number): Promise<SemesterActivationReadiness> {
+  return request<SemesterActivationReadiness>(`/academics/semesters/${id}/activation-readiness/`);
+}
 
 export function getActiveAcademicSemester(): Promise<ActiveAcademicSemesterResponse> {
   return request<ActiveAcademicSemesterResponse>('/academics/semesters/active/');

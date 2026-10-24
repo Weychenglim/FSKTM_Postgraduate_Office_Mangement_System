@@ -1,5 +1,7 @@
 import { PortalSelect } from './PortalSelect';
-import { RecordPage } from './RecordPage';
+import { PortalModal, useModalTitle } from './PortalModal';
+import { useRecordDraft } from './RecordDraft';
+import { AlertMessage } from './AlertMessage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -13,8 +15,7 @@ import {
   Save,
   Check
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton } from './PortalPrimitives';
+import { PortalButton, PortalConfirmModal } from './PortalPrimitives';
 
 interface TimelineEntry {
   id: string;
@@ -33,6 +34,8 @@ interface EditTimelineEntryDrawerProps {
   onSave: (updatedEntry: TimelineEntry) => void;
   timelineLabel: string;
   busy?: boolean;
+  error?: string | null;
+  onExtendDeadline?: () => void;
 }
 
 export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = ({
@@ -42,7 +45,11 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
   onSave,
   timelineLabel,
   busy = false,
+  error,
+  onExtendDeadline,
 }) => {
+  const titleId = useModalTitle();
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [eventName, setEventName] = useState('');
   const [category, setCategory] = useState<TimelineEntry['category']>('Research Project (P1)');
   const [startDate, setStartDate] = useState('');
@@ -52,6 +59,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
 
   // Synchronize when the entry is passed into the drawer
   useEffect(() => {
+    setConfirmDiscard(false);
     if (entry) {
       setEventName(entry.event || '');
       setCategory(entry.category || 'Research Project (P1)');
@@ -101,7 +109,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!eventName.trim()) return;
+    if (busy || !eventName.trim()) return;
 
     if (entry) {
       onSave({
@@ -124,25 +132,33 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
     }
   };
 
+  const dirty = !!entry && (eventName !== entry.event || category !== entry.category || startDate !== convertToInputDate(entry.startDate) || endDate !== convertToInputDate(entry.endDate) || description !== (entry.description ?? '') || targetRole.join() !== entry.targetRole.join());
+  useRecordDraft(isOpen && dirty, isOpen && busy);
+  useEffect(() => {
+    if (!isOpen || (!dirty && !busy)) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isOpen, dirty, busy]);
+  const requestBack = () => {
+    if (busy) return;
+    if (dirty) setConfirmDiscard(true); else onClose();
+  };
   if (!isOpen || !entry) return null;
-  return <RecordPage title="Edit Timeline Entry" backLabel="Back to Timeline Management" onBack={onClose} pageKey="timeline-edit" dirty={eventName !== entry.event || category !== entry.category || startDate !== convertToInputDate(entry.startDate) || endDate !== convertToInputDate(entry.endDate) || description !== (entry.description ?? '') || targetRole.join() !== entry.targetRole.join()} busy={busy}>{requestBack => <form
+  return <>
+    <PortalModal isOpen onClose={requestBack} busy={busy} labelledBy={titleId} className="max-w-3xl p-0">
+      <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+        <div><h2 id={titleId} className="section-heading">Edit event</h2><p className="card-description mt-1">{timelineLabel}</p></div>
+        <PortalButton variant="ghost" icon={X} aria-label="Close edit event" disabled={busy} onClick={requestBack} />
+      </header>
+      <form
               onSubmit={handleSubmit}
-              className="space-y-5 rounded-2xl border border-slate-200 bg-white"
+              className="space-y-5 p-5 sm:p-6"
             >
               <div 
                 id="edit-drawer-body" 
-                className="drawer-body"
+                className="space-y-5"
               >
-                {/* Context Indicator Alert banner */}
-                <div className="bg-[#f8fafc] border border-slate-200 rounded-2xl p-4 space-y-1">
-                  <span className="card-label block">
-                    Target Context Info
-                  </span>
-                  <p className="card-description">
-                    You are updating a milestone in <strong className="card-value text-indigo-650">{timelineLabel}</strong>. Saved changes are persisted immediately.
-                  </p>
-                </div>
-
                 {/* Field 1: Event title */}
                 <div className="space-y-1.5">
                   <label className="form-label block">
@@ -177,7 +193,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                 </div>
 
                 {/* Field 3: Date Inputs grid */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="form-label block">
                       Start Date
@@ -203,6 +219,15 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                     />
                   </div>
                 </div>
+
+                {onExtendDeadline && <section aria-label="Deadline extension" className="space-y-3 border-t border-slate-200 pt-4">
+                  <div className="space-y-1">
+                    <h3 className="section-heading">Extend the deadline</h3>
+                    <p className="card-description">Grant more time and record the reason in the event history.</p>
+                  </div>
+                  <PortalButton size="sm" disabled={busy || dirty} onClick={onExtendDeadline} aria-describedby={dirty ? 'extension-unsaved-help' : undefined}>Extend the deadline</PortalButton>
+                  {dirty && <p id="extension-unsaved-help" className="card-description">Save your changes before extending the deadline.</p>}
+                </section>}
 
                 {/* Field 4: Target Roles multi checkboxes */}
                 <div className="space-y-2 pt-1">
@@ -280,9 +305,10 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
               </div>
 
               {/* Action Buttons Footer section */}
+              {error && <div className="px-5"><AlertMessage type="error" title="Unable to save timeline entry" message={error} /></div>}
               <div 
                 id="edit-drawer-footer"
-                className="drawer-footer"
+                className="flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-4"
               >
                 <PortalButton
                   type="button"
@@ -295,7 +321,8 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                 
                 <PortalButton
                   type="submit"
-                  disabled={!eventName.trim() || targetRole.length === 0}
+                  disabled={busy || !eventName.trim() || targetRole.length === 0}
+                  isLoading={busy}
                   variant="primary"
                   size="md"
                   icon={Save}
@@ -303,5 +330,8 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                   Save Changes
                 </PortalButton>
               </div>
-            </form>}</RecordPage>;
+            </form>
+    </PortalModal>
+    <PortalConfirmModal isOpen={confirmDiscard} title="Discard unsaved changes?" message="Your event changes have not been saved. Close the editor and discard them?" confirmLabel="Discard changes" cancelLabel="Keep editing" onConfirm={onClose} onCancel={() => setConfirmDiscard(false)} />
+  </>;
 };

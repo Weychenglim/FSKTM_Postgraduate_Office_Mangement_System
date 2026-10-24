@@ -160,6 +160,13 @@
 [data-office-dashboard] .office-tool-summary > div { border:0; border-radius:0; box-shadow:none; padding:16px 20px; }
 [data-office-dashboard] .office-tool-summary > div + div { border-left:1px solid #e2e8f0; }
 [data-office-dashboard] .office-tool-views { display:flex; flex-wrap:wrap; gap:4px; border-bottom:1px solid #e2e8f0; padding-bottom:12px; }
+
+/* Semester forms: labels above fields, with readable entered/selected values. */
+.academic-semester-fields .form-label { display:flex; flex-direction:column; gap:8px; color:#334155; font-size:13px; font-weight:600; text-transform:none; letter-spacing:0; }
+.academic-semester-fields :is(input,textarea) { display:block; }
+.academic-semester-fields :is(input,textarea,button[aria-haspopup="listbox"]) { margin-top:0; min-height:42px; color:#0f172a; font-size:14px; font-weight:600; }
+.academic-semester-fields button[aria-haspopup="listbox"] > span { font-size:inherit; font-weight:inherit; }
+.academic-semester-fields :is(input,textarea)::placeholder { color:#64748b; font-weight:400; }
 @media(min-width:1024px) {
   [data-office-dashboard] .office-attention-records th:nth-child(1) { width:30%; }
   [data-office-dashboard] .office-attention-records th:nth-child(2) { width:24%; }
@@ -171,7 +178,9 @@
 [data-office-dashboard] .office-tool-panel button,
 [data-office-dashboard] .office-tool-actions button { flex-shrink:0; white-space:nowrap; }
 [data-office-dashboard] .office-tool-disclosure summary { min-height:24px; }
-[data-office-dashboard] .office-workload-records table { min-width:900px; }
+@media(min-width:1024px) {
+  [data-office-dashboard] .office-workload-records table { min-width:900px; }
+}
 [data-office-dashboard] .office-workload-records [aria-label="Workload distribution"] { border-radius:0; background:white; padding:0 0 12px; border-bottom:1px solid #e2e8f0; }
 [data-office-dashboard] .period-overview-link { display:inline-flex; align-items:center; gap:6px; min-height:32px; color:#2563eb; font-size:12px; font-weight:600; cursor:pointer; }
 [data-office-dashboard] .period-overview-link[aria-current="true"] { color:#0c1424; }
@@ -599,6 +608,22 @@
 [data-office-dashboard] .capacity-row-issue { margin-top:8px; color:#92400e; font-weight:500; }
 [data-office-dashboard] .capacity-table .data-row:has(.capacity-row-issue) { background:#fffbeb; }
 [data-office-dashboard] .capacity-result-summary { margin-bottom:16px; color:#334155; font-size:13px; font-weight:600; line-height:1.6; }
+/* One editing surface: version context, roster actions, then publication. */
+[data-office-dashboard] .capacity-editor { overflow:visible; }
+[data-office-dashboard] .capacity-roster-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; padding:0 20px 20px; }
+[data-office-dashboard] .capacity-roster-selection { display:flex; align-items:center; flex-wrap:wrap; gap:12px 16px; min-width:0; }
+[data-office-dashboard] .capacity-roster-toolbar .capacity-result-summary { margin:0; font-weight:400; color:#475569; }
+[data-office-dashboard] .capacity-roster-toolbar .capacity-selection-count { font-weight:600; color:#0c1424; }
+[data-office-dashboard] .capacity-editor .capacity-table { padding-top:0; }
+[data-office-dashboard] .capacity-publication-footer { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:24px; padding:20px; border-top:1px solid #e2e8f0; border-radius:0 0 16px 16px; background:#f8fafc; font-size:13px; line-height:1.6; }
+[data-office-dashboard] .capacity-publication-footer > button { margin-top:10px; }
+@media(max-width:639px) {
+ [data-office-dashboard] .capacity-roster-toolbar { align-items:stretch; padding:0 16px 16px; }
+ [data-office-dashboard] .capacity-roster-selection { flex-basis:100%; justify-content:space-between; }
+ [data-office-dashboard] .capacity-roster-toolbar > button { width:100%; }
+ [data-office-dashboard] .capacity-publication-footer { grid-template-columns:minmax(0,1fr); gap:16px; padding:16px; }
+ [data-office-dashboard] .capacity-publication-footer > button { margin-top:0; width:100%; }
+}
 [data-office-dashboard] .capacity-history-row { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; padding-bottom:16px; border-bottom:1px solid #e2e8f0; font-size:13px; line-height:1.6; }
 [data-office-dashboard] .capacity-preparation-form { color:#334155; }
 [data-office-dashboard] .capacity-preparation-intro { max-width:72ch; font-size:14px; line-height:1.65; margin-bottom:24px; }
@@ -646,3 +671,54 @@
 [data-office-dashboard].submission-window-dialog .section-heading { font-size:16px; line-height:1.4; font-weight:700; color:#0f172a; }
 [data-office-dashboard].submission-window-dialog header .section-heading { font-size:20px; line-height:1.35; }
 [data-office-dashboard].submission-window-dialog .period-text-link { font-size:13px; }
+
+/* Timeline uses the shared responsive tables with the capacity text scale. */
+[data-office-dashboard] .timeline-workspace-table :is(.data-td,.data-td-strong) { vertical-align:top; color:#334155; font-size:13px; line-height:1.6; }
+@media (min-width:1024px) {
+ [data-office-dashboard] #timeline-records-box :is(th,td) { padding-left:12px; padding-right:12px; }
+ [data-office-dashboard] #timeline-records-box th:first-child { width:22%; }
+ [data-office-dashboard] #timeline-records-box th:nth-child(2) { width:12%; }
+ [data-office-dashboard] #timeline-records-box th:nth-child(3),
+ [data-office-dashboard] #timeline-records-box th:nth-child(4) { width:11%; }
+ [data-office-dashboard] #timeline-records-box th:nth-child(6) { width:13%; }
+ [data-office-dashboard] #timeline-records-box th:nth-child(5) { width:10%; }
+ [data-office-dashboard] #timeline-records-box td:nth-child(5) span,
+ [data-office-dashboard] #timeline-records-box td:nth-child(6) > span { white-space:nowrap; }
+ [data-office-dashboard] #timeline-records-box :is(th,td):last-child { width:21%; text-align:left; }
+ [data-office-dashboard] #timeline-records-box td:last-child > div { justify-content:flex-start; flex-wrap:wrap; }
+ [data-office-dashboard] #recent-timeline-updates-card th:last-child { width:42%; }
+}
+
+/* Published policy and draft work have separate, stable rows. */
+[data-office-dashboard] .capacity-policy-published,
+[data-office-dashboard] .capacity-policy-draft { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 20px; }
+[data-office-dashboard] .capacity-policy-published { padding-top:0; }
+[data-office-dashboard] .capacity-policy-value { margin-top:4px; font-size:18px; line-height:1.4; font-weight:700; color:#0f172a; }
+[data-office-dashboard] .capacity-policy-draft { border-top:1px solid #e2e8f0; background:#f8fafc; border-radius:0 0 16px 16px; }
+[data-office-dashboard] .capacity-policy-draft p + p { margin-top:4px; }
+[data-office-dashboard] .capacity-planning-reference { padding:16px; border:1px solid #e2e8f0; border-radius:12px; font-size:14px; line-height:1.6; }
+[data-office-dashboard] .capacity-planning-reference summary { cursor:pointer; font-weight:600; color:#334155; }
+@media(max-width:639px) {
+ [data-office-dashboard] .capacity-policy-published, [data-office-dashboard] .capacity-policy-draft { flex-wrap:wrap; padding-left:16px; padding-right:16px; }
+}
+
+[data-office-dashboard] .capacity-workspace h1[tabindex="-1"]:focus { outline:none; }
+[data-office-dashboard] .reconciliation-workspace .reconciliation-check-help {
+  border-left: 3px solid #cbd5e1;
+  padding: 4px 0 4px 14px;
+}
+[data-office-dashboard] .reconciliation-effect {
+  border-left: 3px solid #94a3b8;
+  padding: 12px 16px;
+  background: #f8fafc;
+}
+[data-office-dashboard] .reconciliation-check-copy { width:100%; }
+@media(min-width:1024px) {
+ [data-office-dashboard] .reconciliation-workspace table[aria-label="Reconciliation issues"] :is(th,td) { padding-left:12px; padding-right:12px; vertical-align:top; }
+ [data-office-dashboard] .reconciliation-workspace table[aria-label="Reconciliation issues"] th:first-child { width:29%; }
+ [data-office-dashboard] .reconciliation-workspace table[aria-label="Reconciliation issues"] th:nth-child(2) { width:32%; }
+ [data-office-dashboard] .reconciliation-workspace table[aria-label="Reconciliation issues"] th:nth-child(3) { width:11%; }
+ [data-office-dashboard] .reconciliation-workspace table[aria-label="Reconciliation issues"] th:nth-child(4) { width:14%; }
+ [data-office-dashboard] .reconciliation-workspace table[aria-label="Reconciliation issues"] th:last-child { width:14%; }
+}
+[data-office-dashboard] [data-record-page]:has(.reconciliation-review) h1[tabindex="-1"]:focus { outline: none; }

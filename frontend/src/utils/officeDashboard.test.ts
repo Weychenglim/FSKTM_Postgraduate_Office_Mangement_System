@@ -55,6 +55,7 @@ test('Marks deadline navigation preserves the selected semester and period, or o
 });
 test('Dashboard-origin workloads retain return context without changing participant navigation',()=>{
   assert.deepEqual(officeWorkloadNavigationState('/panel-appointments/workload'),{officeDashboardOrigin:true});
+  assert.deepEqual(officeWorkloadNavigationState('/panel-appointments/workload?monitor=panel-capacity'),{officeDashboardOrigin:true});
   assert.deepEqual(officeWorkloadNavigationState('/supervisor-appointments/workload'),{officeDashboardOrigin:true});
   assert.equal(officeWorkloadNavigationState('/dashboard/participant-lifecycle'),undefined);
 });

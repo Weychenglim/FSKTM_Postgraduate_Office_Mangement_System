@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 import { PortalModal, useModalTitle } from './PortalModal';
 import { PortalConfirmModal } from './PortalPrimitives';
 
-function CapacityDialogNavigationGuard({ dirty, busy }: { dirty: boolean; busy: boolean }) {
+function CapacityRouteNavigationGuard({ dirty, busy }: { dirty: boolean; busy: boolean }) {
   const blocker = useBlocker(dirty || busy);
   return <PortalConfirmModal isOpen={blocker.state === 'blocked'}
     title={busy ? 'Saving changes' : 'Discard unsaved changes?'}
@@ -14,26 +14,31 @@ function CapacityDialogNavigationGuard({ dirty, busy }: { dirty: boolean; busy: 
     onConfirm={() => { if (!busy && blocker.state === 'blocked') blocker.proceed(); }} />;
 }
 
-/** Capacity row tasks keep their table mounted and use the portal's shared dialogs. */
-export function CapacityLecturerDialog({ title, lecturerName, staffNo, dirty = false, busy = false, onClose, children, footer }: {
-  title: string; lecturerName: string; staffNo: string; dirty?: boolean; busy?: boolean;
-  onClose: () => void; children: React.ReactNode; footer: (requestClose: () => void) => React.ReactNode;
-}) {
-  const titleId = useModalTitle();
+/** Standalone capacity dialogs protect browser navigation as well as local closure. */
+export function CapacityDialogNavigationGuard({ dirty, busy }: { dirty: boolean; busy: boolean }) {
   const dataRouter = useContext(UNSAFE_DataRouterContext);
-  const [confirmLeave, setConfirmLeave] = useState(false);
-  const content = useRef<HTMLDivElement>(null);
-  const origin = useRef({ focused: document.activeElement as HTMLElement | null, top: window.scrollY, url: window.location.href });
-  useEffect(() => { content.current?.querySelector<HTMLElement>('input:not(:disabled)')?.focus({ preventScroll: true }); }, []);
   useEffect(() => {
     if (!dirty && !busy) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty, busy]);
+  return dataRouter ? <CapacityRouteNavigationGuard dirty={dirty} busy={busy} /> : null;
+}
+
+/** Capacity row tasks keep their table mounted and use the portal's shared dialogs. */
+export function CapacityLecturerDialog({ title, lecturerName, staffNo, dirty = false, busy = false, onClose, children, footer }: {
+  title: string; lecturerName: string; staffNo: string; dirty?: boolean; busy?: boolean;
+  onClose: () => void; children: React.ReactNode; footer: (requestClose: () => void) => React.ReactNode;
+}) {
+  const titleId = useModalTitle();
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const content = useRef<HTMLDivElement>(null);
+  const origin = useRef({ focused: document.activeElement as HTMLElement | null, top: window.scrollY, url: window.location.href, view: document.querySelector('[data-capacity-view]')?.getAttribute('data-capacity-view') });
+  useEffect(() => { content.current?.querySelector<HTMLElement>('input:not(:disabled)')?.focus({ preventScroll: true }); }, []);
   useEffect(() => () => {
     requestAnimationFrame(() => {
-      if (document.querySelector('[data-capacity-lecturer-dialog]') || window.location.href !== origin.current.url) return;
+      if (document.querySelector('[data-capacity-lecturer-dialog]') || window.location.href !== origin.current.url || document.querySelector('[data-capacity-view]')?.getAttribute('data-capacity-view') !== origin.current.view) return;
       const target = origin.current.focused?.isConnected ? origin.current.focused : document.querySelector<HTMLElement>('.capacity-workspace #capacity-roster-show, .capacity-workspace input[type="search"]');
       if (!target) return;
       target.focus({ preventScroll: true });
@@ -52,7 +57,7 @@ export function CapacityLecturerDialog({ title, lecturerName, staffNo, dirty = f
         <footer className="flex flex-wrap justify-end gap-3 border-t border-slate-200 p-5 sm:px-6">{footer(requestClose)}</footer>
       </div>
     </PortalModal>
-    {dataRouter && <CapacityDialogNavigationGuard dirty={dirty} busy={busy} />}
+    <CapacityDialogNavigationGuard dirty={dirty} busy={busy} />
     <PortalConfirmModal isOpen={confirmLeave} title="Discard unsaved changes?" message="Your changes have not been saved. Close this dialog and discard them?"
       confirmLabel="Discard changes" cancelLabel="Keep editing" isLoading={busy} onConfirm={() => { if (!busy) onClose(); }} onCancel={() => setConfirmLeave(false)} />
   </>;

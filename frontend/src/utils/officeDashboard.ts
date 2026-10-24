@@ -66,7 +66,7 @@ export function officeHomeAttention(tasks:DashboardTask[]):{review:OfficeHomeAtt
 }
 
 export function officeWorkloadNavigationState(route: string) {
-  return [APP_ROUTES.supervisorAppointmentWorkload, APP_ROUTES.panelAppointmentWorkload].some(path=>path===route)
+  return [APP_ROUTES.supervisorAppointmentWorkload, APP_ROUTES.panelAppointmentWorkload].some(path=>path===route.split('?')[0])
     ? {officeDashboardOrigin:true} : undefined;
 }
 
