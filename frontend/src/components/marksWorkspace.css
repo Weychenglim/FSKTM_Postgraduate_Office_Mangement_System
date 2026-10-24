@@ -1,0 +1,24 @@
+/* Marks presentation only. Shared portal typography and state colours remain authoritative. */
+@layer components {
+.marks-workspace :is(h2, h3).section-label,
+.marks-workspace :is(h2, h3).section-heading { font-size: 1rem; font-weight: 600; line-height: 1.5; }
+.marks-workspace .card-value,
+.marks-workspace .form-label:not([data-workspace-filter-card] *) { font-weight: 600; }
+.marks-workspace .card-description { line-height: 1.65; }
+.marks-workspace .data-th { text-transform: none; letter-spacing: normal; font-weight: 600; }
+.marks-workspace .form-label:not([data-workspace-filter-card] *) { font-size: .75rem; font-weight: 600; line-height: 1.5; text-transform: none; letter-spacing: normal; }
+.marks-workspace .form-label:not([data-workspace-filter-card] *) { color: #475569; }
+.marks-workspace .form-control:not([data-workspace-filter-card] *) { padding: .625rem .75rem; font-size: .875rem; font-weight: 500; line-height: 1.5; }
+.marks-workspace :is(input, button).form-control:not([data-workspace-filter-card] *) { min-height: 42px; }
+.marks-workspace .period-config-editor .form-label { font-size: .875rem; }
+@media (max-width: 40rem) {
+  .marks-workspace :is(input, textarea).form-control:not([data-workspace-filter-card] *) { font-size: 1rem; }
+}
+}
+/* Match the appointment panel's scoped overrides of shared spacing utilities. */
+@media (min-width: 40rem) {
+  .marks-workspace [data-workspace-filter-card] { padding: 1.25rem; }
+  .marks-workspace [data-workspace-filter-card] > :first-child { gap: 1rem; }
+  .marks-workspace [data-workspace-filter-card] > :last-child { margin-top: 1.25rem; padding-top: 1rem; }
+}
+.marks-workspace .marks-state { font-size: .75rem; font-weight: 600; line-height: 1.5; text-transform: none; letter-spacing: normal; }

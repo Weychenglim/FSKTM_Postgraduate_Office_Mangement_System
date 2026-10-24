@@ -1,4 +1,6 @@
 import React, { useId } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { AppointmentIcon } from './AppointmentPrimitives';
 import { orderApprovalEvents, type ApprovalEvent } from '../utils/approvalProcess';
 import { PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
 import { formatRequestRecordedAt, formatRequestDisplayDate } from './ApprovalProcess';
@@ -53,9 +55,9 @@ export function RequestField({ label, value, narrative = false }: { label: strin
   return <div><dt className="card-label">{label}</dt><dd className={`${narrative ? requestBodyTextClass : 'card-value whitespace-pre-wrap break-words'} mt-1`}>{value?.trim() || 'Not recorded'}</dd></div>;
 }
 
-export function RequestSection({ title, description, actions, children, headingClassName = 'section-label' }: { title: string; description?: string; actions?: React.ReactNode; children: React.ReactNode; headingClassName?: string }) {
+export function RequestSection({ title, description, actions, children, headingClassName = 'section-label', icon }: { title: string; description?: string; actions?: React.ReactNode; children: React.ReactNode; headingClassName?: string; icon?: LucideIcon }) {
   const titleId = useId();
-  return <section aria-labelledby={titleId} className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id={titleId} className={headingClassName}>{title}</h2>{description ? <p className="card-description mt-1">{description}</p> : null}</div>{actions}</div>{children}</section>;
+  return <section aria-labelledby={titleId} className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-start gap-3">{icon ? <AppointmentIcon icon={icon} tone="info" /> : null}<div className="min-w-0"><h2 id={titleId} className={headingClassName}>{title}</h2>{description ? <p className="card-description mt-1">{description}</p> : null}</div></div>{actions}</div>{children}</section>;
 }
 
 export function ViewStudentRecordAction({studentId,onOpen,disabled=false}:{studentId:string;onOpen?: (studentId:string)=>void;disabled?:boolean}) {

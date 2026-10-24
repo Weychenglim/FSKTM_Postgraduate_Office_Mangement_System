@@ -1,6 +1,6 @@
 import React, { useId } from 'react';
-import { appointmentDetailTypography as text } from './AppointmentPrimitives';
-import { Check, Circle, CircleHelp, Minus, X } from 'lucide-react';
+import { AppointmentIcon, appointmentDetailTypography as text } from './AppointmentPrimitives';
+import { Check, Circle, CircleHelp, Minus, X, type LucideIcon } from 'lucide-react';
 import type { ApprovalStep } from '../utils/approvalProcess';
 import { formatMalaysiaDate, formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
 
@@ -29,18 +29,19 @@ const states = {
   unknown: { label: 'Not recorded', tone: 'border-slate-200 bg-slate-50 text-slate-500', icon: CircleHelp },
 } as const;
 
-export function ApprovalProcess({ steps, title = 'Approval progress' }: { steps: ApprovalStep[]; title?: string }) {
+export function ApprovalProcess({ steps, title = 'Approval progress', icon }: { steps: ApprovalStep[]; title?: string; icon?: LucideIcon }) {
   const titleId = useId();
+  const heading = icon ? <div className="flex min-w-0 items-center gap-3"><AppointmentIcon icon={icon} tone="info" /><h2 id={titleId} className={text.heading}>{title}</h2></div> : <h2 id={titleId} className={text.heading}>{title}</h2>;
   const reviews = steps.filter(step=>!['submitted','outcome'].includes(step.id));
   const outcome = steps.find(step=>step.id==='outcome');
   const terminal = outcome && ['completed','rejected','cancelled'].includes(outcome.state);
   const hasReviewDetails = reviews.some(step=>step.actorName||step.occurredAt);
-  if (terminal && !hasReviewDetails) return <section aria-labelledby={titleId} className="space-y-2"><h2 id={titleId} className={text.heading}>{title}</h2><p className="card-value">{states[outcome.state].label}</p><p className="card-description">{outcome.description?.replace(/ (Cancellation|Deciding) stage: Not recorded\./,'')}</p>{outcome.actorName?<p className="card-description">{[outcome.actorName,outcome.actorRole].filter(Boolean).join(' · ')}</p>:null}{formatRequestRecordedAt(outcome.occurredAt)!=='Not recorded'?<p className="card-caption">{formatRequestDisplayDate(outcome.occurredAt)}</p>:null}<p className="card-description text-slate-500">Detailed approval history is unavailable for this record.</p>{outcome.reason?<p className="card-description whitespace-pre-wrap">Reason: {outcome.reason}</p>:null}</section>;
-  if (outcome?.state==='unknown' && !hasReviewDetails && !steps.some(step=>step.state==='current')) return <section aria-labelledby={titleId}><h2 id={titleId} className={text.heading}>{title}</h2><p className="card-description mt-2">Approval history is unavailable.</p></section>;
+  if (terminal && !hasReviewDetails) return <section aria-labelledby={titleId} className="space-y-2">{heading}<p className="card-value">{states[outcome.state].label}</p><p className="card-description">{outcome.description?.replace(/ (Cancellation|Deciding) stage: Not recorded\./,'')}</p>{outcome.actorName?<p className="card-description">{[outcome.actorName,outcome.actorRole].filter(Boolean).join(' · ')}</p>:null}{formatRequestRecordedAt(outcome.occurredAt)!=='Not recorded'?<p className="card-caption">{formatRequestDisplayDate(outcome.occurredAt)}</p>:null}<p className="card-description text-slate-500">Detailed approval history is unavailable for this record.</p>{outcome.reason?<p className="card-description whitespace-pre-wrap">Reason: {outcome.reason}</p>:null}</section>;
+  if (outcome?.state==='unknown' && !hasReviewDetails && !steps.some(step=>step.state==='current')) return <section aria-labelledby={titleId}>{heading}<p className="card-description mt-2">Approval history is unavailable.</p></section>;
   const missingDetails = steps.some(step=>step.showRecordedDetails!==false && ['completed','rejected','cancelled'].includes(step.state) && (!step.actorName||formatRequestRecordedAt(step.occurredAt)==='Not recorded'));
   const placeholder = (description?:string) => !description || /^(Submission actor:|Decision details:|Stage history:)/.test(description);
   return <section aria-labelledby={titleId} className="space-y-4">
-    <h2 id={titleId} className={text.heading}>{title}</h2>
+    {heading}
     {steps.length ? <ol className="space-y-0">{steps.map((step, index) => {
       const { label, tone, icon: Icon } = states[step.state];
       return <li key={step.id} aria-current={step.state === 'current' ? 'step' : undefined} className="relative flex gap-3 pb-5 last:pb-0">

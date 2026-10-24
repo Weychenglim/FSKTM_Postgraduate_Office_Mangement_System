@@ -1,5 +1,5 @@
 import { PortalSelect } from './PortalSelect';
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { requestStatusLabel, type RequestGroup } from '../utils/lecturerRequests';
@@ -15,11 +15,21 @@ export function WorkspaceSectionHeader({ title, description, actions }: { title?
 }
 
 export type RequestListView = 'requests' | 'history';
-export function AppointmentViewSwitch({view, onChange, label = 'Appointment views', currentLabel = 'Current appointments', pastLabel = 'Past appointments'}: {
-  view: 'current' | 'past'; onChange: (value: 'current' | 'past') => void; label?: string; currentLabel?: string; pastLabel?: string;
+export function AppointmentViewSwitch({view, onChange, focusRequest, label = 'Appointment views', currentLabel = 'Current appointments', pastLabel = 'Past appointments'}: {
+  view: 'current' | 'past'; onChange: (value: 'current' | 'past') => void; focusRequest?: React.RefObject<boolean>; label?: string; currentLabel?: string; pastLabel?: string;
 }) {
-  return <div role="group" aria-label={label} className="flex w-fit flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
-    {([['current', currentLabel], ['past', pastLabel]] as const).map(([value, text]) => <button type="button" key={value} aria-pressed={view === value} onClick={() => onChange(value)}
+  const group = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!focusRequest?.current) return;
+    group.current?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]')?.focus({preventScroll: true});
+    focusRequest.current = false;
+  }, [view, focusRequest]);
+  return <div ref={group} role="group" aria-label={label} className="flex w-fit flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
+    {([['current', currentLabel], ['past', pastLabel]] as const).map(([value, text]) => <button type="button" key={value} aria-pressed={view === value} onClick={event => {
+      if (value === view) return;
+      if (focusRequest) focusRequest.current = document.activeElement === event.currentTarget;
+      onChange(value);
+    }}
       className={`card-value rounded-md px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${view === value ? 'bg-white text-brand-navy shadow-sm' : 'text-slate-600 hover:bg-white/60'}`}>{text}</button>)}
   </div>;
 }
