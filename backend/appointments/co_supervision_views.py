@@ -68,6 +68,13 @@ def workspace_view(request):
 
 
 @guarded(["GET"])
+def own_appointment_history_view(request):
+    from .coordinator_workspace import appointments_page
+
+    return Response(appointments_page(request.user, request.query_params, own=True))
+
+
+@guarded(["GET"])
 def team_view(request, student_id):
     student = Student.objects.select_related("user").get(pk=student_id)
     return Response(service.serialize_team(student, request.user, include_details=True))

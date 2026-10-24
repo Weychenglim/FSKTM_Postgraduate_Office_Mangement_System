@@ -1,5 +1,8 @@
+import { AppointmentIcon } from './AppointmentPrimitives';
+import { UsersRound } from 'lucide-react';
 import { PortalSelect } from './PortalSelect';
 import { DecisionDialog } from './DecisionDialog';
+import { AlertMessage } from './AlertMessage';
 import { StudentResearchProfileSection } from './StudentResearchProfileSection';
 import { ResearchAbstract } from './ResearchAbstract';
 import { completeDecision } from '../utils/decisionSubmission';
@@ -136,9 +139,10 @@ export function CoSupervisorAppointmentCard({ appointment: row, busy, canReplace
   </article>;
 }
 
-function NominationForm({ team, replacement, busy, onSubmit, onCancel }: {
+function NominationForm({ team, replacement, busy, onSubmit, onCancel, submitError, recoveryError, needsRefresh, onReload, refreshVersion = 0 }: {
   team: SupervisoryTeam; replacement: CoSupervisorAppointment | null; busy: boolean;
   onSubmit: (candidateId: number, justification: string) => void; onCancel: () => void;
+  submitError?: string | null; recoveryError?: string | null; needsRefresh?: boolean; onReload?: () => void; refreshVersion?: number;
 }) {
   const [candidates, setCandidates] = useState<CoSupervisorCandidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,10 +157,10 @@ function NominationForm({ team, replacement, busy, onSubmit, onCancel }: {
       .catch(failure => { if (current) setError(failure instanceof Error ? failure.message : 'Candidates could not be loaded.'); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
-  }, [team.studentId, attempt]);
+  }, [team.studentId, attempt, refreshVersion]);
   useRecordDraft(!!candidateId || !!justification.trim(), busy);
   const selected = candidates.find(row => String(row.id) === candidateId);
-  return <form className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 space-y-3" onSubmit={event => { event.preventDefault(); if (selected?.selectable && justification.trim() && !busy) onSubmit(selected.id, justification.trim()); }}>
+  return <form className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 space-y-3" onSubmit={event => { event.preventDefault(); if (selected?.selectable && justification.trim() && !busy && !needsRefresh && team.canNominate) onSubmit(selected.id, justification.trim()); }}>
     <h4 className="section-label">{replacement ? `Replace ${replacement.supervisor.name}` : 'Nominate a co-supervisor'}</h4>
     <p className="card-description">{replacement ? 'The current appointment continues until the replacement is approved. ' : ''}The lecturer accepts before programme coordinator approval. Each approved appointment uses one supervision slot.</p>
     {loading ? <LoadingState message="Loading eligible lecturers…" /> : error ? <ErrorState message={error} onRetry={() => setAttempt(value => value + 1)} /> : <label className="form-label block">Lecturer
@@ -167,7 +171,9 @@ function NominationForm({ team, replacement, busy, onSubmit, onCancel }: {
     </label>}
     {!loading && !error && candidates.length === 0 ? <p className="card-description">No eligible lecturers are available.</p> : null}
     <label className="form-label block">Justification<textarea className={inputClass} required rows={3} value={justification} disabled={busy} onChange={event => setJustification(event.target.value)} /></label>
-    <div className="flex gap-2"><PortalButton type="submit" variant="primary" isLoading={busy} disabled={loading || !!error || !selected?.selectable || !justification.trim()}>Submit nomination</PortalButton><PortalButton type="button" disabled={busy} onClick={onCancel}>Cancel</PortalButton></div>
+    {submitError ? <AlertMessage type="error" title="Nomination could not be submitted" message={submitError}/> : null}
+    {needsRefresh ? <AlertMessage type="warning" title="Check current nomination availability" message={recoveryError || 'Reload the current supervision record before submitting again.'} actions={<PortalButton type="button" disabled={busy} onClick={onReload}>Reload nomination availability</PortalButton>}/> : !team.canNominate ? <AlertMessage type="warning" message="This supervisory team is no longer eligible for a nomination. Your input has been kept for review."/> : null}
+    <div className="flex gap-2"><PortalButton type="submit" variant="primary" isLoading={busy} disabled={loading || !!error || !selected?.selectable || !justification.trim() || needsRefresh || !team.canNominate}>Submit nomination</PortalButton><PortalButton type="button" disabled={busy} onClick={onCancel}>Cancel</PortalButton></div>
   </form>;
 }
 
@@ -182,7 +188,7 @@ export function StudentSupervisorsOverview({ workspace, actions }: { workspace: 
   return <div className="space-y-6">
     <div className="grid gap-6 sm:grid-cols-2">
       <StudentAppointmentMemberCard detail label="Primary supervisor" name={team?.primarySupervisor?.name ?? 'Supervisor not appointed'} status={team?.primarySupervisor ? 'Active' : 'Not appointed'} tone={team?.primarySupervisor ? 'success' : 'neutral'} actions={actions} />
-      <div className="space-y-6 rounded-xl border border-slate-200 p-6"><p className={appointmentDetailTypography.label}>Supporting supervisors</p>{supporting.length ? supporting.map(row => <div key={row.id} className="space-y-1"><h3 className={appointmentDetailTypography.name}>{row.supervisor.name}</h3><p className={appointmentDetailTypography.body}>Co-supervisor · Active since {displayDate(row.appointmentDate)}</p></div>) : <p className={appointmentDetailTypography.body}>No supporting supervisors assigned.</p>}</div>
+      <div className="space-y-6 rounded-xl border border-slate-200 p-6"><div className="flex items-center gap-3"><AppointmentIcon icon={UsersRound} tone="info"/><p className={appointmentDetailTypography.label}>Supporting supervisors</p></div>{supporting.length ? supporting.map(row => <div key={row.id} className="space-y-1"><h3 className={appointmentDetailTypography.name}>{row.supervisor.name}</h3><p className={appointmentDetailTypography.body}>Co-supervisor · Active since {displayDate(row.appointmentDate)}</p></div>) : <p className={appointmentDetailTypography.body}>No supporting supervisors assigned.</p>}</div>
     </div>
     {team && Object.values(team.research).some(value => value.trim()) ? <StudentResearchProfileSection profile={{ ...team.research, programme: team.programme }} /> : null}
     {previous.length ? <details><summary className={appointmentDetailTypography.disclosure}>Previous supporting supervisors</summary><div className="mt-3 space-y-3">{previous.map(row => <article key={row.id} className="rounded-xl border border-slate-200 p-4"><h3 className={appointmentDetailTypography.name}>{row.supervisor.name}</h3><p className={appointmentDetailTypography.body}>Supporting supervisor · {displayDate(row.appointmentDate)}{row.endedAt ? ` – ${displayDate(row.endedAt)}` : ''}</p><StatusBadge tone="neutral">Ended</StatusBadge></article>)}</div></details> : null}
@@ -202,7 +208,7 @@ export function SupervisionPanelSummary({panel,busy,onRecommend,onViewRequest}:{
     {pending?.canView&&onViewRequest?<PortalButton size="sm" disabled={busy} onClick={()=>onViewRequest(pending.id,pending.recordKey)}>View recommendation</PortalButton>:null}
     {!pending&&onRecommend&&(panel?.canRecommend||panel?.canReplace)?<PortalButton size="sm" variant={current?'secondary':'primary'} disabled={busy} onClick={onRecommend}>{current?'Replace Panel':'Recommend Panel'}</PortalButton>:null}
   </>;
-  return <AppointmentMemberCard detail label="Panel member" name={current?.member.name ?? (panel?'Panel not appointed':'Panel information unavailable')}
+  return <AppointmentMemberCard detail icon={UsersRound} label="Panel member" name={current?.member.name ?? (panel?'Panel not appointed':'Panel information unavailable')}
     status={current?'Active':pending?'Appointment pending':'Not appointed'} tone={current?'success':pending?'warning':'neutral'}
     actions={canOpenCurrent || canOpenPending || canStartRecommendation ? actions : undefined}>
     {current?<dl className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -237,7 +243,7 @@ export function SupervisoryStudentDetailCard({ team, busy, initiallyOpen = false
         <AppointmentMemberCard detail label="Primary supervisor" name={team.primarySupervisor?.name ?? 'Supervisor not appointed'}
           status={team.primarySupervisor ? 'Active' : 'Not appointed'} tone={team.primarySupervisor ? 'success' : 'neutral'} />
         <div className="space-y-6 rounded-xl border border-slate-200 p-6">
-          <p className={supervisionLabelClass}>Supporting supervisors ({supporting.length}/2)</p>
+          <div className="flex items-center gap-3"><AppointmentIcon icon={UsersRound} tone="info"/><p className={supervisionLabelClass}>Supporting supervisors ({supporting.length}/2)</p></div>
           {supporting.length ? supporting.map(row => <CoSupervisorAppointmentCard key={row.id} appointment={row} busy={busy}
             compact relaxed canReplace={team.canNominate && !team.nominations.some(nomination => nomination.replacesAppointmentId === row.id && ['SUBMITTED_TO_CO_SUPERVISOR','PENDING_COORDINATOR'].includes(nomination.status))}
             onEnd={onEnd} onReplace={onReplace} />) : <p className={supervisionBodyClass}>No supporting supervisors assigned.</p>}
@@ -341,11 +347,16 @@ export function SupervisoryTeamRouteContent({ workspace, view, routeStudentId, s
   </div>;
 }
 
-export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0, studentActions, onRefresh, showResearchChanges = true, showRefresh = true, onBusyChange, view, routeStudentId, onNavigateToStudent, lecturerId, rosterState, detailContext, detailActions, onNavigateToDossier, onNavigateToPanelRequest, onNavigateToPanelRecommendation, onChangePrimarySupervisor }: { onChanged?: () => void; role?: UserRole; refreshVersion?: number; studentActions?: React.ReactNode; onRefresh?: () => void; showResearchChanges?: boolean; showRefresh?: boolean; onBusyChange?: (busy: boolean) => void; view?: SupervisoryTeamView; routeStudentId?: string; onNavigateToStudent?: (matricNo: string) => void; detailContext?:ActiveSuperviseeRow; detailActions?:React.ReactNode; onNavigateToDossier?:(matricNo:string)=>void; onNavigateToPanelRequest?:(id:string,recordKey?:string)=>void; onNavigateToPanelRecommendation?:(matricNo:string)=>void; onChangePrimarySupervisor?:(appointmentId:number)=>void; lecturerId?: string; rosterState?: { search: string; page: number; size: number; onSearch: (value: string) => void; onPage: (value: number) => void; onPageSize: (value: number) => void } }) {
+export function SupervisoryTeamManagement({ headerActions, onChanged, role, refreshVersion = 0, studentActions, onRefresh, showResearchChanges = true, showRefresh = true, onBusyChange, view, routeStudentId, onNavigateToStudent, lecturerId, rosterState, detailContext, detailActions, onNavigateToDossier, onNavigateToPanelRequest, onNavigateToPanelRecommendation, onChangePrimarySupervisor }: { headerActions?: React.ReactNode; onChanged?: () => void; role?: UserRole; refreshVersion?: number; studentActions?: React.ReactNode; onRefresh?: () => void; showResearchChanges?: boolean; showRefresh?: boolean; onBusyChange?: (busy: boolean) => void; view?: SupervisoryTeamView; routeStudentId?: string; onNavigateToStudent?: (matricNo: string) => void; detailContext?:ActiveSuperviseeRow; detailActions?:React.ReactNode; onNavigateToDossier?:(matricNo:string)=>void; onNavigateToPanelRequest?:(id:string,recordKey?:string)=>void; onNavigateToPanelRecommendation?:(matricNo:string)=>void; onChangePrimarySupervisor?:(appointmentId:number)=>void; lecturerId?: string; rosterState?: { search: string; page: number; size: number; onSearch: (value: string) => void; onPage: (value: number) => void; onPageSize: (value: number) => void } }) {
   const [workspace, setWorkspace] = useState<SupervisoryWorkspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeType, setNoticeType] = useState<'success' | 'warning'>('success');
+  const [nominationError, setNominationError] = useState<string | null>(null);
+  const [nominationRecoveryError, setNominationRecoveryError] = useState<string | null>(null);
+  const [nominationNeedsRefresh, setNominationNeedsRefresh] = useState(false);
+  const [nominationRefreshVersion, setNominationRefreshVersion] = useState(0);
   const [edit, setEdit] = useState<EditAction | null>(null);
   const [reason, setReason] = useState('');
   const [outcome, setOutcome] = useState<CoSupervisorOutcome>('COMPLETED');
@@ -383,23 +394,44 @@ export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0,
           data = {...data, teams:[exact]};
         }
       }
-      if (version.current === token) setWorkspace(data);
+      if (version.current === token) {setWorkspace(data);setNominationNeedsRefresh(false);setNominationRecoveryError(null);}
+      return data;
     }
     catch (failure) { if (!background && version.current === token) { setWorkspace(null); setError(failure instanceof Error ? failure.message : 'The supervisory team could not be loaded.'); } if (strict) throw failure; }
     finally { if (!background && version.current === token) setLoading(false); }
   }, [role, view, routeStudentId]);
   useEffect(() => { void load(); return () => { version.current += 1; }; }, [load, refreshVersion, view, routeStudentId]);
   useReturnToFocusReload(() => void load(), (view === 'roster' || view === 'studentOverview') && !loading && !busy && !edit);
+  const refreshNomination = async () => {
+    setNominationNeedsRefresh(true);setNominationRecoveryError(null);
+    try {
+      const data=await load(true,true);
+      setEdit(current=>current?.kind==='nominate'?{...current,team:data?.teams.find(team=>team.studentId===current.team.studentId)??{...current.team,canNominate:false}}:current);
+      setNominationRefreshVersion(value=>value+1);setNominationNeedsRefresh(false);
+      if(!edit){setNoticeType('success');setNotice('Latest supervisory team loaded.');}
+    } catch(failure) {setNominationRecoveryError(failure instanceof Error?failure.message:'Current nomination availability could not be loaded.');}
+  };
+  const reloadNominationAvailability = () => {
+    if(mutating.current)return;
+    mutating.current=true;setBusy(true);
+    void refreshNomination().finally(()=>{mutating.current=false;setBusy(false);});
+  };
   const run = async (operation: () => Promise<unknown>) => {
-    if (mutating.current) return;
-    mutating.current = true; setBusy(true); setNotice(null);
-    try { await operation(); setEdit(null); setReason(''); setNotice('Supervisory team updated.'); onChanged?.(); await load(); }
-    catch (failure) {
-      setNotice(failure instanceof Error ? failure.message : 'The change could not be saved.');
-      if (failure instanceof ApiError && failure.status === 409) await load();
+    if (mutating.current || nominationNeedsRefresh) return;
+    mutating.current = true; setBusy(true); setNotice(null);setNominationError(null);
+    try {
+      try {await operation();}
+      catch(failure) {
+        setNominationError(failure instanceof Error ? failure.message : 'The nomination could not be saved.');
+        if (failure instanceof ApiError && failure.status === 409) await refreshNomination();
+        return;
+      }
+      setEdit(null);setReason('');setNoticeType('success');setNotice('Supervisory team updated.');
+      try {await load(true,true);onChanged?.();}
+      catch(failure) {setNominationNeedsRefresh(true);setNoticeType('warning');setNotice(`Your nomination was saved. ${failure instanceof Error?failure.message:'The latest supervisory team could not be loaded.'}`);}
     } finally { mutating.current = false; setBusy(false); }
   };
-  const begin = (value: EditAction) => { setEdit(value); setReason(''); setOutcome('COMPLETED'); setNotice(null); };
+  const begin = (value: EditAction) => { if(nominationNeedsRefresh)return;setEdit(value); setReason(''); setOutcome('COMPLETED'); setNotice(null);setNominationError(null);setNominationRecoveryError(null); };
   const query = search.trim().toLowerCase();
   const teams = (workspace?.teams ?? []).filter(team => `${team.studentName} ${team.matricNo} ${team.programme}`.toLowerCase().includes(query));
   const pageCount = Math.max(1, Math.ceil(teams.length / 8));
@@ -408,7 +440,8 @@ export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0,
   const reviews = workspace?.nominations.filter(row => row.allowedActions.length && `${row.studentName} ${row.matricNo} ${row.candidate.name}`.toLowerCase().includes(query)) ?? [];
   const history = workspace?.appointments.filter(row => !teamIds.has(row.studentId)) ?? [];
   const historicalNominations = workspace?.nominations.filter(row => !teamIds.has(row.studentId) && !row.allowedActions.length) ?? [];
-  const routeContent = workspace && view ? <SupervisoryTeamRouteContent workspace={workspace} role={role} view={view} routeStudentId={routeStudentId} studentActions={studentActions} busy={busy} search={search} page={page}
+  const actionsBusy = busy || nominationNeedsRefresh;
+  const routeContent = workspace && view ? <SupervisoryTeamRouteContent workspace={workspace} role={role} view={view} routeStudentId={routeStudentId} studentActions={studentActions} busy={actionsBusy} search={search} page={page}
     lecturerId={lecturerId} detailContext={detailContext} detailActions={detailActions} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} onNavigateToPanelRecommendation={onNavigateToPanelRecommendation} onChangePrimarySupervisor={onChangePrimarySupervisor} onEndPrimary={async(endOutcome,endReason)=>{
       const application=workspace.primaryApplication; if(mutating.current||application?.appointmentLifecycle?.status!=='ACTIVE'||application.studentId!==routeStudentId||!['Office Staff/Admin','Programme Coordinator'].includes(role??''))throw new Error('This appointment is unavailable for ending.');
       mutating.current=true;setBusy(true);try{return await completeDecision(()=>endSupervisorAppointment(application.appointmentLifecycle.appointmentId,endOutcome,endReason),async()=>{await load(true,true);onChanged?.();});}finally{mutating.current=false;setBusy(false);}
@@ -419,13 +452,13 @@ export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0,
   if (role === 'Student') return <StudentAppointmentSection detail id="supervisory-team-management" title="My supervisors" description="Your confirmed primary and supporting supervisors.">
     {loading ? <LoadingState message="Loading your supervisors…" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : workspace ? view ? routeContent : <StudentSupervisorsOverview workspace={workspace} actions={studentActions} /> : null}
   </StudentAppointmentSection>;
-  return <section id="supervisory-team-management" className={view==='detail'?'font-sans space-y-5 text-left':'font-sans space-y-5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm'}>
+  return <section id="supervisory-team-management" className={view==='detail'?'font-sans space-y-5 text-left':'font-sans appointment-workspace-card rounded-2xl border border-slate-200 bg-white text-left shadow-sm'}>
     {view!=='detail'?<WorkspaceSectionHeader title={view === 'roster' ? (role === 'Lecturer' ? 'My supervisees' : 'Supervisory teams') : view === 'requests' ? 'Supporting-supervisor requests' : view === 'history' ? 'Supporting appointment history' : 'Supervisory teams'} description={view === 'roster' ? (role === 'Lecturer' ? 'View your current supervisees and their supervision details.' : 'View students and their supervisory teams.') : 'One primary supervisor and up to two supporting co-supervisors.'}
-       />:null}
+       actions={headerActions}/>:null}
     {view!=='detail'&&role !== 'Lecturer' ? <p className="card-description">The primary supervisor manages Panel nominations and supervisor Marks. Supporting appointments provide research and progress access.</p> : null}
-    {notice ? <p role="status" className="card-description rounded-lg border border-slate-200 bg-slate-50 p-3">{notice}</p> : null}
+    {nominationNeedsRefresh&&!edit?<AlertMessage type="warning" title="Refresh supervisory team before continuing" message={notice??nominationRecoveryError??'Nomination eligibility could not be verified. Reload the current team before another action.'} actions={<PortalButton disabled={busy} onClick={reloadNominationAvailability}>Reload supervisory team</PortalButton>}/>:notice?<AlertMessage type={noticeType} message={notice}/>:null}
     <div ref={editPanel}>
-    {edit?.kind === 'nominate' ? <NominationForm key={`${edit.team.studentId}-${edit.replacement?.id ?? 'new'}`} team={edit.team} replacement={edit.replacement} busy={busy} onCancel={() => setEdit(null)} onSubmit={(candidateId, justification) => void run(() => nominateCoSupervisor({ studentId: edit.team.studentId, candidateId, justification, ...(edit.replacement ? { replacesAppointmentId: edit.replacement.id } : {}) }))} /> : null}
+    {edit?.kind === 'nominate' ? <NominationForm key={`${edit.team.studentId}-${edit.replacement?.id ?? 'new'}`} team={edit.team} replacement={edit.replacement} busy={busy} submitError={nominationError} recoveryError={nominationRecoveryError} needsRefresh={nominationNeedsRefresh} refreshVersion={nominationRefreshVersion} onReload={reloadNominationAvailability} onCancel={() => setEdit(null)} onSubmit={(candidateId, justification) => void run(() => nominateCoSupervisor({ studentId: edit.team.studentId, candidateId, justification, ...(edit.replacement ? { replacesAppointmentId: edit.replacement.id } : {}) }))} /> : null}
     <DecisionDialog isOpen={!!edit && edit.kind !== 'nominate'} decisionKey={edit?.kind === 'end' ? `end:${edit.appointment.id}` : edit?.kind === 'decision' ? `supporting:${edit.nomination.id}` : undefined}
       tone={edit?.kind==='decision'&&['accept','approve'].includes(edit.action)?'info':'danger'} title={edit?.kind === 'end' ? 'End supporting appointment' : edit?.kind === 'decision' ? `${labels[edit.action]} supporting request` : 'Supporting request'}
       confirmLabel={edit?.kind === 'end' ? 'End supporting appointment' : edit?.kind === 'decision' ? `${labels[edit.action]} supporting request` : 'Approve supporting appointment'}
@@ -446,8 +479,8 @@ export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0,
     </div>
     {loading ? <LoadingState message="Loading supervisory teams…" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : workspace ? view ? routeContent : <>
       {(workspace.teams.length > 1 || workspace.nominations.length > 1) ? <label className="form-label block">Find a student<input className={inputClass} type="search" value={search} placeholder="Name, matric number or programme" onChange={event => { setSearch(event.target.value); setPage(1); }} /></label> : null}
-      {reviews.length ? <div className="space-y-3"><h3 className="section-label">Nominations requiring action ({reviews.length})</h3>{reviews.map(row => <CoSupervisorNominationCard key={row.id} nomination={row} busy={busy} onAction={(nomination, action) => begin({ kind: 'decision', nomination, action })} />)}</div> : null}
-      {teams.slice((currentPage - 1) * 8, currentPage * 8).map(team => role === 'Lecturer' ? <LecturerSupervisoryTeamCard key={team.studentId} team={team} busy={busy} initiallyOpen={workspace.teams.length === 1}
+      {reviews.length ? <div className="space-y-3"><h3 className="section-label">Nominations requiring action ({reviews.length})</h3>{reviews.map(row => <CoSupervisorNominationCard key={row.id} nomination={row} busy={actionsBusy} onAction={(nomination, action) => begin({ kind: 'decision', nomination, action })} />)}</div> : null}
+      {teams.slice((currentPage - 1) * 8, currentPage * 8).map(team => role === 'Lecturer' ? <LecturerSupervisoryTeamCard key={team.studentId} team={team} busy={actionsBusy} initiallyOpen={workspace.teams.length === 1}
         onNominate={() => begin({ kind: 'nominate', team, replacement: null })}
         onEnd={appointment => begin({ kind: 'end', appointment })}
         onReplace={replacement => begin({ kind: 'nominate', team, replacement })}
@@ -457,7 +490,7 @@ export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0,
           <p className="card-value"><span className="card-label">Primary supervisor:</span> {team.primarySupervisor?.name ?? 'Awaiting primary appointment'}</p>
           <p className="card-description">{team.programme}</p>
           <div className="space-y-3"><h4 className="card-value">{team.research.title || 'Research profile pending'}</h4><p className="card-description">{team.research.area}</p><ResearchAbstract value={team.research.abstract} /></div>
-          {team.canNominate ? <PortalButton size="sm" disabled={busy} onClick={() => begin({ kind: 'nominate', team, replacement: null })}>Nominate co-supervisor</PortalButton> : null}
+          {team.canNominate ? <PortalButton size="sm" disabled={actionsBusy} onClick={() => begin({ kind: 'nominate', team, replacement: null })}>Nominate co-supervisor</PortalButton> : null}
           {team.appointments.map(row => <CoSupervisorAppointmentCard key={row.id} appointment={row} busy={busy} canReplace={team.canNominate && row.status === 'ACTIVE' && !team.nominations.some(nomination => nomination.replacesAppointmentId === row.id && ['SUBMITTED_TO_CO_SUPERVISOR', 'PENDING_COORDINATOR'].includes(nomination.status))} onEnd={appointment => begin({ kind: 'end', appointment })} onReplace={replacement => begin({ kind: 'nominate', team, replacement })} />)}
           {team.nominations.length ? <details><summary className="card-value cursor-pointer">Nomination history ({team.nominations.length})</summary><div className="mt-3 space-y-3">{team.nominations.map(row => <CoSupervisorNominationCard key={row.id} nomination={row} busy={busy} onAction={(nomination, action) => begin({ kind: 'decision', nomination, action })} />)}</div></details> : null}
           <SupervisoryTeamTimeline entries={team.timeline} />

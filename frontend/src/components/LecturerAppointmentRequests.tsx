@@ -1,3 +1,4 @@
+import { UsersRound, ClipboardCheck, Clock3 } from 'lucide-react';
 import {clearAppointmentFilterParams} from '../utils/appointmentFilters';
 import { DecisionDialog } from './DecisionDialog';
 import { completeDecision } from '../utils/decisionSubmission';
@@ -196,11 +197,11 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
   </RecordPage></>;
   return <>{decisionDialog}<div className="space-y-5">
     {view === 'requests' && !loading && !primaryLoading && !loadError && workload ? <div className="grid gap-4 md:grid-cols-3">
-      <AppointmentSummaryCard title="Supervisory load" value="" description={`${workload.semesterCode ?? 'No active semester'}${workload.capacityPlanVersion ? ` · Plan v${workload.capacityPlanVersion}` : ' · Plan not configured'}${workload.capacityState === 'TEMPORARILY_UNAVAILABLE' && workload.unavailableUntil ? ` · Unavailable until ${formatMalaysiaDate(workload.unavailableUntil)}` : ''}`} badge={workload.capacityState ? capacityStateLabel(workload.capacityState) : 'Not configured'} tone={workload.selectable ? 'success' : 'warning'} progress={{ current: workload.currentStudents, max: workload.workloadLimit }} />
-      <AppointmentSummaryCard title="Needs your review" value={String(reviewCount)} description="Primary and supporting requests needing your decision." tone={reviewCount ? 'warning' : 'success'} />
-      <AppointmentSummaryCard title="Awaiting Coordinator" value={String(coordinatorCount)} description="Ongoing requests you can follow while final approval is pending." tone="info" />
+      <AppointmentSummaryCard icon={UsersRound} title="Supervisory load" value="" description={`${workload.semesterCode ?? 'No active semester'}${workload.capacityPlanVersion ? ` · Plan v${workload.capacityPlanVersion}` : ' · Plan not configured'}${workload.capacityState === 'TEMPORARILY_UNAVAILABLE' && workload.unavailableUntil ? ` · Unavailable until ${formatMalaysiaDate(workload.unavailableUntil)}` : ''}`} badge={workload.capacityState ? capacityStateLabel(workload.capacityState) : 'Not configured'} tone={workload.selectable ? 'success' : 'warning'} progress={{ current: workload.currentStudents, max: workload.workloadLimit }} />
+      <AppointmentSummaryCard icon={ClipboardCheck} title="Needs your review" value={String(reviewCount)} description="Primary and supporting requests needing your decision." tone={reviewCount ? 'warning' : 'success'} />
+      <AppointmentSummaryCard icon={Clock3} title="Awaiting Coordinator" value={String(coordinatorCount)} description="Ongoing requests you can follow while final approval is pending." tone="info" />
     </div> : null}
-    <section aria-label="Appointment requests" className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section aria-label="Appointment requests" className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white shadow-sm">
     <WorkspaceSectionHeader title="Appointment requests" description="Review supervision requests and follow their recorded progress and outcomes." actions={<RequestViewSwitch view={view} reviewCount={loading || primaryLoading || loadError ? 0 : reviewCount} onChange={value => setParams(current => lecturerRequestViewParams(current, value, rows), { replace: false })} />} />
     {notice ? <p role="status" className="card-description rounded-lg bg-slate-50 p-3">{notice}</p> : null}
     {loading || primaryLoading ? <LoadingState message="Loading appointment requests…" /> : loadError ? <ErrorState message={loadError} onRetry={() => { void load(); void onChanged(); }} /> : <>

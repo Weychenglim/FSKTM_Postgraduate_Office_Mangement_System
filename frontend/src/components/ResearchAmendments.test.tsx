@@ -20,7 +20,11 @@ console.log('Research amendment capability rendering passed');
 for (const roleProps of [{studentView:true},{lecturerView:true},{}]) {
   const detail = renderToStaticMarkup(<ResearchAmendmentCard row={row} {...roleProps} presentation="detail" busy onAction={()=>{}} onViewProfile={()=>{}} />);
   assert.equal(detail.split('View research profile').length-1,1,'Each role gets one profile navigation action');
-  assert.match(detail, /Request summary<\/h2><\/div><button[^>]*disabled[^>]*><span>View research profile<\/span><\/button><\/div><dl/,'Profile navigation belongs in the summary header and respects busy state');
+  const summary = detail.match(/<section\b[^>]*>[\s\S]*?<\/section>/)?.[0];
+  assert.ok(summary, 'Request summary is a semantic section');
+  const header = summary.split('<dl')[0];
+  assert.match(header, /<h2[^>]*>Request summary<\/h2>/);
+  assert.match(header, /<button[^>]*disabled[^>]*>[\s\S]*?View research profile[\s\S]*?<\/button>/, 'Profile navigation remains in the summary header and respects busy state');
 }
 
 const studentRow = { ...row, kind: 'RESEARCH', createdAt: '2026-10-09T08:00:00Z', before: {title:'Same title',abstract:'Old abstract',programme:'Same programme'}, after: {title:'Same title',abstract:'New abstract',programme:'Same programme'}, canDecide:true, canCancel:true };

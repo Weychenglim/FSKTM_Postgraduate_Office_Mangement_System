@@ -18,13 +18,14 @@ for (const role of ['office','coordinator'] as const) {
   assert.doesNotMatch(html,/By lecturer|By student|Browse assignments by/,'Staff should not choose a browsing mode');
   assert.match(html,/Panel lecturers and their students/,'Obsolete student-mode memory must not bypass lecturer grouping');
   assert.doesNotMatch(html,/Panel student assignments/,'Student rows belong inside a selected lecturer');
-  for (const text of ['Current assignments','Past assignments','View students','Find a student or Panel lecturer','Export Excel']) assert.ok(html.includes(text),text);
-  assert.match(html,/aria-label="Appointments"/);
-  assert.match(html,/<option value="current" selected="">Current assignments<\/option>/);
-  assert.doesNotMatch(html,/aria-label="Assignment period"|aria-pressed=/);
+  for (const text of ['Current','Past','View students','Find a student or Panel lecturer','Export Excel']) assert.ok(html.includes(text),text);
+  assert.match(html,/aria-label="Appointment views"/);
+  assert.match(html,/aria-pressed="true"/);
+  assert.doesNotMatch(html,/aria-label="Appointments"|<option value="past">/);
+
 }
 const supervisor = renderToStaticMarkup(<CoordinatorTeamViewSwitch view="requests" onChange={()=>{}}/>);
-assert.match(supervisor,/Current teams/);assert.match(supervisor,/Past appointments/);
+assert.match(supervisor,/>Current</);assert.match(supervisor,/>Past</);
 assert.match(supervisor,/aria-label="Supervision views"/);assert.match(supervisor,/aria-pressed="true"/);
 assert.doesNotMatch(supervisor,/By student|By lecturer|<select/);
-console.log('Panel appointments use a Current/Past filter; Supervisor retains its switch and neither has grouping modes');
+console.log('Panel and Supervisor appointments share a Current/Past switch and neither has grouping modes');
