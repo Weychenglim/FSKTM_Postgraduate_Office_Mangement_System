@@ -1,8 +1,10 @@
+import {DashboardHeader} from './DashboardHeader';
 /** @license SPDX-License-Identifier: Apache-2.0 */
 import React from 'react';
 import {UsersRound,ChevronRight,CalendarDays,Gauge,FileChartColumn,BarChart3} from 'lucide-react';
-import {PageHeader,PortalButton,PortalCard} from './PortalPrimitives';
+import {PortalButton,PortalCard} from './PortalPrimitives';
 import {EmptyState,ErrorState,LoadingState} from './StateViews';
+import {AlertMessage} from './AlertMessage';
 import {APP_ROUTES,sidebarItemForPath} from '../constants/routes';
 import {getDashboardSummary,getPanelWorkloads} from '../services';
 import {getOfficeAttention,type OfficeAttentionSummary} from '../services/officeAttentionApi';
@@ -11,6 +13,8 @@ import {useOfficeRead} from './useOfficeRead';
 import {OfficeSemesterContext} from './OfficeSemesterContext';
 import {OfficeCalendarPreview} from './OfficeCalendarPreview';
 import type {MarkRecordStatusTab} from '../utils/markRecords';
+import {officeMonitoringRoute} from '../utils/officeMonitoring';
+import {AppointmentIcon} from './AppointmentPrimitives';
 
 interface AdministrationDashboardProps {
   onNavigateToTab:(tabName:string)=>void;
@@ -54,7 +58,7 @@ export const AdministrationDashboard:React.FC<AdministrationDashboardProps>=({on
   </a>;
   const attentionRows=(rows:OfficeAttentionSummary[],label:string)=>rows.length>0&&<div className={`home-attention-section${label==='Waiting on others'?' home-waiting':''}`}><h3>{label}</h3>{rows.map(row=><a key={row.id} {...link(officeAttentionCategoryRoute(row))} className="home-attention-link" data-office-attention={row.id}><div><span>{row.title}</span><small className={row.urgency!=='normal'?`home-${row.urgency}`:undefined}>{row.urgency!=='normal'&&<i aria-hidden="true"/>}{row.detail}</small></div><ChevronRight size={15} aria-hidden="true"/></a>)}</div>;
   return <div id="admin-dashboard-container" className="office-home text-left pb-12">
-    <div><PageHeader title="Dashboard" actions={<div className="home-heading-actions"><PortalButton variant="secondary" icon={BarChart3} onClick={()=>navigate(APP_ROUTES.dashboardReports)}>View Workflow Reports</PortalButton><PortalButton data-office-preserve variant="secondary" icon={UsersRound} onClick={()=>navigate(APP_ROUTES.dashboardParticipantLifecycle)}>Manage Participants</PortalButton></div>}/></div><OfficeSemesterContext compact onNavigate={navigate}/>
+    <DashboardHeader context={<OfficeSemesterContext compact onNavigate={navigate}/>} actions={<div className="home-heading-actions"><PortalButton variant="secondary" icon={BarChart3} onClick={()=>navigate(APP_ROUTES.dashboardReports)}>View Workflow Reports</PortalButton><PortalButton data-office-preserve variant="secondary" icon={UsersRound} onClick={()=>navigate(APP_ROUTES.dashboardParticipantLifecycle)}>Manage Participants</PortalButton></div>}/>
     <div className="home-layout-container"><div className="home-overview-grid">
       <PortalCard padding="none" id="office-needs-attention" className="home-attention" role="region" aria-label="Needs attention">
         <header><h2 className="section-heading">Needs attention</h2></header>
@@ -66,17 +70,17 @@ export const AdministrationDashboard:React.FC<AdministrationDashboardProps>=({on
       <OfficeCalendarPreview onOpen={()=>navigate(APP_ROUTES.dashboardTimeline)}/>
     </div></div>
     <section className="home-tools" aria-labelledby="office-tools-title"><div className="home-tools-heading"><h2 className="section-heading" id="office-tools-title">Office tools</h2><p>Open the workspace for the task you need.</p></div>
-      <div className="home-tool-groups">{toolGroups.map(group=><section className="home-tool-group" key={group.name}><h3><group.icon size={17} aria-hidden="true"/>{group.name}</h3><ul>{group.items.map(item=><li key={item.route}><a {...link(item.route)} data-office-tool={item.route} className="home-tool-link"><div><span>{item.label}</span><small>{item.detail}</small></div><ChevronRight size={15} aria-hidden="true"/></a></li>)}</ul></section>)}</div>
+      <div className="home-tool-groups">{toolGroups.map(group=><section className="home-tool-group" key={group.name}><h3><AppointmentIcon icon={group.icon} tone="neutral"/>{group.name}</h3><ul>{group.items.map(item=><li key={item.route}><a {...link(item.route)} data-office-tool={item.route} className="home-tool-link"><div><span>{item.label}</span><small>{item.detail}</small></div><ChevronRight size={15} aria-hidden="true"/></a></li>)}</ul></section>)}</div>
       <section className="home-monitoring" aria-label="Monitoring counts">
         <div className="home-monitoring-heading"><h3 className="section-label">Monitoring</h3><span>Count</span></div>
         <div className="home-monitoring-grid">
-          {summary.loading?<span role="status">Loading monitoring counts…</span>:summary.error?<div role="alert">{summary.error} <PortalButton size="sm" onClick={summary.reload}>Retry counts</PortalButton></div>:summary.data&&<>
-            {monitoringItem('Pending Supervisor requests',summary.data.pendingSupervisorRequests,APP_ROUTES.supervisorAppointments)}
-            {monitoringItem('Pending Panel approvals',summary.data.pendingPanelApprovals,APP_ROUTES.panelAppointments)}
-            {monitoringItem('Incomplete evaluations',summary.data.incompleteMarkEntries,APP_ROUTES.marksRecords)}
-            {monitoringItem('Backup evaluator assignments',summary.data.backupMarkTasks??0,APP_ROUTES.marksRecords)}
+          {summary.loading?<span role="status">Loading monitoring counts…</span>:summary.error?<AlertMessage type="error" title="Monitoring counts unavailable" message={summary.error} actions={<PortalButton size="sm" onClick={summary.reload}>Retry counts</PortalButton>}/>:summary.data&&<>
+            {monitoringItem('Pending Supervisor requests',summary.data.pendingSupervisorRequests,officeMonitoringRoute('supervisor-pending'))}
+            {monitoringItem('Pending Panel approvals',summary.data.pendingPanelApprovals,officeMonitoringRoute('panel-pending'))}
+            {monitoringItem('Incomplete evaluations',summary.data.incompleteMarkEntries,officeMonitoringRoute('incomplete'))}
+            {monitoringItem('Backup evaluator assignments',summary.data.backupMarkTasks??0,officeMonitoringRoute('backup'))}
           </>}
-          {workload.loading?<span role="status">Loading Panel workload summary…</span>:workload.error?<div role="alert">Panel workload summary unavailable. <PortalButton size="sm" onClick={workload.reload}>Retry workload</PortalButton></div>:monitoringItem('Lecturers at or over their configured Panel limit',workload.data?.filter(row=>row.capacityState==='OVER_CAPACITY'||row.capacityState==='FULL').length??0,APP_ROUTES.panelAppointmentWorkload)}
+          {workload.loading?<span role="status">Loading Panel workload summary…</span>:workload.error?<AlertMessage type="error" title="Panel workload summary unavailable" message="Reload the summary to view the current count." actions={<PortalButton size="sm" onClick={workload.reload}>Retry workload</PortalButton>}/>:monitoringItem('Lecturers at or over their configured Panel limit',workload.data?.filter(row=>row.capacityState==='OVER_CAPACITY'||row.capacityState==='FULL').length??0,officeMonitoringRoute('panel-capacity'))}
         </div>
       </section>
     </section>

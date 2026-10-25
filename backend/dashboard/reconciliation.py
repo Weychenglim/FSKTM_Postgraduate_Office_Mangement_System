@@ -2,7 +2,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from accounts.eligibility import (
@@ -82,6 +82,8 @@ class ReconciliationIssue:
     def fingerprint(self):
         payload = {
             "issueId": self.issue_id,
+            "studentId": self.student_id,
+            "programme": self.programme,
             "currentState": self.current_state,
             "suggestion": self.suggestion,
         }
@@ -202,7 +204,17 @@ def _semester_issue(
         record_id=str(record.pk),
         programme=programme or None,
         student_id=student_id or None,
-        current_state={"academicSemesterId": None},
+        current_state={
+            "academicSemesterId": None,
+            **({"recordStatus": record.status} if hasattr(record, "status") else {}),
+            **({"isCurrentTimeline": record.is_active} if hasattr(record, "is_active") else {}),
+            **({"profileId": record.profile_id} if hasattr(record, "profile_id") else {}),
+            "recordedSemester": label or None,
+            "occurredOn": occurred_on.isoformat() if occurred_on else None,
+            "startsOn": starts_at.isoformat() if starts_at else None,
+            "endsOn": ends_at.isoformat() if ends_at else None,
+            "matchingSemesterCount": len(candidates),
+        },
         suggestion=suggestion,
         dependencies=[] if suggestion else ["Select a non-conflicting semester."],
     )
@@ -294,6 +306,8 @@ def _capacity_reconciliation_issues():
                         {
                             "action": "COPY_CAPACITY_PLAN",
                             "sourcePlanId": prior[0].pk,
+                            "sourcePlanVersion": prior[0].version,
+                            "sourceSemesterLabel": prior[0].academic_semester.label,
                         }
                         if repairable
                         else {}
@@ -314,7 +328,7 @@ def _capacity_reconciliation_issues():
                     semester.pk,
                     title="Multiple capacity plans are published",
                     summary=f"{semester.label} has more than one Published capacity plan.",
-                    current_state={"publishedPlanIds": [plan.pk for plan in published]},
+                    current_state={**_semester_payload(semester), "publishedPlanIds": [plan.pk for plan in published]},
                     severity="BLOCKING",
                 )
             )
@@ -329,8 +343,9 @@ def _capacity_reconciliation_issues():
                         title="Published capacity plan is incomplete",
                         summary=" ".join(errors),
                         current_state={
-                            "semesterId": semester.pk,
+                            **_semester_payload(semester),
                             "capacityPlanId": published[0].pk,
+                            "planVersion": published[0].version,
                             "readinessErrors": errors,
                         },
                         severity="BLOCKING",
@@ -339,6 +354,14 @@ def _capacity_reconciliation_issues():
 
         for plan in plans:
             for entry in plan.entries.select_related("lecturer__user"):
+                entry_context = {
+                    **_semester_payload(semester),
+                    "capacityPlanId": plan.pk,
+                    "planVersion": plan.version,
+                    "planStatus": plan.lifecycle_status,
+                    "lecturerName": entry.lecturer.user.full_name,
+                    "staffNo": entry.lecturer.staff_no,
+                }
                 supervisor_profile = Supervisor.objects.filter(
                     lecturer_id=entry.lecturer_id
                 ).first()
@@ -362,7 +385,7 @@ def _capacity_reconciliation_issues():
                             title="Capacity entry no longer matches Lecturer roles",
                             summary=f"{entry.lecturer.user.full_name} has role-alignment drift in plan {plan.pk}.",
                             current_state={
-                                "capacityPlanId": plan.pk,
+                                **entry_context,
                                 "lecturerId": entry.lecturer.staff_no,
                                 "hasSupervisorRole": has_supervisor,
                                 "hasPanelRole": has_panel,
@@ -371,42 +394,11 @@ def _capacity_reconciliation_issues():
                             },
                         )
                     )
-                legacy_values = (
-                    supervisor_profile.max_supervisees if supervisor_profile else None,
-                    panel_profile.max_appointments if panel_profile else None,
-                )
-                if (
-                    plan.lifecycle_status == SemesterCapacityPlan.Lifecycle.PUBLISHED
-                    and (
-                        (
-                            entry.supervisor_limit is not None
-                            and entry.supervisor_limit != legacy_values[0]
-                        )
-                        or (
-                            entry.panel_limit is not None
-                            and entry.panel_limit != legacy_values[1]
-                        )
-                    )
-                ):
-                    issues.append(
-                        _capacity_issue(
-                            "CAPACITY_LEGACY_LIMIT_DIVERGENCE",
-                            "CAPACITY_ENTRY",
-                            entry.pk,
-                            title="Semester capacity differs from the legacy profile limit",
-                            summary="The semester policy is authoritative; review the legacy compatibility value.",
-                            current_state={
-                                "capacityPlanId": plan.pk,
-                                "supervisorLimit": entry.supervisor_limit,
-                                "legacySupervisorLimit": legacy_values[0],
-                                "panelLimit": entry.panel_limit,
-                                "legacyPanelLimit": legacy_values[1],
-                            },
-                        )
-                    )
 
     windows = list(
-        LecturerAvailabilityWindow.objects.filter(cancelled_at__isnull=True).order_by(
+        LecturerAvailabilityWindow.objects.filter(cancelled_at__isnull=True).select_related(
+            "academic_semester", "lecturer__user"
+        ).order_by(
             "academic_semester_id", "lecturer_id", "role", "starts_on", "pk"
         )
     )
@@ -431,14 +423,24 @@ def _capacity_reconciliation_issues():
                     window.pk,
                     title="Lecturer availability windows overlap",
                     summary="Two active same-role availability windows overlap.",
-                    current_state={"windowIds": [window.pk, overlap.pk]},
+                    current_state={
+                        **_semester_payload(window.academic_semester),
+                        "lecturerName": window.lecturer.user.full_name,
+                        "staffNo": window.lecturer.staff_no,
+                        "role": window.role,
+                        "startsOn": window.starts_on.isoformat(),
+                        "endsOn": window.ends_on.isoformat(),
+                        "otherStartsOn": overlap.starts_on.isoformat(),
+                        "otherEndsOn": overlap.ends_on.isoformat(),
+                        "windowIds": [window.pk, overlap.pk],
+                    },
                     severity="BLOCKING",
                 )
             )
     return issues
 
 
-def detect_reconciliation_issues():
+def detect_reconciliation_issues(*, include_accepted=False):
     from .co_supervision_tracking import co_supervisor_reconciliation_issues
     from .amendment_tracking import amendment_reconciliation_issues
 
@@ -576,7 +578,7 @@ def detect_reconciliation_issues():
                 record_type="SUPERVISOR_APPLICATION",
                 programme=application.student.programme,
                 student_id=application.student.matric_no,
-                occurred_on=application.submitted_at.date(),
+                occurred_on=timezone.localdate(application.submitted_at),
             )
         )
     for recommendation in PanelRecommendation.objects.filter(
@@ -591,7 +593,7 @@ def detect_reconciliation_issues():
                 programme=recommendation.profile.programme,
                 student_id=recommendation.profile.matric_no,
                 label=recommendation.profile.semester,
-                occurred_on=occurred.date() if occurred else None,
+                occurred_on=timezone.localdate(occurred) if occurred else None,
             )
         )
     for timeline in SemesterTimeline.objects.filter(academic_semester__isnull=True):
@@ -614,8 +616,8 @@ def detect_reconciliation_issues():
                 programme=None,
                 student_id=None,
                 label=period.semester,
-                starts_at=period.opens_at.date() if period.opens_at else None,
-                ends_at=period.closes_at.date() if period.closes_at else None,
+                starts_at=timezone.localdate(period.opens_at) if period.opens_at else None,
+                ends_at=timezone.localdate(period.closes_at) if period.closes_at else None,
             )
         )
 
@@ -857,7 +859,10 @@ def detect_reconciliation_issues():
 
     issues.extend(_detect_marks_issues())
     issues.extend(_detect_appointment_integrity_issues())
-    return issues
+    if include_accepted:
+        return issues
+    accepted = accepted_issue_audits(issues)
+    return [issue for issue in issues if issue.issue_id not in accepted]
 
 
 def _task_student(task):
@@ -1108,11 +1113,71 @@ def get_reconciliation_issue(issue_id):
     return next(
         (
             issue
-            for issue in detect_reconciliation_issues()
+            for issue in detect_reconciliation_issues(include_accepted=True)
             if issue.issue_id == issue_id
         ),
         None,
     )
+
+
+ACCEPT_INTENTIONAL = "ACCEPT_INTENTIONAL"
+ACCEPTABLE_WARNING_TYPES = frozenset({"SEMESTER_UNASSIGNED", "CAPACITY_ENTRY_ROLE_MISMATCH"})
+
+
+def can_accept_issue(issue):
+    if issue.severity != "WARNING" or issue.repairability != "REVIEW_REQUIRED" or issue.issue_type not in ACCEPTABLE_WARNING_TYPES:
+        return False
+    if issue.issue_type == "CAPACITY_ENTRY_ROLE_MISMATCH":
+        return True
+    if issue.record_type == "SEMESTER_TIMELINE":
+        return issue.current_state.get("isCurrentTimeline") is False
+    if issue.record_type in {"SUPERVISOR_APPLICATION", "PANEL_RECOMMENDATION"}:
+        return str(issue.current_state.get("recordStatus", "")).startswith(("REJECTED_", "CANCELLED_"))
+    return False
+
+
+def accepted_issue_audits(issues):
+    """An acceptance applies only to the same eligible warning and exact evidence."""
+    eligible = {(item.issue_type, item.record_type, item.record_id, item.fingerprint): item.issue_id
+                for item in issues if can_accept_issue(item)}
+    if not eligible:
+        return {}
+    audits = WorkflowReconciliationAudit.objects.filter(
+        action=ACCEPT_INTENTIONAL, fingerprint__in=[key[3] for key in eligible],
+    ).select_related("actor")
+    return {eligible[key]: audit for audit in audits
+            if (key := (audit.issue_type, audit.entity_type, audit.entity_id, audit.fingerprint)) in eligible}
+
+
+def acceptance_payload(audit):
+    return {"id": audit.pk, "actor": {"id": audit.actor_id, "name": audit.actor.full_name},
+            "reason": audit.reason, "createdAt": audit.created_at.isoformat()}
+
+
+@transaction.atomic
+def accept_reconciliation_issue(*, issue_id, expected_fingerprint, reason, actor):
+    from accounts.models import User
+
+    if actor.role != User.Role.OFFICE_ADMIN:
+        raise ReconciliationError("Only Office Staff/Admin can accept a warning.")
+    if not reason.strip():
+        raise ReconciliationError("A reason is required.")
+    issue = get_reconciliation_issue(issue_id)
+    if issue is None or issue.fingerprint != expected_fingerprint:
+        raise ReconciliationConflict("The issue changed after preview. Refresh and review it again.")
+    if not can_accept_issue(issue):
+        raise ReconciliationConflict("This issue requires correction and cannot be accepted as intentional.")
+    try:
+        with transaction.atomic():
+            audit = WorkflowReconciliationAudit.objects.create(
+                issue_type=issue.issue_type, entity_type=issue.record_type, entity_id=issue.record_id,
+                action=ACCEPT_INTENTIONAL, actor=actor, reason=reason.strip(), fingerprint=issue.fingerprint,
+                before_values=issue.current_state, after_values=issue.current_state,
+                affected_records={"issue": issue.to_dict()},
+            )
+    except IntegrityError as exc:
+        raise ReconciliationConflict("This warning has already been accepted. Refresh the list.") from exc
+    return {"accepted": True, "issueId": issue.issue_id, "acceptance": acceptance_payload(audit)}
 
 
 def allowed_resolutions(issue):
@@ -1207,6 +1272,14 @@ SEMESTER_RECORD_MODELS = {
 }
 
 
+def _revalidate_locked_issue(issue):
+    current = get_reconciliation_issue(issue.issue_id)
+    if current is None or current.fingerprint != issue.fingerprint:
+        raise ReconciliationConflict(
+            "The issue changed after preview. Refresh and review it again."
+        )
+
+
 def _apply_semester_assignment(issue, resolution):
     model = SEMESTER_RECORD_MODELS.get(issue.record_type)
     if model is None:
@@ -1229,6 +1302,7 @@ def _apply_semester_assignment(issue, resolution):
         )
     if record.academic_semester_id is not None:
         raise ReconciliationConflict("The record already has an academic semester.")
+    _revalidate_locked_issue(issue)
     before = {"academicSemesterId": None}
     record.academic_semester = semester
     record.save(update_fields=["academic_semester"])
@@ -1650,6 +1724,7 @@ def _apply_capacity_plan_copy(issue, actor):
         raise ReconciliationConflict(
             "The verified prior Published capacity plan is no longer available."
         )
+    _revalidate_locked_issue(issue)
     before = {
         "semesterId": semester.pk,
         "capacityPlanIds": [],
@@ -1702,7 +1777,7 @@ def apply_reconciliation_issue(
             "The selected resolution is not valid for this issue."
         )
 
-    # Locking is followed by another live scan so preview state cannot race the repair.
+    # Write handlers lock their affected rows and recheck their prerequisites.
     if action == "ASSIGN_SEMESTER":
         before, after, affected = _apply_semester_assignment(issue, resolution)
     elif action == "CREATE_COORDINATOR_PROFILE":
@@ -1768,6 +1843,9 @@ def filter_reconciliation_issues(issues, params):
                         issue.record_id,
                         issue.student_id,
                         issue.programme,
+                        *[str(issue.current_state.get(key) or "") for key in (
+                            "lecturerName", "staffNo", "semesterLabel", "semesterCode", "recordedSemester",
+                        )],
                     ],
                 )
             )
@@ -1775,4 +1853,10 @@ def filter_reconciliation_issues(issues, params):
         if search and search not in haystack:
             continue
         filtered.append(issue)
-    return filtered
+    # Prioritize blocking checks before paging so warnings cannot bury them.
+    return sorted(filtered, key=lambda issue: (
+        issue.severity != "BLOCKING",
+        issue.repairability != "REPAIRABLE",
+        issue.title.casefold(),
+        issue.issue_id,
+    ))

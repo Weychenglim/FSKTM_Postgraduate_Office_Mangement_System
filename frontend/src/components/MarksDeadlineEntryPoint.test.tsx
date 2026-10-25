@@ -14,6 +14,9 @@ assert.doesNotMatch(draft,/disabled=""|Manage deadlines in Periods &amp; deadlin
 const central=renderToStaticMarkup(<assignment.MarksTaskDeadlineEntryPoint tasks={[]} onChanged={async()=>{}} onManageTimeline={()=>{}}/>);
 assert.match(central,/Manage deadlines in Periods &amp; deadlines/);
 assert.doesNotMatch(central,/Grant extra time|New deadline|Grant completion/);
+const compact=renderToStaticMarkup(<assignment.MarksTaskDeadlineEntryPoint compact tasks={[]} onChanged={async()=>{}} onManageTimeline={()=>{}}/>);
+assert.match(compact,/aria-label="Manage deadlines in Periods &amp; deadlines"/);
+assert.doesNotMatch(compact,/<h2|bg-white rounded-2xl/,'Compact navigation must not add a separate deadline card');
 let routed=0;
 const element=assignment.MarksTaskDeadlineEntryPoint({tasks:[],onChanged:async()=>{},onManageTimeline:()=>{routed+=1;}});
 const shortcut=React.Children.toArray(element.props.children).find((child:any)=>child.props?.onClick) as React.ReactElement<{onClick:()=>void}>;

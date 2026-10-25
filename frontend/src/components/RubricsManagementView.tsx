@@ -1,3 +1,4 @@
+import { MarksHeading } from './MarksPrimitives';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -24,6 +25,9 @@ import {
   updateRubricVersion,
 } from '../services';
 import type { RubricComponent, RubricVersion } from '../types';
+import {AlertMessage} from './AlertMessage';
+import {FieldError, FormFeedback} from './FormFeedback';
+import {clearFeedbackFields, focusFeedback, readFormFeedback, type FormFeedbackState} from '../utils/formFeedback';
 import { marksMutationErrorMessage } from '../utils/marksProductionManagement';
 import {
   PageHeader,
@@ -56,6 +60,22 @@ type ComponentForm = {
   displayOrder: string;
 };
 
+const RUBRIC_FIELDS = {
+  familyCode: {id: 'rubric-family-code', label: 'Family code'},
+  name: {id: 'rubric-name', label: 'Name'},
+  description: {id: 'rubric-description', label: 'Description'},
+  targetMark: {id: 'rubric-target-mark', label: 'Target mark'},
+};
+const COMPONENT_FIELDS = {
+  code: {id: 'component-code', label: 'Code'},
+  name: {id: 'component-name', label: 'Component name'},
+  description: {id: 'component-description', label: 'Description'},
+  maxMarks: {id: 'component-maximum', label: 'Maximum mark'},
+  displayOrder: {id: 'component-order', label: 'Display order'},
+};
+const RUBRIC_FIELD_MAP = {family_code:'familyCode', familyCode:'familyCode', name:'name', description:'description', target_mark:'targetMark', targetMark:'targetMark'};
+const COMPONENT_FIELD_MAP = {code:'code', name:'name', description:'description', max_marks:'maxMarks', maxMarks:'maxMarks', display_order:'displayOrder', displayOrder:'displayOrder'};
+
 const EMPTY_RUBRIC: RubricForm = {
   familyCode: '',
   name: '',
@@ -84,7 +104,13 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
   const [creatingFamily, setCreatingFamily] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectionError, setSelectionError] = useState<{rubric: RubricVersion; message: string} | null>(null);
+  const [rubricFeedback, setRubricFeedback] = useState<FormFeedbackState | null>(null);
+  const [componentFeedback, setComponentFeedback] = useState<FormFeedbackState | null>(null);
+  const [cloneError, setCloneError] = useState<string | null>(null);
+  const [componentActionError, setComponentActionError] = useState<string | null>(null);
+  const [savedReadBlocked,setSavedReadBlocked]=useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (message: string) => {
@@ -94,7 +120,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
 
   const loadRubrics = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const rows = await getRubricVersions();
       setRubrics(rows);
@@ -108,7 +134,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
         });
       }
     } catch (loadError) {
-      setError(marksMutationErrorMessage(loadError));
+      setLoadError(loadError instanceof Error ? loadError.message : 'Rubric versions could not be loaded.');
     } finally {
       setLoading(false);
     }
@@ -118,11 +144,16 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
     void loadRubrics();
   }, []);
 
+  useEffect(() => {
+    if (creatingFamily) document.getElementById(RUBRIC_FIELDS.familyCode.id)?.focus();
+  }, [creatingFamily]);
+
   const selectRubric = async (rubric: RubricVersion) => {
-    setError(null);
+    setSelectionError(null);
     try {
       const detail = await getRubricVersion(rubric.id);
       setSelected(detail);
+      setSavedReadBlocked(false);
       setRubricForm({
         familyCode: detail.familyCode,
         name: detail.name,
@@ -131,8 +162,12 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
       });
       setComponentForm(EMPTY_COMPONENT);
       setCreatingFamily(false);
+      setRubricFeedback(null);
+      setComponentFeedback(null);
+      setCloneError(null);
+      setComponentActionError(null);
     } catch (loadError) {
-      setError(marksMutationErrorMessage(loadError));
+      setSelectionError({rubric, message: loadError instanceof Error ? loadError.message : 'This rubric version could not be loaded.'});
     }
   };
 
@@ -157,13 +192,18 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
     setSelected(null);
     setRubricForm(EMPTY_RUBRIC);
     setComponentForm(EMPTY_COMPONENT);
-    setError(null);
+    setRubricFeedback(null);
+    setComponentFeedback(null);
+    setSelectionError(null);
+    setCloneError(null);
+    setComponentActionError(null);
   };
 
   const saveRubric = async (event: React.FormEvent) => {
     event.preventDefault();
+    if(saving||savedReadBlocked)return;
     setSaving(true);
-    setError(null);
+    setRubricFeedback(null);
     try {
       const updated = creatingFamily
         ? await createRubricVersion(rubricForm)
@@ -176,16 +216,18 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
       setCreatingFamily(false);
       showToast(creatingFamily ? 'Rubric family created.' : 'Rubric version updated.');
     } catch (saveError) {
-      setError(marksMutationErrorMessage(saveError));
+      const feedback = readFormFeedback(saveError, marksMutationErrorMessage(saveError), RUBRIC_FIELD_MAP);
+      setRubricFeedback(feedback);
+      focusFeedback(feedback, Object.fromEntries(Object.entries(RUBRIC_FIELDS).map(([key, field]) => [key, field.id])), 'rubric-save-feedback');
     } finally {
       setSaving(false);
     }
   };
 
   const cloneSelected = async () => {
-    if (!selected) return;
+    if (!selected||saving||savedReadBlocked) return;
     setSaving(true);
-    setError(null);
+    setCloneError(null);
     try {
       const cloned = await cloneRubricVersion(selected.id);
       setRubrics((current) => [
@@ -199,13 +241,14 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
       replaceRubric(cloned);
       showToast(`Rubric version ${cloned.version} created.`);
     } catch (cloneError) {
-      setError(marksMutationErrorMessage(cloneError));
+      setCloneError(marksMutationErrorMessage(cloneError));
     } finally {
       setSaving(false);
     }
   };
 
   const editComponent = (component: RubricComponent) => {
+    setComponentFeedback(null);
     setComponentForm({
       id: Number(component.id),
       code: component.code || '',
@@ -220,9 +263,9 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
 
   const saveComponent = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!selected) return;
+    if (!selected||saving||savedReadBlocked) return;
     setSaving(true);
-    setError(null);
+    setComponentFeedback(null);
     const payload = {
       code: componentForm.code,
       name: componentForm.name,
@@ -232,12 +275,14 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
       isActive: componentForm.isActive,
       displayOrder: Number(componentForm.displayOrder),
     };
+    let committed=false;
     try {
       if (componentForm.id) {
         await updateRubricComponent(selected.id, componentForm.id, payload);
       } else {
         await createRubricComponent(selected.id, payload);
       }
+      committed=true;
       const refreshed = await getRubricVersion(selected.id);
       replaceRubric(refreshed);
       setComponentForm({
@@ -246,27 +291,32 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
       });
       showToast(componentForm.id ? 'Rubric component updated.' : 'Rubric component added.');
     } catch (componentError) {
-      setError(marksMutationErrorMessage(componentError));
+      if(committed){setSavedReadBlocked(true);return;}
+      const feedback = readFormFeedback(componentError, marksMutationErrorMessage(componentError), COMPONENT_FIELD_MAP);
+      setComponentFeedback(feedback);
+      focusFeedback(feedback, Object.fromEntries(Object.entries(COMPONENT_FIELDS).map(([key, field]) => [key, field.id])), 'component-save-feedback');
     } finally {
       setSaving(false);
     }
   };
 
   const deactivateComponent = async (component: RubricComponent) => {
-    if (!selected) return;
+    if (!selected||saving||savedReadBlocked) return;
     setSaving(true);
-    setError(null);
+    setComponentActionError(null);
+    let committed=false;
     try {
       await updateRubricComponent(
         selected.id,
         Number(component.id),
         { isActive: false },
       );
+      committed=true;
       const refreshed = await getRubricVersion(selected.id);
       replaceRubric(refreshed);
       showToast('Rubric component deactivated.');
     } catch (componentError) {
-      setError(marksMutationErrorMessage(componentError));
+      if(committed)setSavedReadBlocked(true);else setComponentActionError(marksMutationErrorMessage(componentError));
     } finally {
       setSaving(false);
     }
@@ -284,33 +334,40 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
   }, [rubrics]);
 
   return (
-    <div id="rubric-version-management" className="space-y-7 animate-fade-in">
-      <PortalToast message={toast} />
+    <div id="rubric-version-management" className="marks-workspace space-y-7 animate-fade-in">
+      <PortalToast message={toast} tone="success" />
       <PageHeader
         title="Rubric Version Management"
-        subtitle="Maintain faculty-wide marking criteria without changing the meaning of historical submissions."
-        backLabel="Back to Marks & Evaluation Management"
+        subtitle="Manage marking criteria and assessment versions."
+        backLabel="Back to Marks overview"
         onBack={onBack}
-        actions={(
-          <PortalButton icon={Plus} variant="primary" onClick={beginFamily}>
+        actions={familyGroups.length > 0 || loading || loadError ? (
+          <PortalButton icon={Plus} variant="primary" disabled={saving||savedReadBlocked} onClick={beginFamily}>
             New rubric family
           </PortalButton>
-        )}
+        ) : undefined}
       />
 
-      {error ? <ErrorState message={error} onRetry={loadRubrics} /> : null}
+      {loadError ? <ErrorState compact title="Rubric versions could not be loaded" message={loadError} onRetry={loadRubrics} /> : null}
+      {savedReadBlocked?<AlertMessage type="warning" title="Component saved; refresh required" message="The change was saved, but the latest rubric could not be loaded. Reload it before another change." actions={selected?<PortalButton disabled={saving} onClick={()=>void selectRubric(selected)}>Reload rubric</PortalButton>:undefined}/>:null}
 
       {loading ? (
         <LoadingState message="Loading rubric versions..." />
+      ) : loadError?null:familyGroups.length === 0 && !creatingFamily ? (
+        <PortalCard data-rubric-empty padding="lg">
+          <EmptyState
+            icon={Layers3}
+            title="No rubric families yet"
+            description="Create your first rubric family, then add its assessment components and marks."
+            actionLabel="Create rubric family"
+            onAction={beginFamily}
+          />
+        </PortalCard>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-6 items-start">
-          <section className="space-y-4" aria-label="Rubric version families">
-            {familyGroups.length === 0 ? (
-              <EmptyState
-                title="No rubric versions"
-                description="Create a rubric family, then add its assessment components."
-              />
-            ) : familyGroups.map(([familyCode, versions]) => (
+        <fieldset disabled={savedReadBlocked||saving} className={`feedback-fields min-w-0 grid grid-cols-1 ${familyGroups.length > 0 ? 'xl:grid-cols-[320px_minmax(0,1fr)]' : ''} gap-6 items-start`}>
+          {familyGroups.length > 0 ? <section className="space-y-4" aria-label="Rubric version families">
+            {selectionError ? <ErrorState compact title="Rubric version could not be loaded" message={selectionError.message} onRetry={() => selectRubric(selectionError.rubric)} /> : null}
+            {familyGroups.map(([familyCode, versions]) => (
               <div key={familyCode} className="border border-slate-200 bg-white p-4 rounded-lg">
                 <p className="card-label">
                   {familyCode}
@@ -345,15 +402,13 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
                 </div>
               </div>
             ))}
-          </section>
+          </section> : null}
 
           <div className="space-y-6">
             <PortalCard padding="lg" className="rounded-lg">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="section-label">
-                    {creatingFamily ? 'Create rubric family' : selected?.name || 'Select a rubric'}
-                  </h2>
+                  <MarksHeading icon={Layers3}>{creatingFamily ? 'Create rubric family' : selected?.name || 'Select a rubric'}</MarksHeading>
                   {selected ? (
                     <p className="card-description mt-1">
                       {selected.familyCode} · version {selected.version}
@@ -372,6 +427,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
                 ) : null}
               </div>
 
+              {selected?.isLocked ? <p className="card-description mt-3">This version is in use. Clone a new version to change its criteria.</p> : null}
               {(creatingFamily || selected) ? (
                 <form onSubmit={saveRubric} className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="form-label">
@@ -379,10 +435,14 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
                     <input
                       required
                       disabled={!creatingFamily}
+                      id={RUBRIC_FIELDS.familyCode.id}
+                      aria-invalid={rubricFeedback?.fields.familyCode ? true : undefined}
+                      aria-describedby={rubricFeedback?.fields.familyCode ? `${RUBRIC_FIELDS.familyCode.id}-error` : undefined}
                       value={rubricForm.familyCode}
-                      onChange={(event) => setRubricForm((current) => ({ ...current, familyCode: event.target.value }))}
+                      onChange={(event) => {setRubricFeedback(current => clearFeedbackFields(current, ['familyCode'])); setRubricForm((current) => ({ ...current, familyCode: event.target.value }));}}
                       className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                     />
+                      <FieldError id={`${RUBRIC_FIELDS.familyCode.id}-error`} message={rubricFeedback?.fields.familyCode}/>
                   </label>
                   <label className="form-label">
                     Target mark
@@ -392,31 +452,45 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
                       min="1"
                       step="0.01"
                       disabled={Boolean(selected?.isLocked)}
+                      id={RUBRIC_FIELDS.targetMark.id}
+                      aria-invalid={rubricFeedback?.fields.targetMark ? true : undefined}
+                      aria-describedby={rubricFeedback?.fields.targetMark ? `${RUBRIC_FIELDS.targetMark.id}-error` : undefined}
                       value={rubricForm.targetMark}
-                      onChange={(event) => setRubricForm((current) => ({ ...current, targetMark: event.target.value }))}
+                      onChange={(event) => {setRubricFeedback(current => clearFeedbackFields(current, ['targetMark'])); setRubricForm((current) => ({ ...current, targetMark: event.target.value }));}}
                       className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                     />
+                      <FieldError id={`${RUBRIC_FIELDS.targetMark.id}-error`} message={rubricFeedback?.fields.targetMark}/>
                   </label>
                   <label className="form-label md:col-span-2">
                     Name
                     <input
                       required
                       disabled={Boolean(selected?.isLocked)}
+                      id={RUBRIC_FIELDS.name.id}
+                      aria-invalid={rubricFeedback?.fields.name ? true : undefined}
+                      aria-describedby={rubricFeedback?.fields.name ? `${RUBRIC_FIELDS.name.id}-error` : undefined}
                       value={rubricForm.name}
-                      onChange={(event) => setRubricForm((current) => ({ ...current, name: event.target.value }))}
+                      onChange={(event) => {setRubricFeedback(current => clearFeedbackFields(current, ['name'])); setRubricForm((current) => ({ ...current, name: event.target.value }));}}
                       className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                     />
+                      <FieldError id={`${RUBRIC_FIELDS.name.id}-error`} message={rubricFeedback?.fields.name}/>
                   </label>
                   <label className="form-label md:col-span-2">
                     Description
                     <textarea
                       rows={3}
                       disabled={Boolean(selected?.isLocked)}
+                      id={RUBRIC_FIELDS.description.id}
+                      aria-invalid={rubricFeedback?.fields.description ? true : undefined}
+                      aria-describedby={rubricFeedback?.fields.description ? `${RUBRIC_FIELDS.description.id}-error` : undefined}
                       value={rubricForm.description}
-                      onChange={(event) => setRubricForm((current) => ({ ...current, description: event.target.value }))}
+                      onChange={(event) => {setRubricFeedback(current => clearFeedbackFields(current, ['description'])); setRubricForm((current) => ({ ...current, description: event.target.value }));}}
                       className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                     />
+                      <FieldError id={`${RUBRIC_FIELDS.description.id}-error`} message={rubricFeedback?.fields.description}/>
                   </label>
+                  <div className="md:col-span-2"><FormFeedback id="rubric-save-feedback" title="Rubric wasn’t saved" feedback={rubricFeedback} fields={RUBRIC_FIELDS}/></div>
+                  {cloneError ? <div className="md:col-span-2"><AlertMessage type="error" title="New version wasn’t created" message={cloneError}/></div> : null}
                   <div className="md:col-span-2 flex flex-wrap gap-2 border-t border-slate-100 pt-5">
                     {(creatingFamily || !selected?.isLocked) ? (
                       <PortalButton type="submit" icon={Save} variant="primary" isLoading={saving}>
@@ -437,7 +511,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
               <PortalCard padding="none" className="overflow-hidden rounded-lg">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
                   <div>
-                    <h2 className="section-label">Assessment components</h2>
+                    <MarksHeading icon={Edit3}>Assessment components</MarksHeading>
                     <p className="card-description mt-1">
                       {selected.componentTotal} of {selected.targetMark} marks configured
                     </p>
@@ -448,16 +522,18 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
                     <StatusBadge tone="warning" icon={XCircle}>Target mismatch</StatusBadge>
                   )}
                 </div>
-                <div className="overflow-x-auto">
+                {componentActionError ? <div className="px-5 pt-4"><AlertMessage type="error" title="Component wasn’t deactivated" message={componentActionError}/></div> : null}
+                <div role="region" aria-label="Assessment components" tabIndex={0} className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue-600">
                   <table className="data-table min-w-[700px]">
+                    <caption className="sr-only">Assessment components and maximum marks for this rubric version</caption>
                     <thead>
                       <tr className="data-thead">
-                        <th className="data-th">Order</th>
-                        <th className="data-th">Component</th>
-                        <th className="data-th">Maximum</th>
-                        <th className="data-th">Required</th>
-                        <th className="data-th">Status</th>
-                        <th className="data-th text-right">Actions</th>
+                        <th scope="col" className="data-th">Order</th>
+                        <th scope="col" className="data-th">Component</th>
+                        <th scope="col" className="data-th">Maximum</th>
+                        <th scope="col" className="data-th">Required</th>
+                        <th scope="col" className="data-th">Status</th>
+                        <th scope="col" className="data-th text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -466,7 +542,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
                           <td className="data-td">{component.displayOrder}</td>
                           <td className="data-td">
                             <span className="card-value block">{component.name}</span>
-                            <span className="text-[10px] font-mono text-slate-400">{component.code}</span>
+                            <span className="text-xs font-mono text-slate-400">{component.code}</span>
                           </td>
                           <td className="data-td-strong">{component.maxMarks}</td>
                           <td className="data-td">{component.required ? 'Yes' : 'No'}</td>
@@ -512,46 +588,66 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
                       </h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                      <input
+                      <div><label htmlFor={COMPONENT_FIELDS.code.id} className="form-label mb-2 block">Code</label><input
                         required
                         placeholder="Code"
-                        value={componentForm.code}
-                        onChange={(event) => setComponentForm((current) => ({ ...current, code: event.target.value }))}
-                        className="rounded-lg border border-slate-200 px-3 py-2.5 font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                        id={COMPONENT_FIELDS.code.id}
+                      aria-invalid={componentFeedback?.fields.code ? true : undefined}
+                      aria-describedby={componentFeedback?.fields.code ? `${COMPONENT_FIELDS.code.id}-error` : undefined}
+                      value={componentForm.code}
+                        onChange={(event) => {setComponentFeedback(current => clearFeedbackFields(current, ['code'])); setComponentForm((current) => ({ ...current, code: event.target.value }));}}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                       />
-                      <input
+                      <FieldError id={`${COMPONENT_FIELDS.code.id}-error`} message={componentFeedback?.fields.code}/></div>
+                      <div><label htmlFor={COMPONENT_FIELDS.name.id} className="form-label mb-2 block">Component name</label><input
                         required
                         placeholder="Component name"
-                        value={componentForm.name}
-                        onChange={(event) => setComponentForm((current) => ({ ...current, name: event.target.value }))}
-                        className="rounded-lg border border-slate-200 px-3 py-2.5 font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                        id={COMPONENT_FIELDS.name.id}
+                      aria-invalid={componentFeedback?.fields.name ? true : undefined}
+                      aria-describedby={componentFeedback?.fields.name ? `${COMPONENT_FIELDS.name.id}-error` : undefined}
+                      value={componentForm.name}
+                        onChange={(event) => {setComponentFeedback(current => clearFeedbackFields(current, ['name'])); setComponentForm((current) => ({ ...current, name: event.target.value }));}}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                       />
-                      <input
+                      <FieldError id={`${COMPONENT_FIELDS.name.id}-error`} message={componentFeedback?.fields.name}/></div>
+                      <div><label htmlFor={COMPONENT_FIELDS.maxMarks.id} className="form-label mb-2 block">Maximum mark</label><input
                         required
                         type="number"
                         min="0.01"
                         step="0.01"
                         placeholder="Maximum mark"
-                        value={componentForm.maxMarks}
-                        onChange={(event) => setComponentForm((current) => ({ ...current, maxMarks: event.target.value }))}
-                        className="rounded-lg border border-slate-200 px-3 py-2.5 font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                        id={COMPONENT_FIELDS.maxMarks.id}
+                      aria-invalid={componentFeedback?.fields.maxMarks ? true : undefined}
+                      aria-describedby={componentFeedback?.fields.maxMarks ? `${COMPONENT_FIELDS.maxMarks.id}-error` : undefined}
+                      value={componentForm.maxMarks}
+                        onChange={(event) => {setComponentFeedback(current => clearFeedbackFields(current, ['maxMarks'])); setComponentForm((current) => ({ ...current, maxMarks: event.target.value }));}}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                       />
-                      <input
+                      <FieldError id={`${COMPONENT_FIELDS.maxMarks.id}-error`} message={componentFeedback?.fields.maxMarks}/></div>
+                      <div><label htmlFor={COMPONENT_FIELDS.displayOrder.id} className="form-label mb-2 block">Display order</label><input
                         required
                         type="number"
                         min="0"
                         placeholder="Display order"
-                        value={componentForm.displayOrder}
-                        onChange={(event) => setComponentForm((current) => ({ ...current, displayOrder: event.target.value }))}
-                        className="rounded-lg border border-slate-200 px-3 py-2.5 font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                        id={COMPONENT_FIELDS.displayOrder.id}
+                      aria-invalid={componentFeedback?.fields.displayOrder ? true : undefined}
+                      aria-describedby={componentFeedback?.fields.displayOrder ? `${COMPONENT_FIELDS.displayOrder.id}-error` : undefined}
+                      value={componentForm.displayOrder}
+                        onChange={(event) => {setComponentFeedback(current => clearFeedbackFields(current, ['displayOrder'])); setComponentForm((current) => ({ ...current, displayOrder: event.target.value }));}}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                       />
-                      <textarea
+                      <FieldError id={`${COMPONENT_FIELDS.displayOrder.id}-error`} message={componentFeedback?.fields.displayOrder}/></div>
+                      <div className="md:col-span-2 xl:col-span-3"><label htmlFor={COMPONENT_FIELDS.description.id} className="form-label mb-2 block">Description</label><textarea
                         rows={2}
                         placeholder="Description"
-                        value={componentForm.description}
-                        onChange={(event) => setComponentForm((current) => ({ ...current, description: event.target.value }))}
-                        className="rounded-lg border border-slate-200 px-3 py-2.5 md:col-span-2 xl:col-span-3 font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                        id={COMPONENT_FIELDS.description.id}
+                      aria-invalid={componentFeedback?.fields.description ? true : undefined}
+                      aria-describedby={componentFeedback?.fields.description ? `${COMPONENT_FIELDS.description.id}-error` : undefined}
+                      value={componentForm.description}
+                        onChange={(event) => {setComponentFeedback(current => clearFeedbackFields(current, ['description'])); setComponentForm((current) => ({ ...current, description: event.target.value }));}}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                       />
+                      <FieldError id={`${COMPONENT_FIELDS.description.id}-error`} message={componentFeedback?.fields.description}/></div>
                       <label className="card-description flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -562,12 +658,13 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
                         Required
                       </label>
                     </div>
+                    <div className="mt-4"><FormFeedback id="component-save-feedback" title="Component wasn’t saved" feedback={componentFeedback} fields={COMPONENT_FIELDS}/></div>
                     <div className="mt-4 flex gap-2">
                       <PortalButton type="submit" icon={Save} variant="primary" isLoading={saving}>
                         {componentForm.id ? 'Save component' : 'Add component'}
                       </PortalButton>
                       {componentForm.id ? (
-                        <PortalButton variant="ghost" onClick={() => setComponentForm(EMPTY_COMPONENT)}>
+                        <PortalButton variant="ghost" onClick={() => {setComponentForm(EMPTY_COMPONENT); setComponentFeedback(null);}}>
                           Cancel
                         </PortalButton>
                       ) : null}
@@ -577,7 +674,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
               </PortalCard>
             ) : null}
           </div>
-        </div>
+        </fieldset>
       )}
     </div>
   );

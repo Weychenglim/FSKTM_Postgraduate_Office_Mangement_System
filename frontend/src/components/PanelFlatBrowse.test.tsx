@@ -17,7 +17,7 @@ test('every Panel context retains explicit history controls and visible common f
   for (const appointments of [false, true]) {
     const html = render(<PanelBrowse scope={`flat-${appointments}`} title="Panel records" records={[active, ended]} appointments={appointments} onOpen={() => {}} />);
     assert.match(html, appointments ? /aria-label="Appointment views"/ : /aria-label="Request views"/);
-    assert.match(html, appointments ? /Past appointments/ : />History/);
+    assert.match(html, appointments ? />Past</ : />History/);
     assert.doesNotMatch(html, /More filters/);
     assert.match(html, /Semester/);
     if(appointments) assert.doesNotMatch(html,/All statuses/,'Active-only assignments do not need a status choice');

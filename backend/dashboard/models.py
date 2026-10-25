@@ -163,7 +163,7 @@ class TimelineAuditLog(models.Model):
 
 
 class WorkflowReconciliationAudit(models.Model):
-    """Append-only record of an Office-authorized data repair."""
+    """Append-only record of an Office-authorized review or data repair."""
 
     issue_type = models.CharField(max_length=64, db_index=True)
     entity_type = models.CharField(max_length=64)
@@ -183,6 +183,10 @@ class WorkflowReconciliationAudit(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+        constraints = [models.UniqueConstraint(
+            fields=["issue_type", "entity_type", "entity_id", "fingerprint"],
+            condition=Q(action="ACCEPT_INTENTIONAL"), name="reconcile_accept_evidence_unique",
+        )]
         indexes = [
             models.Index(
                 fields=["entity_type", "entity_id"],

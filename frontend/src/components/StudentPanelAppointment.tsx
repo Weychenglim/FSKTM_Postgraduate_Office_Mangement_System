@@ -6,7 +6,7 @@ import { useReturnToFocusReload } from '../utils/returnToFocus';
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { Mail } from 'lucide-react';
+import { Mail, UsersRound } from 'lucide-react';
 import { PageHeader } from './PortalPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
 import { getStudentPanelAppointment } from '../services/appointmentsApi';
@@ -45,9 +45,9 @@ export function StudentPanelAppointmentOverview({ appointment, onRefresh, refres
   const confirmed = appointment.status === 'CONFIRMED' && appointment.readinessState === 'CONFIRMED';
   const waiting = formatWaitingText(appointment);
   return <>
-    <StudentAppointmentSection detail title="My panel" description="Your Panel appointment and recorded appointment details." onRefresh={onRefresh} refreshing={refreshing}>
+    <StudentAppointmentSection detail icon={UsersRound} title="My panel" description="Your Panel appointment and recorded appointment details." onRefresh={onRefresh} refreshing={refreshing}>
       <div className="grid gap-6 sm:grid-cols-2">
-        <StudentAppointmentMemberCard detail label="Panel member" name={confirmed ? appointment.panelMemberName || 'Panel member not recorded' : 'Panel not appointed'} status={confirmed ? 'Confirmed' : getPanelReadinessCopy(appointment.readinessState).title} tone={confirmed ? 'success' : 'warning'}>
+        <StudentAppointmentMemberCard detail icon={UsersRound} label="Panel member" name={confirmed ? appointment.panelMemberName || 'Panel member not recorded' : 'Panel not appointed'} status={confirmed ? 'Confirmed' : getPanelReadinessCopy(appointment.readinessState).title} tone={confirmed ? 'success' : 'warning'}>
           {confirmed && appointment.panelMemberDepartment ? <p className={typography.body}>{appointment.panelMemberDepartment}</p> : null}
           {confirmed && appointment.panelMemberEmail ? <a href={`mailto:${appointment.panelMemberEmail}`} className={`${typography.body} inline-flex max-w-full items-start gap-2 break-all text-blue-600 hover:underline`}><Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />{appointment.panelMemberEmail}</a> : null}
         </StudentAppointmentMemberCard>

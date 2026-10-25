@@ -1,4 +1,6 @@
 """HTTP acceptance: Marks admin is inspection-only after portal migration."""
+from .test_write_helpers import submission_payload
+
 from django.contrib.auth.models import Permission
 from django.test import Client
 from django.urls import reverse
@@ -22,7 +24,7 @@ class MarksAdminAcceptanceTests(APITestCase):
             format="json",
         ).status_code, 200)
         self.assertEqual(self.client.post(
-            f"/api/marks/tasks/{self.task.pk}/submit/",
+            f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json',
         ).status_code, 200)
         return MarkEntry.objects.get(task=self.task)
 

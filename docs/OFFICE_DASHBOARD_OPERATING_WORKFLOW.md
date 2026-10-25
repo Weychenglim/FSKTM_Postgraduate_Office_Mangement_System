@@ -153,7 +153,7 @@ Workload reminder: Supervisor occupied load is active primary plus supporting ap
 1. Select the operative Published version → **Clone Version**.
 2. Edit Draft limits, compare and resolve readiness.
 3. Publish with reason/confirmation.
-4. Verify candidate/workload views. Lowering capacity below existing load produces Over Capacity and blocks new work while preserving existing appointments.
+4. Verify candidate/workload views. Publication rejects limits below committed workload: active primary/supporting supervision, or active Panel appointments plus reserved nominations. A lower planning draft can be saved, but must be corrected before publication. Use lecturer-owned unavailability to temporarily stop new assignments without changing limits. Existing appointments remain active.
 
 ### Extend a common deadline
 
@@ -237,3 +237,10 @@ Expected result: controlled closure/handover with complete records retained and 
 - Conditional action unavailable because a prerequisite is absent is different from a feature being broken.
 
 For negative tests, every control and result recording, use [Office Dashboard manual test guide](OFFICE_DASHBOARD_MANUAL_TEST_GUIDE.md). Existing source-level gaps remain observations until reproduced or addressed; this operating guide is not a passing acceptance report. Reminder/live email delivery has separate activation/configuration and must not be inferred from calendar changes.
+
+
+### Set capacity draft limits in bulk (2026-10-23)
+
+In the draft editor, select lecturers individually or use Select this page / Select all matching. Selection survives paging; changing the search, role, attention filter, semester or version clears it. Open Set limits in bulk and choose selected lecturers or all matching eligible lecturers. Enter Supervisor and/or Panel limits; blank fields leave that role unchanged. Fill missing limits only is the default and preserves configured values, including zero. Choose Replace draft limits explicitly to change configured values.
+
+Preview the affected lecturers and old/new values, then Save draft limits. Every new entry must have limits for all roles the lecturer holds. Values below live workload can be saved for planning and are highlighted; publication still requires limits at least as high as current commitments. A stale draft requires reloading and reviewing again. Bulk saving changes the draft only, records an audit for each changed lecturer, and never partially commits a failed batch. Individual Edit limits remains available for exceptions. Use batches of up to 1000 lecturers.

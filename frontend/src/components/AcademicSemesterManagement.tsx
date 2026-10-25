@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   Clock3,
   Edit3,
-  Gauge,
+  History,
+  LayoutDashboard,
   Plus,
   RefreshCw,
   Save,
@@ -17,7 +18,6 @@ import {
 } from 'lucide-react';
 
 import {
-  activateAcademicSemester,
   archiveAcademicSemester,
   closeAcademicSemester,
   createAcademicSemester,
@@ -49,6 +49,10 @@ import {
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
 import {OfficeToolContext, OfficeToolSection, OfficeToolViews} from './OfficeToolPrimitives';
+import {SemesterActivationSection} from './SemesterActivationSection';
+import {AlertMessage} from './AlertMessage';
+import {FieldError,FormFeedback} from './FormFeedback';
+import {clearFeedbackFields,focusFeedback,readFormFeedback,type FormFeedbackState} from '../utils/formFeedback';
 
 interface AcademicSemesterManagementProps {
   onBack: () => void;
@@ -58,7 +62,7 @@ interface AcademicSemesterManagementProps {
 }
 
 type LifecycleFilter = 'ALL' | AcademicSemesterLifecycle;
-type TransitionAction = 'activate' | 'close' | 'archive' | 'extend';
+type TransitionAction = 'close' | 'archive' | 'extend';
 
 const EMPTY_FORM: AcademicSemesterInput = {
   academicSession: '',
@@ -66,6 +70,9 @@ const EMPTY_FORM: AcademicSemesterInput = {
   startsOn: '',
   endsOn: '',
 };
+const SEMESTER_FIELDS={academicSession:{id:'semester-session',label:'Academic session'},term:{id:'semester-term',label:'Term'},startsOn:{id:'semester-start',label:'Starts on'},endsOn:{id:'semester-end',label:'Ends on'}};
+const SEMESTER_FIELD_MAP={academic_session:'academicSession',academicSession:'academicSession',term:'term',starts_on:'startsOn',startsOn:'startsOn',ends_on:'endsOn',endsOn:'endsOn'};
+const SEMESTER_IDS=Object.fromEntries(Object.entries(SEMESTER_FIELDS).map(([key,value])=>[key,value.id]));
 
 const displayDate = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString('en-MY', {
   day: '2-digit',
@@ -94,6 +101,9 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formFeedback,setFormFeedback]=useState<FormFeedbackState|null>(null);
+  const [transitionError,setTransitionError]=useState<string|null>(null);
+  const [savedRefreshFailure,setSavedRefreshFailure]=useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const loadSemesters = useCallback(async () => {
@@ -105,8 +115,11 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
       setSelected((current) => (
         current ? rows.find((row) => row.id === current.id) ?? null : null
       ));
+      setSavedRefreshFailure(false);
+      return true;
     } catch (loadError) {
-      setError(academicSemesterErrorMessage(loadError));
+      setError(loadError instanceof Error?loadError.message:'The semester list could not be loaded. Try again.');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -144,6 +157,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
   };
 
   const beginCreate = () => {
+    setFormFeedback(null);setTransitionError(null);setSavedRefreshFailure(false);
     setView('create');
     setDetailTab('overview');
     setSelected(null);
@@ -155,6 +169,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
   };
 
   const beginEdit = (semester: AcademicSemester) => {
+    setFormFeedback(null);setTransitionError(null);setSavedRefreshFailure(false);
     setView('detail');
     setDetailTab('overview');
     setSelected(semester);
@@ -171,26 +186,28 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
 
   const saveDraft = async (event: React.FormEvent) => {
     event.preventDefault();
+    if(saving)return;
+    const report=(feedback:FormFeedbackState)=>{setFormFeedback(feedback);focusFeedback(feedback,SEMESTER_IDS,'semester-save-feedback');};
     if (!isConsecutiveAcademicSession(form.academicSession)) {
-      setError('Academic session must use consecutive years, for example 2026/2027.');
+      report({message:'Correct the highlighted fields, then save again.',fields:{academicSession:'Use consecutive years, for example 2026/2027.'}});
       return;
     }
     const dateError = validateSemesterDates(form.startsOn, form.endsOn);
     if (dateError) {
-      setError(dateError);
+      report({message:'Correct the highlighted fields, then save again.',fields:{[!form.startsOn?'startsOn':'endsOn']:dateError}});
       return;
     }
     setSaving(true);
-    setError(null);
+    setFormFeedback(null);
     try {
       const saved = selected
         ? await updateAcademicSemester(selected.id, form)
         : await createAcademicSemester(form);
-      await loadSemesters();
       beginEdit(saved);
-      showToast(selected ? 'Draft semester updated.' : 'Draft semester created.');
+      if(await loadSemesters())showToast(selected ? 'Draft semester updated.' : 'Draft semester created.');
+      else setSavedRefreshFailure(true);
     } catch (saveError) {
-      setError(academicSemesterErrorMessage(saveError));
+      report(readFormFeedback(saveError,academicSemesterErrorMessage(saveError),SEMESTER_FIELD_MAP));
     } finally {
       setSaving(false);
     }
@@ -199,24 +216,19 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
   const runTransition = async (approval?: ClosureApproval) => {
     if (!selected || !transition || !reason.trim()) return;
     setSaving(true);
-    setError(null);
+    setTransitionError(null);
     try {
-      if (transition === 'activate') {
-        await activateAcademicSemester(selected.id, reason.trim(), approval);
-      } else if (transition === 'close') {
-        await closeAcademicSemester(selected.id, reason.trim(), approval);
-      } else if (transition === 'archive') {
-        await archiveAcademicSemester(selected.id, reason.trim());
-      } else {
-        await extendAcademicSemester(selected.id, extensionEnd, reason.trim());
-      }
-      await loadSemesters();
+      const saved=transition==='close'?await closeAcademicSemester(selected.id, reason.trim(), approval)
+        :transition==='archive'?await archiveAcademicSemester(selected.id, reason.trim())
+        :await extendAcademicSemester(selected.id, extensionEnd, reason.trim());
+      setSelected(saved);
       if (transition === 'archive') { setView('list'); setSelected(null); }
       setTransition(null);
       setReason('');
-      showToast(`Semester ${transition === 'extend' ? 'extended' : `${transition}d`}.`);
+      if(await loadSemesters())showToast(`Semester ${transition === 'extend' ? 'extended' : transition==='close'?'ended':'archived'}.`);
+      else setSavedRefreshFailure(true);
     } catch (transitionError) {
-      setError(academicSemesterErrorMessage(transitionError));
+      if(!approval)setTransitionError(academicSemesterErrorMessage(transitionError));
       if (approval) throw transitionError;
     } finally {
       setSaving(false);
@@ -224,7 +236,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
   };
 
   const lifecycleActions = selected?.lifecycleStatus === 'DRAFT'
-    ? ['activate', 'archive'] as TransitionAction[]
+    ? [] as TransitionAction[]
     : selected?.lifecycleStatus === 'ACTIVE'
       ? ['extend', 'close'] as TransitionAction[]
       : selected?.lifecycleStatus === 'CLOSED'
@@ -236,16 +248,14 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
     : !!selected && selected.lifecycleStatus === 'DRAFT' && (form.academicSession !== selected.academicSession || form.term !== selected.term || form.startsOn !== selected.startsOn || form.endsOn !== selected.endsOn);
   if (view !== 'list') return <RecordPage title={selected ? selected.label : 'New academic semester'} subtitle={selected ? `${selected.code} · ${formatSemesterLifecycle(selected.lifecycleStatus)}` : 'Create a draft, then review readiness before activation.'} backLabel="Back to Academic Semesters"
     onBack={() => { setView('list'); setTransition(null); setReason(''); setError(null); }} pageKey="academic-semester:record" dirty={dirty || !!reason.trim() || (transition === 'extend' && extensionEnd !== selected?.endsOn)} busy={saving}>
-    <PortalToast message={toast} />
-    {error ? <ErrorState message={error} onRetry={loadSemesters} /> : null}
-    {selected ? <OfficeToolViews<typeof detailTab> label="Semester views" value={detailTab} options={[{value:'overview',label:'Overview'},{value:'history',label:'History'}]} onChange={setDetailTab}/> : null}
-    {selected?.lifecycleStatus === 'DRAFT' && onOpenCapacity ? <div className="rounded-xl border border-slate-200 p-4"><p className="card-description mb-3">Activation requires a complete Published capacity policy for this semester. Review capacity before beginning the guarded handover.</p><PortalButton icon={Gauge} onClick={() => onOpenCapacity(selected?.id)} disabled={dirty || saving}>Review lecturer capacity</PortalButton></div> : null}
+    <PortalToast message={toast} tone="success" />
+    {error ? savedRefreshFailure?<AlertMessage type="warning" title="Changes saved; refresh required" message={error} actions={<PortalButton onClick={()=>void loadSemesters()}>Reload semesters</PortalButton>}/>:<ErrorState compact title="Couldn’t refresh semesters" message={error} onRetry={loadSemesters} /> : null}
+    {selected ? <OfficeToolViews<typeof detailTab> appearance="workspace" label="Semester views" value={detailTab} options={[{value:'overview',label:'Overview',icon:LayoutDashboard},{value:'history',label:'History',icon:History}]} onChange={setDetailTab}/> : null}
       {detailTab === 'overview' && <PortalCard className="p-5">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <p className="card-label">Configuration</p>
             <h2 className="section-heading">
-              {selected ? selected.label : 'Create draft semester'}
+              Semester details
             </h2>
           </div>
           <CalendarRange className="h-5 w-5 text-slate-500" />
@@ -257,53 +267,62 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
           <div><dt className="card-label">Starts on</dt><dd className="card-value mt-1">{displayDate(selected.startsOn)}</dd></div>
           <div><dt className="card-label">Ends on</dt><dd className="card-value mt-1">{displayDate(selected.endsOn)}</dd></div>
           <div><dt className="card-label">Lifecycle</dt><dd className="card-value mt-1">{formatSemesterLifecycle(selected.lifecycleStatus)}</dd></div>
-        </dl> : <form onSubmit={saveDraft} className="grid gap-4 md:grid-cols-2">
+        </dl> : <form onSubmit={saveDraft} className="feedback-fields academic-semester-fields grid gap-4 md:grid-cols-2">
           <label className="form-label">
             Academic session
             <input
+              id="semester-session" aria-invalid={!!formFeedback?.fields.academicSession} aria-describedby={formFeedback?.fields.academicSession?'semester-session-error':undefined}
               value={form.academicSession}
               disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
-              onChange={(event) => setForm({ ...form, academicSession: event.target.value })}
+              onChange={(event) => {setForm({ ...form, academicSession: event.target.value });setFormFeedback(value=>clearFeedbackFields(value,['academicSession']));}}
               placeholder="2026/2027"
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             />
+            <FieldError id="semester-session-error" message={formFeedback?.fields.academicSession}/>
           </label>
           <label className="form-label">
             Term
             <PortalSelect
+              id="semester-term" aria-invalid={!!formFeedback?.fields.term} aria-describedby={formFeedback?.fields.term?'semester-term-error':undefined}
               value={form.term}
               disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
-              onChange={(event) => setForm({ ...form, term: event.target.value as AcademicSemesterInput['term'] })}
+              onChange={(event) => {setForm({ ...form, term: event.target.value as AcademicSemesterInput['term'] });setFormFeedback(value=>clearFeedbackFields(value,['term']));}}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             >
               <option value="SEMESTER_I">Semester I</option>
               <option value="SEMESTER_II">Semester II</option>
               <option value="SPECIAL">Special semester</option>
             </PortalSelect>
+            <FieldError id="semester-term-error" message={formFeedback?.fields.term}/>
           </label>
           <label className="form-label">
             Starts on
             <input
               type="date"
+              id="semester-start" aria-invalid={!!formFeedback?.fields.startsOn} aria-describedby={formFeedback?.fields.startsOn?'semester-start-error':undefined}
               value={form.startsOn}
               disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
-              onChange={(event) => setForm({ ...form, startsOn: event.target.value })}
+              onChange={(event) => {setForm({ ...form, startsOn: event.target.value });setFormFeedback(value=>clearFeedbackFields(value,['startsOn','endsOn']));}}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             />
+            <FieldError id="semester-start-error" message={formFeedback?.fields.startsOn}/>
           </label>
           <label className="form-label">
             Ends on
             <input
               type="date"
+              id="semester-end" aria-invalid={!!formFeedback?.fields.endsOn} aria-describedby={formFeedback?.fields.endsOn?'semester-end-error':undefined}
               value={form.endsOn}
               disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
-              onChange={(event) => setForm({ ...form, endsOn: event.target.value })}
+              onChange={(event) => {setForm({ ...form, endsOn: event.target.value });setFormFeedback(value=>clearFeedbackFields(value,['startsOn','endsOn']));}}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             />
+            <FieldError id="semester-end-error" message={formFeedback?.fields.endsOn}/>
           </label>
           {(!selected || selected.lifecycleStatus === 'DRAFT') ? (
             <div className="md:col-span-2">
-              <PortalButton type="submit" icon={Save} variant="primary" disabled={saving}>
+              <div className="mb-4"><FormFeedback id="semester-save-feedback" feedback={formFeedback} fields={SEMESTER_FIELDS}/></div>
+              <PortalButton type="submit" icon={Save} variant="primary" disabled={saving || (!!selected && !dirty)}>
                 {selected ? 'Save changes' : 'Create draft'}
               </PortalButton>
             </div>
@@ -312,23 +331,23 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
 
         {selected && lifecycleActions.length ? (
           <div className="mt-6 border-t border-slate-200 pt-5">
-            <p className="card-value mb-3">Lifecycle actions</p>
             <div className="flex flex-wrap gap-2">
               {lifecycleActions.map((action) => {
-                const icons = { activate: CheckCircle2, close: XCircle, archive: Archive, extend: Clock3 };
+                const icons = { close: XCircle, archive: Archive, extend: Clock3 };
                 return (
                   <PortalButton
                     key={action}
                     icon={icons[action]}
-                    variant={action === 'activate' ? 'primary' : 'secondary'}
+                    variant={action === 'close' ? 'danger' : 'secondary'}
                     disabled={saving || dirty}
                     onClick={() => {
+                      setTransitionError(null);
                       setTransition(action);
                       setReason('');
                       setExtensionEnd(selected.endsOn);
                     }}
                   >
-                    {action === 'extend' ? 'Extend end date' : `${action[0].toUpperCase()}${action.slice(1)}`}
+                    {action === 'close' ? 'End semester' : action === 'extend' ? 'Extend end date' : `${action[0].toUpperCase()}${action.slice(1)}`}
                   </PortalButton>
                 );
               })}
@@ -337,15 +356,28 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
         ) : null}
       </PortalCard>}
 
+      {selected ? <div hidden={detailTab !== 'overview'}><SemesterActivationSection key={selected.id} semester={selected} dirty={dirty} busy={saving||!!transition} onCapacity={onOpenCapacity}
+        onArchive={()=>{setTransitionError(null);setTransition('archive');setReason('');}}
+        onActivated={async saved=>{
+          // Commit the returned lifecycle before refresh so a failed read cannot offer activation again.
+          setSelected(saved);
+          setTransition(null);setReason('');
+          try {
+            const rows=await getAcademicSemesters(includeArchived);
+            setSemesters(rows);setSelected(rows.find(row=>row.id===saved.id)??saved);setError(null);
+          } catch(failure) {
+            setError('Semester activated, but the latest semester list could not be loaded. Reload before another action.');
+            throw failure;
+          }
+        }}/></div>:null}
+
       {detailTab === 'overview' && transition && selected ? (
-        <PortalCard className="border-sky-200 p-5">
+        <PortalCard className="academic-semester-fields border-sky-200 p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="card-label text-sky-700">Confirm lifecycle change</p>
               <h3 className="section-label">
-                {transition === 'activate' && active && active.id !== selected.id
-                  ? `Hand over from ${active.label} to ${selected.label}`
-                  : `${formatSemesterLifecycle(transition.toUpperCase())} ${selected.label}`}
+                {`${transition === 'close' ? 'End' : transition[0].toUpperCase() + transition.slice(1)} ${selected.label}`}
               </h3>
             </div>
             <button type="button" title="Cancel" onClick={() => setTransition(null)} className="p-2 text-slate-500">
@@ -375,9 +407,10 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
               placeholder="Record the operational reason for this change."
             />
           </label>
-          {(transition === 'close' || transition === 'activate') ? <ClosureReview key={`${selected.id}-${transition}`} kind={transition === 'activate' ? 'handover' : 'semester'} id={selected.id} disabled={saving || !reason.trim()} onConfirm={runTransition} /> : null}
+          {transitionError?<div className="mt-4"><AlertMessage type="error" title="Semester wasn’t changed" message={transitionError}/></div>:null}
+          {transition === 'close' ? <ClosureReview key={`${selected.id}-${transition}`} kind="semester" id={selected.id} disabled={saving || !reason.trim()} onConfirm={runTransition} /> : null}
           <div className="mt-4 flex gap-2">
-            {transition !== 'close' && transition !== 'activate' ? <PortalButton
+            {transition !== 'close' ? <PortalButton
               icon={transition === 'extend' ? RefreshCw : CheckCircle2}
               variant="primary"
               disabled={saving || !reason.trim() || (transition === 'extend' && extensionEnd <= selected.endsOn)}
@@ -396,7 +429,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
         <section className="border-y border-slate-200 py-5">
           <h2 className="section-label">Semester audit history</h2>
           {auditsLoading ? <LoadingState message="Loading semester audit history…" />
-            : auditError ? <ErrorState message={auditError} onRetry={() => setAuditAttempt((value) => value + 1)} />
+            : auditError ? <ErrorState compact title="Couldn’t load semester history" message={auditError} onRetry={() => setAuditAttempt((value) => value + 1)} />
             : !audits.length ? (
             <p className="card-description mt-2">No audit events are available.</p>
           ) : (
@@ -439,7 +472,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
         )}
       />
 
-      {error ? <ErrorState message={error} onRetry={loadSemesters} /> : null}
+      {error ? savedRefreshFailure?<AlertMessage type="warning" title="Changes saved; refresh required" message={error} actions={<PortalButton onClick={()=>void loadSemesters()}>Reload semesters</PortalButton>}/>:<ErrorState compact title="Couldn’t load semesters" message={error} onRetry={loadSemesters} /> : null}
 
       <OfficeToolContext label="Current faculty semester">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -462,7 +495,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
         </div>
       </OfficeToolContext>
 
-      <OfficeToolSection title="Semester records" description="Open a semester to review its dates, lifecycle actions and history.">
+      <OfficeToolSection title="Semester records" icon={CalendarRange} description="Open a semester to review its dates, lifecycle actions and history.">
       <div className="office-tool-filters"><label className="form-label block w-full sm:max-w-sm">Semester status
         <PortalSelect className="form-control form-control-md mt-1" value={filter} onChange={event => { const value = event.target.value as LifecycleFilter; setFilter(value); setIncludeArchived(value === 'ALL' || value === 'ARCHIVED'); }}>
           <option value="ALL">All semesters, including archived</option>
@@ -477,16 +510,14 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
 
       {!loading && !error && visible.length ? (
         <div className="overflow-x-auto">
-          <table className="data-table min-w-[860px]">
+          <table className="data-table min-w-[640px]">
             <thead className="data-thead">
               <tr>
                 <th className="data-th">Semester</th>
-                <th className="data-th">Dates</th>
+                <th className="data-th">Starts on</th>
+                <th className="data-th">Ends on</th>
                 <th className="data-th">Status</th>
-                <th className="data-th">Timeline</th>
-                <th className="data-th">Marks periods</th>
-                <th className="data-th">Tasks</th>
-                <th className="data-th text-right">Manage</th>
+                <th className="data-th text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -497,16 +528,16 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
                     <p className="font-mono text-xs text-slate-500">{semester.code}</p>
                   </td>
                   <td className="data-td">
-                    {displayDate(semester.startsOn)} to {displayDate(semester.endsOn)}
+                    {displayDate(semester.startsOn)}
+                  </td>
+                  <td className="data-td">
+                    {displayDate(semester.endsOn)}
                   </td>
                   <td className="data-td">
                     <StatusBadge tone={getStatusBadgeTone(semester.effectiveStatus)}>
                       {formatSemesterLifecycle(semester.effectiveStatus)}
                     </StatusBadge>
                   </td>
-                  <td className="data-td">{semester.timelineCount ?? 0} version(s)</td>
-                  <td className="data-td">{semester.marksPeriodCount ?? 0}</td>
-                  <td className="data-td">{semester.marksTaskCount ?? 0}</td>
                   <td className="data-td text-right">
                     <PortalButton icon={Edit3} variant="secondary" onClick={() => beginEdit(semester)}>
                       Open

@@ -1,5 +1,6 @@
 /** @license SPDX-License-Identifier: Apache-2.0 */
 import { PortalSelect } from './PortalSelect';
+import { OfficeMonitoringNotice, useOfficeMonitoring } from './OfficeMonitoringContext';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Eye, Gauge } from 'lucide-react';
 import { RecordPage } from './RecordPage';
@@ -16,6 +17,7 @@ import { CoordinatorDataTable } from './CoordinatorBrowsePrimitives';
 import { WorkspacePagination, WorkspaceSectionHeader, workspacePageSize } from './RequestWorkspacePrimitives';
 import { appointmentDetailTypography as typography } from './AppointmentPrimitives';
 import { RequestDetailCard, RequestSection } from './RequestDetailPrimitives';
+import { WorkloadMonitoringSummary } from './WorkloadMonitoringSummary';
 
 interface PanelWorkloadMonitoringProps {
   onBack: () => void;
@@ -77,7 +79,9 @@ export function PanelWorkloadDetails({ record }: { record: PanelWorkloadRecord }
 export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = ({ onBack, onOpenCapacity, initialLecturerId, backLabel = 'Back to Panel Appointments' }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [records, setRecords] = useState<PanelWorkloadRecord[]>([]);
+  const [allRecords, setRecords] = useState<PanelWorkloadRecord[]>([]);
+  const monitoring = useOfficeMonitoring();
+  const records = useMemo(() => monitoring?.view === 'panel-capacity' ? allRecords.filter(row => row.capacityState === 'FULL' || row.capacityState === 'OVER_CAPACITY') : allRecords, [allRecords, monitoring?.view]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const queryLecturer = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('lecturer') || '';
@@ -150,6 +154,8 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
   return <RecordPage title="Panel Workload Monitoring" subtitle="Current effective semester capacity, active appointments and pending reservations." backLabel={backLabel} onBack={onBack} actions={actions}>
     <PortalToast message={toastMessage} />
+    <OfficeMonitoringNotice />
+    {!loading && !error ? <WorkloadMonitoringSummary kind="panel" records={browse.filtered} /> : null}
     <section aria-label="Panel workload workspace" className="office-workload-records min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
       {excel.error?<p role="alert" className="card-description text-rose-700">{excel.error}</p>:null}
       <WorkspaceSectionHeader title="Panel workload records" description="Filters update immediately. Counts and exports cover all matching lecturers across pages." actions={<PortalButton onClick={()=>void handleExportExcel()} disabled={loading || !!error || excel.busy} isLoading={excel.busy} variant="primary" size="sm" icon={Download}>Export Excel</PortalButton>} />

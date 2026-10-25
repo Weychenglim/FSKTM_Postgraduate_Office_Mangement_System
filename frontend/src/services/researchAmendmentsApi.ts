@@ -32,11 +32,24 @@ export interface ResearchPagination {
 export interface ResearchAmendmentCollection {
   requests: ResearchAmendment[]; revisions: ResearchRevision[]; pagination?: ResearchPagination;
 }
+export interface ResearchProfileQuery {
+  q?: string; programme?: string; sort?: 'name' | 'name_desc' | 'updated'; page?: number; size?: number;
+}
+export interface ResearchProfileDirectory {
+  students: {id: number; name: string; matricNo: string; programme: string; title: string}[];
+  programmes: string[];
+  pagination: {total: number; page: number; pageSize: number; pageCount: number};
+}
 export type AmendmentInput = { studentId?: number; kind: AmendmentKind; title?: string; abstract?: string; destinationProgramme?: string; reason: string };
 export type CorrectionInput = { studentId: number; title?: string; abstract?: string; reason: string; meaningUnchanged: true; expectedRevision: number };
 const base = '/appointments/research-amendments';
 const query = (studentId?: number) => studentId === undefined ? '' : `?studentId=${studentId}`;
-export const getResearchAmendmentOptions = (studentId?: number, minimal = false) => request<ResearchAmendmentOptions>(`${base}/options/${minimal ? '?minimal=true' : query(studentId)}`);
+export const getResearchAmendmentOptions = (studentId?: number, minimal = false, selectedOnly = false) => request<ResearchAmendmentOptions>(`${base}/options/${minimal ? '?minimal=true' : query(studentId)}${selectedOnly && studentId !== undefined ? '&selectedOnly=true' : ''}`);
+export function getResearchProfiles(filters: ResearchProfileQuery) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '') params.set(key, String(value));
+  return request<ResearchProfileDirectory>(`${base}/profiles/?${params}`);
+}
 export const getResearchAmendments = (studentId?: number) => request<ResearchAmendmentCollection>(`${base}/${query(studentId)}`);
 export const getResearchAmendment = (id: number) => request<ResearchAmendment>(`${base}/${id}/`);
 export function coordinatorTransferQuery(filters: ResearchPageQuery): ResearchPageQuery {
@@ -74,7 +87,7 @@ export async function loadResearchAmendmentWorkspace({coordinator, office=false,
   }
   const paged = (coordinator||office) && routeView === 'list';
   const [options, data] = await Promise.all([
-    getResearchAmendmentOptions(paged ? undefined : studentId, paged),
+    getResearchAmendmentOptions(paged ? undefined : studentId, paged, routeView === 'profile' && studentId !== undefined),
     paged ? getResearchAmendmentsPage(pageQuery ?? {},office) : getResearchAmendments(studentId),
   ]);
   return {options, ...data};

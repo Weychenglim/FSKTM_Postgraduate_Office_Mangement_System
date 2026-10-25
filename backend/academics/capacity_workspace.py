@@ -93,13 +93,17 @@ def capacity_workspace_view(request, pk):
 
     today = timezone.localdate()
     unavailable_until = {}
+    restriction_counts = defaultdict(lambda: {"current": 0, "scheduled": 0})
     for window in LecturerAvailabilityWindow.objects.filter(
         academic_semester=semester,
         lecturer_id__in=lecturer_ids,
         cancelled_at__isnull=True,
-        starts_on__lte=today,
         ends_on__gte=today,
-    ).values("lecturer_id", "role", "ends_on"):
+    ).values("lecturer_id", "role", "starts_on", "ends_on"):
+        key_name = "current" if window["starts_on"] <= today else "scheduled"
+        restriction_counts[window["lecturer_id"]][key_name] += 1
+        if key_name == "scheduled":
+            continue
         key = (window["lecturer_id"], window["role"])
         unavailable_until[key] = max(
             unavailable_until.get(key, window["ends_on"]), window["ends_on"]
@@ -199,6 +203,7 @@ def capacity_workspace_view(request, pk):
                 )
             ),
             "workloadIdentityIncomplete": identity_incomplete,
+            "availabilitySummary": restriction_counts[lecturer.pk],
         })
 
     active_students = Student.objects.filter(

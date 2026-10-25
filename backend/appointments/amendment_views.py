@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.models import Student, User
+from accounts.eligibility import user_is_assignable_lecturer
 from . import research_amendments as service
 from .models import ResearchAmendment, ResearchProfileRevision
 
@@ -93,15 +94,26 @@ def options(request):
             primary = True
         except service.AmendmentConflict:
             pass
+    student_rows = ([selected] if selected else []) if request.query_params.get('selectedOnly') == 'true' else profiles
     return Response({
         'students': [{'id': row.student_id, 'name': row.student.full_name,
-                      'matricNo': row.student.student.matric_no, 'programme': row.student.student.programme} for row in profiles],
+                      'matricNo': row.student.student.matric_no, 'programme': row.student.student.programme} for row in student_rows],
         'programmes': service.programme_options() if service.office(request.user) else [],
         'profile': {**service.snapshot(selected), 'studentId': selected.student_id, 'revision': selected.revision} if selected else None,
         'canSubmitResearch': eligible and not pending and primary and request.user.role == User.Role.STUDENT,
         'canCorrect': eligible and not pending and service.office(request.user),
         'canTransfer': eligible and not pending and service.office(request.user),
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def profiles(request):
+    actor = request.user
+    if not actor.is_active or not (service.office(actor) or actor.role == User.Role.COORDINATOR or user_is_assignable_lecturer(actor)):
+        return Response({'error': 'Research profile browsing is available to authorised staff.'}, status=403)
+    from .research_profiles import profile_page
+    return Response(profile_page(actor, request.query_params))
 
 
 @api_view(['GET'])

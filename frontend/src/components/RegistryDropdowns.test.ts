@@ -1,3 +1,6 @@
+import {createElement} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {SelectMenu} from './SelectMenu';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -18,8 +21,6 @@ assert.match(registry, /programme: '',/, 'the programme field starts empty so th
 // WAI-ARIA select-only combobox: focus stays on the button.
 for (const contract of [
   /role="combobox"/,
-  /aria-haspopup="listbox"/,
-  /aria-expanded=\{open\}/,
   /aria-activedescendant=/,
   /role="listbox"/,
   /role="option"/,
@@ -32,4 +33,10 @@ for (const contract of [
   assert.match(selectMenu, contract, `SelectMenu is missing ${contract}`);
 }
 
+const props = {value: 'all', options: [{value: 'all', label: 'All programmes'}], onChange: () => {}};
+const closed = renderToStaticMarkup(createElement(SelectMenu, props));
+assert.match(closed, /aria-haspopup="listbox"/);
+assert.match(closed, /aria-expanded="false"/);
+const searchable = renderToStaticMarkup(createElement(SelectMenu, {...props, searchPlaceholder: 'Find programme'}));
+assert.match(searchable, /aria-haspopup="dialog"/);
 console.log('Registry dropdown checks passed.');

@@ -1,3 +1,4 @@
+import {DashboardHeader} from './DashboardHeader';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -7,7 +8,7 @@ import React, { useState } from 'react';
 import { AlertTriangle, Files } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
-import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
+import { PortalButton, PortalToast } from './PortalPrimitives';
 import type { DashboardTask } from '../types';
 import { routeForStudentProgress, sidebarItemForPath } from '../constants/routes';
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
@@ -49,18 +50,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     <div id="student-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
       <PortalToast message={toastMessage} />
 
-      <PageHeader
-        title="Student Dashboard"
-        subtitle="Track your semester timeline, appointment status, submissions, and official document requests."
-        actions={studentId && onNavigateToRoute ? (
-          <PortalButton
-            variant="primary"
-            icon={Files}
-            onClick={() => onNavigateToRoute(routeForStudentProgress())}
-          >
-            View My Academic Record
-          </PortalButton>
-        ) : undefined}
+      <DashboardHeader context={<ActiveSemesterContext />}
+          actions={studentId && onNavigateToRoute ? (
+            <PortalButton
+              variant="primary"
+              icon={Files}
+              onClick={() => onNavigateToRoute(routeForStudentProgress())}
+            >
+              View My Academic Record
+            </PortalButton>
+          ) : undefined}
       />
 
       {lifecycleStatus && lifecycleStatus !== 'ACTIVE' && (
@@ -73,7 +72,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
       )}
 
-      <ActiveSemesterContext />
 
       <DashboardTimeline
         showManageTimeline={false}

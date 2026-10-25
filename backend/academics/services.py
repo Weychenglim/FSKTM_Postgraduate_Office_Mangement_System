@@ -124,6 +124,43 @@ def _close_marks_periods(semester, actor, now):
         )
 
 
+def _activation_checks(semester, current, today):
+    """Same rules for the read-only checklist and locked activation command."""
+    from .capacity_services import validate_published_capacity_ready
+
+    capacity_errors = validate_published_capacity_ready(semester)
+    return [
+        {"key": "draft", "label": "Semester status", "ready": semester.lifecycle_status == AcademicSemester.Lifecycle.DRAFT,
+         "message": "Draft semester ready for preparation." if semester.lifecycle_status == AcademicSemester.Lifecycle.DRAFT else "Only a draft semester can be activated."},
+        {"key": "dates", "label": "Activation date", "ready": semester.starts_on <= today <= semester.ends_on,
+         "message": f"Available from {semester.starts_on.strftime('%d %b %Y')}." if today < semester.starts_on else "The semester date range has ended." if today > semester.ends_on else "Today is within this semester's dates."},
+        {"key": "current", "label": "Current semester", "ready": current is None or today > current.ends_on,
+         "message": "No current active semester to close." if current is None else f"The current semester, {current.label}, ends on {current.ends_on.strftime('%d %b %Y')}. Activation is available after that date." if today <= current.ends_on else f"{current.label} has ended and will be closed on activation."},
+        {"key": "capacity", "label": "Lecturer limits", "ready": not capacity_errors,
+         "message": "A complete lecturer limits version is published." if not capacity_errors else "Publish a complete lecturer limits version for this semester.",
+         "issueCount": len(capacity_errors)},
+    ], capacity_errors
+
+
+def _other_active_semester(semester, locked_semesters):
+    return next((candidate for candidate in locked_semesters.values()
+                 if candidate.lifecycle_status == AcademicSemester.Lifecycle.ACTIVE and candidate.pk != semester.pk), None)
+
+
+@transaction.atomic
+def semester_activation_readiness(semester):
+    locked = lock_academic_semesters()
+    semester = locked.get(semester.pk)
+    if semester is None:
+        raise SemesterConflict("Academic semester changed concurrently; reload and retry.")
+    current = _other_active_semester(semester, locked)
+    today = timezone.localdate()
+    checks, _ = _activation_checks(semester, current, today)
+    return {"semesterId": semester.pk, "checkedOn": today.isoformat(),
+            "canActivate": all(check["ready"] for check in checks), "checks": checks,
+            "currentSemester": {"id": current.pk, "label": current.label, "endsOn": current.ends_on.isoformat()} if current else None}
+
+
 @transaction.atomic
 def activate_semester(semester, *, actor, reason, preview_token=None, acknowledge_unfinished=False):
     reason = _require_reason(reason)
@@ -141,25 +178,18 @@ def activate_semester(semester, *, actor, reason, preview_token=None, acknowledg
             "Semester can only be activated within its configured date range."
         )
 
-    from .capacity_services import validate_published_capacity_ready
-
-    capacity_errors = validate_published_capacity_ready(semester)
+    current = _other_active_semester(semester, locked_semesters)
+    checks, capacity_errors = _activation_checks(semester, current, today)
     if capacity_errors:
         raise SemesterConflict(
             "Semester activation requires a complete published capacity plan: "
             + "; ".join(capacity_errors)
         )
+    current_check = next(check for check in checks if check["key"] == "current")
+    if not current_check["ready"]:
+        raise SemesterConflict(current_check["message"])
 
     now = timezone.now()
-    current = next(
-        (
-            candidate
-            for candidate in locked_semesters.values()
-            if candidate.lifecycle_status == AcademicSemester.Lifecycle.ACTIVE
-            and candidate.pk != semester.pk
-        ),
-        None,
-    )
     from marks.closure_preview import validate_semester_closure
 
     validate_semester_closure(current, target_semester=semester, preview_token=preview_token, acknowledge_unfinished=acknowledge_unfinished)

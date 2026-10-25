@@ -19,19 +19,6 @@ interface DashboardTimelineProps {
   visibleRoles?: TimelineRole[];
 }
 
-const formatDisplayDate = (value: string) => {
-  if (!value) return '';
-  if (!/^\d{4}-\d{2}-\d{2}/.test(value)) return value;
-  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${String(day).padStart(2, '0')} ${months[month - 1]} ${year}`;
-};
-
-const formatSessionTitle = (session?: string) => {
-  const match = session?.match(/\d{4}\/\d{4}/);
-  return `Session ${match ? match[0] : session || '2025/2026'}`;
-};
-
 export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
   onManageTimeline,
   showManageTimeline = true,
@@ -78,17 +65,7 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#f1f5f9] pb-4">
         <div id="timeline-title-meta" className="space-y-1 text-left">
-          <h3 className="section-label text-slate-500 uppercase tracking-widest leading-none">
-            Semester Timeline
-          </h3>
-          <span className="section-heading text-brand-navy block mt-1 tracking-tight">
-            {scopedTimeline?.available ? formatSessionTitle(scopedTimeline.session) : 'Active Semester Timeline'}
-          </span>
-          <span className="card-caption text-slate-400 block">
-            {scopedTimeline?.available && scopedTimeline.uploadedAt
-              ? `Active - Uploaded ${formatDisplayDate(scopedTimeline.uploadedAt)}`
-              : 'Timeline status updates when office staff upload the active semester file'}
-          </span>
+          <h3 className="section-heading text-brand-navy">Semester timeline</h3>
         </div>
 
         <div className="flex items-center flex-wrap gap-3">

@@ -16,7 +16,7 @@ import type {
   RubricVersion,
 } from '../types';
 import { buildMarkScorePayload } from '../utils/marksProductionManagement';
-import { request } from './apiClient';
+import { ApiError, request } from './apiClient';
 
 export async function getMarkRecords(): Promise<MarkRecord[]> {
   return request<MarkRecord[]>('/marks/');
@@ -245,6 +245,11 @@ export async function getEvaluationTasks(): Promise<EvaluationTask[]> {
   return tasks.map(withLegacyRubricFields);
 }
 
+export async function getSubmittedEvaluations(): Promise<EvaluationTask[]> {
+  const tasks = await request<EvaluationTask[]>('/marks/my-submitted-evaluations/');
+  return tasks.map(withLegacyRubricFields);
+}
+
 const legacyScoreFields: Record<string, {
   score: keyof EvaluationTask;
   feedback: keyof EvaluationTask;
@@ -285,20 +290,16 @@ function withLegacyRubricFields(task: EvaluationTask): EvaluationTask {
 }
 
 function taskScores(task: EvaluationTask) {
-  const components = (task.components || []).map((component) => {
-    const fields = legacyScoreFields[component.code];
-    if (!fields) return component;
-    const legacyScore = task[fields.score] as number | undefined;
-    return {
-      ...component,
-      marksAwarded: legacyScore === undefined
-        ? component.marksAwarded
-        : String(legacyScore),
-      feedback:
-        (task[fields.feedback] as string | undefined) ?? component.feedback,
-    };
-  });
-  return buildMarkScorePayload(components);
+  // The rubric editor updates components; compatibility aliases are read-only
+  // projections of the last API response and must never overwrite new input.
+  return buildMarkScorePayload(task.components || []);
+}
+
+function taskWriteVersion(task: EvaluationTask): string {
+  if (!task.writeVersion || !/^[a-f0-9]{64}$/.test(task.writeVersion)) {
+    throw new ApiError('Reload this task before saving or submitting marks.', 409);
+  }
+  return task.writeVersion;
 }
 
 export async function saveMarkDraft(
@@ -310,6 +311,7 @@ export async function saveMarkDraft(
     {
       method: 'PUT',
       body: JSON.stringify({
+        expectedVersion: taskWriteVersion(task),
         scores: taskScores(task),
         comments: task.comments || '',
       }),
@@ -320,12 +322,13 @@ export async function saveMarkDraft(
 
 export async function submitMarkEntry(
   task: EvaluationTask,
+  submissionId: string,
 ): Promise<EvaluationTask> {
   if (!task.id) throw new Error('Evaluation task ID is missing.');
-  await saveMarkDraft(task);
+  if (!submissionId) throw new Error('A submission reference is required. Review and submit again.');
   const submitted = await request<EvaluationTask>(
     `/marks/tasks/${task.id}/submit/`,
-    { method: 'POST' },
+    { method: 'POST', body: JSON.stringify({ expectedVersion: taskWriteVersion(task), submissionId, scores: taskScores(task), comments: task.comments || '' }) },
   );
   return withLegacyRubricFields(submitted);
 }

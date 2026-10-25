@@ -1,4 +1,6 @@
+import { MarksHeading, MarksSummaryCard } from './MarksPrimitives';
 import { PortalSelect } from './PortalSelect';
+import { WorkspaceFilterCard } from './RequestWorkspacePrimitives';
 import { completeDecision } from '../utils/decisionSubmission';
 import { ApiError } from '../services/apiClient';
 import { useListState } from './ListState';
@@ -8,48 +10,24 @@ import { useListState } from './ListState';
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  CheckSquare, 
-  Clock, 
-  Mail, 
-  CheckCircle, 
-  Search, 
-  AlertTriangle, 
-  HelpCircle,
-  ArrowLeft,
-  Save,
-  CheckCircle2,
-  Info,
-  ChevronRight,
-  Calculator,
-  Sliders,
-  Sparkles
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { CheckSquare, Clock, FilePenLine, CheckCircle, Search, type LucideIcon } from 'lucide-react';
 import { MarkEntryDetail } from './MarkEntryDetail';
 import { MarksEntryHistory } from './MarksEntryHistory';
+import { LecturerMarkingNavigation } from './LecturerMarkingNavigation';
 import { SubmittedMarkDetail } from './SubmittedMarkDetail';
-import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
-import { LoadingState, ErrorState } from './StateViews';
+import { PageHeader, PortalButton, PortalCard, PortalToast, StatusBadge } from './PortalPrimitives';
+import { LoadingState, ErrorState, EmptyState } from './StateViews';
 import { formatDeadlineText } from '../utils/workflowAgeing';
 import { replaceEvaluationTask } from '../utils/marksProductionManagement';
 import { getMarkTaskSemesters, filterMarkTasks } from '../utils/marksSemesterFilters';
-import { EvaluationTask, EvaluationStatus } from '../types';
+import { EvaluationTask, EvaluationStatus, EvaluationTaskRole } from '../types';
 import { getEvaluationTasks, saveMarkDraft, submitMarkEntry } from '../services';
+import { initialMarkingRole, markingWorkspaces, orderMarkingTasks, tasksForMarkingRole } from '../utils/lecturerMarking';
 
 // ==================== TYPE DEFINITIONS ====================
 
 // EvaluationStatus and EvaluationTask now live in src/types/marks.ts; the tasks
 // are served by marksApi (getEvaluationTasks).
-
-const evaluatorRoleLabel = (task: EvaluationTask): string =>
-  task.evaluatorRoleLabel || (
-    task.evaluatorRole === 'SUPERVISOR'
-      ? 'Supervisor'
-      : task.evaluatorRole === 'BACKUP'
-      ? 'Backup'
-      : 'Panel'
-  );
 
 interface LecturerMarksEntryProps {
   onBackToDashboard?: () => void;
@@ -58,88 +36,65 @@ interface LecturerMarksEntryProps {
 
 // ==================== SUB-COMPONENTS ====================
 
-// 1. Customized Summary Card matching screenshot
+// Reuse the Marks summary treatment across lecturer responsibilities.
 interface CustomSummaryCardProps {
   title: string;
   value: number;
-  subtext: string;
-  icon: React.ComponentType<any>;
-  themeColor: string;
-  iconBg: string;
-  iconColor: string;
+  subtext?: string;
+  icon: LucideIcon;
 }
 
-export const CustomSummaryCard: React.FC<CustomSummaryCardProps> = ({
-  title,
-  value,
-  subtext,
-  icon: Icon,
-  themeColor,
-  iconBg,
-  iconColor
-}) => {
-  return (
-    <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs text-left flex justify-between items-start select-none group hover:shadow-xs transition-all relative overflow-hidden">
-      <div className="space-y-4">
-        {/* Visual Brand Icon Block */}
-        <div className={`w-11 h-11 ${iconBg} rounded-xl flex items-center justify-center border border-slate-100`}>
-          <Icon className={`w-5 h-5 ${iconColor}`} />
-        </div>
-        
-        <div className="space-y-1">
-          <span className="card-label text-slate-400 font-sans block">
-            {title}
-          </span>
-          <span className="card-description text-slate-500 leading-normal block">
-            {subtext}
-          </span>
-        </div>
-      </div>
+export const CustomSummaryCard: React.FC<CustomSummaryCardProps> = ({ title, value, subtext, icon }) => (
+  <MarksSummaryCard title={title} value={value} description={subtext} icon={icon} />
+);
 
-      <span className="text-4xl font-extrabold text-brand-navy pr-2 tracking-tight">
-        {value}
-      </span>
-    </div>
-  );
+const StatusChip: React.FC<{ type: EvaluationStatus }> = ({ type }) => {
+  switch (type) {
+    case 'NOT STARTED':
+      return <StatusBadge tone="neutral" className="text-xs px-2.5 py-0.5">Not Started</StatusBadge>;
+    case 'DRAFT SAVED':
+      return <StatusBadge tone="info" className="text-xs px-2.5 py-0.5">Draft Saved</StatusBadge>;
+    case 'SUBMITTED':
+      return <StatusBadge tone="success" className="text-xs px-2.5 py-0.5">Submitted</StatusBadge>;
+    default:
+      return null;
+  }
 };
 
 // ==================== MAIN COMPONENT ====================
 
 export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
-  onBackToDashboard,
   onNavigateToDossier,
 }) => {
   // Evaluation tasks are loaded from the persisted lecturer assignment API.
   const [tasks, setTasks] = useState<EvaluationTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rememberedRole, setRememberedRole] = useListState<EvaluationTaskRole | null>('LecturerMarksEntry', 'markingRole', null);
+
+  const [currentView, setCurrentView] = useListState<'dashboard' | 'history'>('LecturerMarksEntry', 'currentView', 'dashboard');
 
   const loadTasks = useCallback((propagateError = false) => {
     setLoading(true);
     setError(null);
     return getEvaluationTasks()
-      .then(setTasks)
+      .then(loaded => {
+        setTasks(loaded);
+        setRememberedRole(current => initialMarkingRole(loaded, current));
+      })
       .catch((e) => { setError(e instanceof Error ? e.message : 'Failed to load evaluation tasks.'); if (propagateError) throw e; })
       .finally(() => setLoading(false));
-  }, []);
+  }, [setRememberedRole]);
 
   useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
+    if (currentView === 'dashboard') loadTasks();
+  }, [loadTasks, currentView]);
 
   // 2. Filters & Searches State
   const [searchTerm, setSearchTerm] = useListState('LecturerMarksEntry', 'searchTerm', '');
   const [selectedSemester, setSelectedSemester] = useListState('LecturerMarksEntry', 'selectedSemester', 'All Semesters');
   const [selectedStatus, setSelectedStatus] = useListState('LecturerMarksEntry', 'selectedStatus', 'All Statuses');
   
-  // Confirmed filter states
-  const [filteredSearch, setFilteredSearch] = useListState('LecturerMarksEntry', 'filteredSearch', '');
-  const [filteredSemester, setFilteredSemester] = useListState('LecturerMarksEntry', 'filteredSemester', 'All Semesters');
-  const [filteredStatus, setFilteredStatus] = useListState('LecturerMarksEntry', 'filteredStatus', 'All Statuses');
-
-  // View state: 'dashboard' | 'history'
-  const [currentView, setCurrentView] = useListState<'dashboard' | 'history'>('LecturerMarksEntry', 'currentView', 'dashboard');
-
   // Active form view state
   const [activeFormTask, setActiveFormTask] = useState<EvaluationTask | null>(null);
 
@@ -153,363 +108,159 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   };
 
   // 3. Filter actions
-  const handleApplyFilters = () => {
-    setFilteredSearch(searchTerm);
-    setFilteredSemester(selectedSemester);
-    setFilteredStatus(selectedStatus);
-    triggerToast("Search filters applied successfully!");
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedSemester('All Semesters');
+    setSelectedStatus('All Statuses');
   };
 
-  // Filter computation
+  const selectedRole = initialMarkingRole(tasks, rememberedRole);
+  const workspace = markingWorkspaces[selectedRole];
+  const roleTasks = tasksForMarkingRole(tasks, selectedRole);
   const semesterOptions = getMarkTaskSemesters(tasks);
-  const filteredTasks = filterMarkTasks(tasks, filteredSearch, filteredSemester, filteredStatus);
-
-  // Calculate dynamic summary stats
-  const statAssigned = tasks.length;
-  const statNotStarted = tasks.filter(t => t.status === 'NOT STARTED').length;
-  const statDraft = tasks.filter(t => t.status === 'DRAFT SAVED').length;
-  const statSubmitted = tasks.filter(t => t.status === 'SUBMITTED').length;
+  const filteredTasks = orderMarkingTasks(filterMarkTasks(roleTasks, searchTerm.trim(), selectedSemester, selectedStatus));
+  const summaryTasks = filterMarkTasks(roleTasks, '', selectedSemester, 'All Statuses');
+  const statAssigned = summaryTasks.length;
+  const statNotStarted = summaryTasks.filter(task => task.status === 'NOT STARTED').length;
+  const statDraft = summaryTasks.filter(task => task.status === 'DRAFT SAVED').length;
+  const statSubmitted = summaryTasks.filter(task => task.status === 'SUBMITTED').length;
 
   // 4. Form controller actions
   const handleOpenForm = (task: EvaluationTask) => {
     setActiveFormTask(task);
   };
 
-  // Status Chip Component matching screenshot styling
-  const StatusChip: React.FC<{ type: EvaluationStatus }> = ({ type }) => {
-    switch (type) {
-      case 'NOT STARTED':
-        return <StatusBadge tone="neutral" className="text-[9px] px-2.5 py-0.5">Not Started</StatusBadge>;
-      case 'DRAFT SAVED':
-        return <StatusBadge tone="info" className="text-[9px] px-2.5 py-0.5">Draft Saved</StatusBadge>;
-      case 'SUBMITTED':
-        return <StatusBadge tone="success" className="text-[9px] px-2.5 py-0.5">Submitted</StatusBadge>;
-      default:
-        return null;
-    }
-  };
-
   return (
-    <div id="lecturer-marks-entry-container" className="space-y-6">
+    <div id="lecturer-marks-entry-container" className="marks-workspace space-y-6">
       
-      <PortalToast message={toastMessage} />
+      <PortalToast message={toastMessage} tone="success" />
 
-      <AnimatePresence mode="wait">
+      <>
         {currentView === 'history' ? (
             <MarksEntryHistory
               onBack={() => setCurrentView('dashboard')}
-              onSelectRecord={(task) => setActiveFormTask(task)}
-              tasksState={tasks}
+              onSelectRecord={task => setActiveFormTask(task)}
+              initialRole={rememberedRole ?? selectedRole}
+              onRoleChange={setRememberedRole}
             />
           ) : (
-            /* ==================== 1. MAIN ENTRY TASKS DASHBOARD VIEW ==================== */
-            <motion.div
-              key="dashboard-view"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="space-y-6"
-          >
+            /* Lecturer task workspace */
+            <div className="space-y-6">
             <PageHeader
               title="Marks Entry"
               subtitle="Enter and submit marks for your assigned evaluation tasks."
               className="select-none"
             />
 
-            {/* 4 Summary Cards Grid matching reference */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <LecturerMarkingNavigation tasks={tasks} role={selectedRole} onChange={setRememberedRole}
+              controls="lecturer-marking-workspace" countsKnown={!loading && !error} />
+
+            <section id="lecturer-marking-workspace" aria-label={workspace.title} className="space-y-5">
+            {/* Counts cover this responsibility and selected semester, before search/status filters. */}
+            {!loading && !error ? <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
               <CustomSummaryCard 
-                title="ASSIGNED TASKS" 
+                title="Assigned tasks"
                 value={statAssigned} 
-                subtext="Evaluation tasks assigned to you." 
                 icon={CheckSquare}
-                themeColor="slate-400"
-                iconBg="bg-slate-50/50"
-                iconColor="text-slate-600"
               />
               <CustomSummaryCard 
-                title="NOT STARTED" 
+                title="Not started"
                 value={statNotStarted} 
-                subtext="Tasks yet to be opened." 
                 icon={Clock}
-                themeColor="amber-500"
-                iconBg="bg-[#fffbeb] border-[#fef3c7]"
-                iconColor="text-amber-600"
               />
               <CustomSummaryCard 
-                title="DRAFT SAVED" 
+                title="Draft saved"
                 value={statDraft} 
-                subtext="Tasks with saved progress." 
-                icon={Mail}
-                themeColor="blue-500"
-                iconBg="bg-[#eff6ff] border-[#dbeafe]"
-                iconColor="text-blue-600"
+                icon={FilePenLine}
               />
               <CustomSummaryCard 
-                title="SUBMITTED" 
+                title="Submitted"
                 value={statSubmitted} 
-                subtext="Tasks completed and sent." 
                 icon={CheckCircle}
-                themeColor="emerald-500"
-                iconBg="bg-[#e6fbf2] border-[#bef5db]"
-                iconColor="text-emerald-600"
               />
-            </div>
+            </div> : null}
 
-            {/* Filters panel section layout matches exactly */}
-            <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs text-left grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
-              <div className="col-span-1 md:col-span-5 space-y-1.5">
-                <label className="form-label">
-                  Search Students
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Search className="w-4 h-4" />
-                  </span>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search by student name, ID, or research title"
-                    className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-9.5 pr-4 py-2.5 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 transition"
-                  />
-                </div>
+            <PortalCard id="mark-entry-tasks-list-block" padding="md" className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <MarksHeading icon={CheckSquare}>{workspace.title}</MarksHeading>
+                <PortalButton onClick={() => setCurrentView('history')}>View submission history</PortalButton>
               </div>
 
-              <div className="col-span-1 md:col-span-3 space-y-1.5">
-                <label className="form-label">
-                  Semester
-                </label>
-                <PortalSelect
-                  value={selectedSemester}
-                  onChange={(e) => setSelectedSemester(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-slate-400 transition"
-                >
-                  <option>All Semesters</option>
-                  {semesterOptions.map(semester => (
-                    <option key={semester} value={semester}>{semester}</option>
-                  ))}
-                </PortalSelect>
-              </div>
-
-              <div className="col-span-1 md:col-span-3 space-y-1.5">
-                <label className="form-label">
-                  Status
-                </label>
-                <PortalSelect
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-slate-400 transition"
-                >
-                  <option>All Statuses</option>
-                  <option>NOT STARTED</option>
-                  <option>DRAFT SAVED</option>
-                  <option>SUBMITTED</option>
-                </PortalSelect>
-              </div>
-
-              <div className="col-span-1 md:col-span-1">
-                <button
-                  type="button"
-                  onClick={handleApplyFilters}
-                  className="w-full py-2.5 bg-brand-navy hover:bg-slate-800 text-white border border-brand-navy rounded-xl text-xs font-extrabold tracking-wider uppercase transition cursor-pointer"
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-
-            {/* My Mark Entry Tasks Table Card matches layout & alignment perfectly */}
-            <div id="mark-entry-tasks-list-block" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs text-left space-y-5">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
-                <div className="space-y-0.5">
-                  <h3 className="section-label">
-                    My Mark Entry Tasks
-                  </h3>
-                  <p className="card-description">
-                    Open an assigned evaluation task to enter rubric marks and submit your evaluation.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <button
-                    onClick={() => setCurrentView('history')}
-                    className="inline-flex items-center gap-1.5 border border-[#e2e8f0]/80 bg-white hover:bg-slate-50 py-2 px-4 rounded-xl text-xs font-bold text-slate-700 transition cursor-pointer shadow-3xs"
-                  >
-                    <span>View Marks Entry History</span>
-                  </button>
-
-                </div>
-              </div>
-
-              {/* Data Table */}
-              <div className="overflow-x-auto">
-                    <table className="data-table min-w-[900px] text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-150 border-slate-100 font-extrabold text-slate-400 text-[10px] uppercase tracking-wider select-none">
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Student ID</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Student Name</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Research Title</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Role</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Semester</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Deadline</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Status</th>
-                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100/60 font-sans text-brand-navy/90">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={8} className="card-description p-0">
-                          <LoadingState message="Loading evaluation tasks…" />
-                        </td>
-                      </tr>
-                    ) : error ? (
-                      <tr>
-                        <td colSpan={8} className="card-description p-0">
-                          <ErrorState message={error} onRetry={loadTasks} />
-                        </td>
-                      </tr>
-                    ) : filteredTasks.length > 0 ? (
-                      filteredTasks.map((task) => {
-                        const isOverdue = task.deadlineState === 'OVERDUE';
-                        
-                        return (
-                          <tr key={`${task.id ?? task.studentId}-${task.evaluatorRole ?? 'task'}`} className="hover:bg-slate-50/20 transition-colors">
-                            {/* ID */}
-                            <td className="py-4.5 pr-2 font-mono font-bold text-slate-900">
-                              {task.studentId}
-                            </td>
-                            {/* Name */}
-                            <td className="text-xs font-semibold text-slate-500 py-4.5 pr-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-[30px] h-[30px] rounded-lg bg-indigo-50 border border-blue-100/50 text-blue-650 text-blue-600 font-black text-[10px] flex items-center justify-center shrink-0">
-                                  {task.initials}
-                                </div>
-                                <span className="card-value text-slate-900 leading-snug">
-                                  {task.studentName}
-                                </span>
-                              </div>
-                            </td>
-                            {/* Research Title */}
-                            <td className="text-xs font-semibold text-slate-500 py-4.5 pr-4 max-w-[280px]">
-                              <p className="card-description text-slate-650 text-slate-500 leading-relaxed line-clamp-2">
-                                {task.researchTitle}
-                              </p>
-                            </td>
-                            <td className="text-xs font-semibold text-slate-500 py-4.5 pr-4">
-                              <span className="inline-flex px-3 py-1 rounded-full bg-slate-50 text-[9px] font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200">
-                                {evaluatorRoleLabel(task)}
-                              </span>
-                            </td>
-                            {/* Semester */}
-                            <td className="text-xs font-semibold text-slate-500 py-4.5 pr-2 text-slate-605 text-slate-500">
-                              {task.semester}
-                            </td>
-                            {/* Deadline */}
-                            <td className={`text-xs py-4.5 pr-2 font-bold ${isOverdue ? 'text-rose-500' : 'text-slate-500'}`}>
-                              <span className="block">{task.effectiveDueAt ? new Date(task.effectiveDueAt).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' }) + ' (Malaysia)' : task.deadline}</span>
-                              {task.completionWindow ? <span className="card-description block text-sky-700">Completion window · {task.completionWindow.status}</span> : null}
-                              <span className={`card-caption block mt-1 ${isOverdue ? 'text-rose-500' : 'text-slate-500'}`}>
-                                {formatDeadlineText(task)}
-                              </span>
-                            </td>
-                            {/* Status */}
-                            <td className="text-xs font-semibold text-slate-500 py-4.5 pr-2">
-                              <StatusChip type={task.status} />
-                              {task.periodEffectiveStatus ? <span className="card-description block">Period: {task.periodEffectiveStatus}</span> : null}
-                            </td>
-                            {/* Action Button */}
-                            <td className="text-xs font-semibold text-slate-500 py-4.5 text-center">
-                              <div className="flex flex-col items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => onNavigateToDossier?.(task.studentId)}
-                                  className="text-[9px] font-black uppercase text-blue-700 hover:underline"
-                                >
-                                  View student record
-                                </button>
-                                {task.status === 'SUBMITTED' || task.canEdit !== true ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenForm(task)}
-                                    className="border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 px-4 py-1.5 rounded-lg text-xs font-extrabold transition uppercase tracking-wider cursor-pointer"
-                                  >
-                                    View
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenForm(task)}
-                                    className="bg-brand-navy hover:bg-slate-800 text-white px-4 py-1.5 rounded-lg text-xs font-extrabold transition uppercase tracking-wider cursor-pointer shadow-3xs"
-                                  >
-                                    Open
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={8} className="card-description py-12 text-center">
-                          <div className="card-description text-slate-400">
-                            No matching valuation tasks found. Adjust search terms.
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination Component */}
-              <div className="flex items-center justify-between pt-4 border-t border-slate-50 select-none card-description text-slate-400">
-                <span>
-                  Showing 1 to {filteredTasks.length} of {filteredTasks.length} tasks
+            <WorkspaceFilterCard onReset={clearFilters} fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+              <label htmlFor="lecturer-marks-search" className="form-label min-w-0 sm:col-span-2 xl:col-span-1">Search students
+                <span className="relative mt-1 block">
+                  <Search aria-hidden="true" className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input id="lecturer-marks-search" type="search" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Student, ID or research title" className="form-control form-control-sm pl-10 pr-4" />
                 </span>
-                
-                <div className="flex items-center gap-1.5">
-                  <button 
-                    disabled 
-                    className="w-8 h-8 rounded-lg border border-slate-100 flex items-center justify-center text-slate-300 bg-slate-50 cursor-not-allowed"
-                  >
-                    &lt;
-                  </button>
-                  <button className="w-8 h-8 rounded-lg border border-brand-navy bg-brand-navy text-white flex items-center justify-center font-black">
-                    1
-                  </button>
-                  <button 
-                    disabled 
-                    className="w-8 h-8 rounded-lg border border-slate-100 flex items-center justify-center text-slate-300 bg-slate-50 cursor-not-allowed"
-                  >
-                    &gt;
-                  </button>
-                </div>
-              </div>
-            </div>
+              </label>
+              <label className="form-label min-w-0">Semester
+                <PortalSelect aria-label="Semester" value={selectedSemester} onChange={event => setSelectedSemester(event.target.value)} className="form-control form-control-sm mt-1">
+                  <option>All Semesters</option>
+                  {semesterOptions.map(semester => <option key={semester} value={semester}>{semester}</option>)}
+                </PortalSelect>
+              </label>
+              <label className="form-label min-w-0">Status
+                <PortalSelect aria-label="Task status" value={selectedStatus} onChange={event => setSelectedStatus(event.target.value)} className="form-control form-control-sm mt-1">
+                  <option value="All Statuses">All statuses</option>
+                  <option value="NOT STARTED">Not started</option>
+                  <option value="DRAFT SAVED">Draft saved</option>
+                  <option value="SUBMITTED">Submitted</option>
+                </PortalSelect>
+              </label>
+            </WorkspaceFilterCard>
 
-            {/* Bottom Row Notice & Support box layout match exactly */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-              
-              {/* Important Notice */}
-              <div className="lg:col-span-12 bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs hover:shadow-3xs transition text-left flex gap-4 items-start font-sans">
-                <div className="w-[38px] h-[38px] rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                  <Info className="w-4.5 h-4.5 text-blue-600 stroke-[2.3]" />
+              {loading ? <LoadingState message="Loading evaluation tasks…" /> : error ? <ErrorState message={error} onRetry={loadTasks} /> : filteredTasks.length === 0 ? (
+                <EmptyState title={roleTasks.length === 0 ? workspace.empty : 'No tasks match your filters'}
+                  description={roleTasks.length === 0 ? undefined : 'Try another search or clear the filters.'} />
+              ) : (
+                <div role="region" aria-label={workspace.title} tabIndex={0} className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue-600">
+                  <table role="table" className="data-table block text-xs sm:table sm:min-w-[720px]">
+                    <caption className="sr-only">{workspace.title} matching the current filters</caption>
+                    <thead role="rowgroup" className="hidden sm:table-header-group"><tr role="row" className="data-thead">
+                      {['Student', 'Research / semester', 'Due', 'Status', 'Action'].map(label => <th key={label} scope="col" className="data-th">{label}</th>)}
+                    </tr></thead>
+                    <tbody role="rowgroup" className="block space-y-3 sm:table-row-group sm:space-y-0">
+                      {filteredTasks.map(task => {
+                        const overdue = task.deadlineState === 'OVERDUE';
+                        const action = task.status === 'SUBMITTED' ? 'View submission' : task.canEdit !== true ? 'View' : task.status === 'DRAFT SAVED' ? 'Continue marking' : 'Start marking';
+                        return <tr role="row" key={task.id ?? `${task.studentId}-${task.semester}-${selectedRole}`} className="grid grid-cols-2 gap-x-3 rounded-xl border border-slate-200 p-3 sm:table-row sm:rounded-none sm:border-0 sm:p-0">
+                          <td role="cell" className="data-td col-span-2 block min-w-0 px-0 py-2 [overflow-wrap:anywhere] sm:table-cell sm:px-5 sm:py-4">
+                            <span className="card-value block text-slate-900">{task.studentName}</span>
+                            <span className="card-caption mt-1 block font-mono">{task.studentId}</span>
+                          </td>
+                          <td role="cell" className="data-td col-span-2 block min-w-0 px-0 py-2 [overflow-wrap:anywhere] sm:table-cell sm:max-w-[260px] sm:px-5 sm:py-4">
+                            <p className="card-value line-clamp-2">{task.researchTitle}</p>
+                            <p className="card-description mt-1">{task.semester}</p>
+                          </td>
+                          <td role="cell" className={`data-td block min-w-0 px-0 py-2 [overflow-wrap:anywhere] sm:table-cell sm:px-5 sm:py-4 ${overdue ? 'text-rose-700' : ''}`}>
+                            <span className="card-label mb-1 block sm:hidden">Due</span>
+                            <span className="block">{task.effectiveDueAt ? new Date(task.effectiveDueAt).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' }) + ' (Malaysia)' : task.deadline}</span>
+                            <span className="card-description mt-1 block">{formatDeadlineText(task)}</span>
+                            {task.completionWindow?.status === 'ACTIVE' ? <span className="card-description block text-sky-700">Extended deadline</span> : null}
+                          </td>
+                          <td role="cell" className="data-td block min-w-0 px-0 py-2 sm:table-cell sm:px-5 sm:py-4">
+                            <span className="card-label mb-1 block sm:hidden">Status</span>
+                            <StatusChip type={task.status} />
+                            {task.status !== 'SUBMITTED' && task.canEdit !== true ? <span className="card-description mt-1 block">{task.periodEffectiveStatus === 'SCHEDULED' ? 'Period has not opened' : task.periodEffectiveStatus === 'CLOSED' || task.periodEffectiveStatus === 'ARCHIVED' ? 'Period closed' : 'Read only'}</span> : null}
+                          </td>
+                          <td role="cell" className="data-td col-span-2 block px-0 py-2 sm:table-cell sm:px-5 sm:py-4">
+                            <div className="flex flex-col items-start gap-2">
+                              <PortalButton variant={task.canEdit === true && task.status !== 'SUBMITTED' ? 'primary' : 'secondary'} onClick={() => handleOpenForm(task)}>{action}</PortalButton>
+                              {onNavigateToDossier ? <button type="button" onClick={() => onNavigateToDossier(task.studentId)} className="card-description text-blue-700 hover:underline">View student record</button> : null}
+                            </div>
+                          </td>
+                        </tr>;
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-                <div className="space-y-1 pt-0.5">
-                  <h4 className="section-label flex items-center gap-1.5">
-                    Important Notice
-                  </h4>
-                  <p className="card-description">
-                    Please ensure all marks follow the configured rubric. Submission locks the record immediately; contact Office Staff if a correction requires reopening.
-                  </p>
-                </div>
-              </div>
-
-            </div>
-          </motion.div>
+              )}
+              {!loading && !error ? <p role="status" className="card-description border-t border-slate-100 pt-4">
+                {filteredTasks.length} of {roleTasks.length} tasks
+              </p> : null}
+            </PortalCard>
+            </section>
+          </div>
           )}
         {activeFormTask ? activeFormTask.status === 'SUBMITTED' ? (
           <SubmittedMarkDetail
@@ -523,14 +274,10 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             backLabel={currentView === 'history' ? 'Back to Marks Entry History' : 'Back to Marks Entry'}
             onBack={() => setActiveFormTask(null)}
             onSave={async (updatedTask) => {
-              try {
-                const savedTask = await saveMarkDraft(updatedTask);
-                setTasks((current) => replaceEvaluationTask(current, savedTask));
-                setActiveFormTask(null);
-                triggerToast(`Draft saved successfully for ${savedTask.studentName}!`);
-              } catch (reason) {
-                triggerToast(reason instanceof Error ? reason.message : 'Failed to save mark draft.');
-              }
+              const savedTask = await saveMarkDraft(updatedTask);
+              setTasks((current) => replaceEvaluationTask(current, savedTask));
+              setActiveFormTask(savedTask);
+              triggerToast(`Draft saved for ${savedTask.studentName}.`);
             }}
             onReload={async () => {
               try {
@@ -542,6 +289,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                   throw new Error('This evaluation task is no longer available.');
                 }
                 setActiveFormTask(latest);
+                return latest;
               } catch (failure) {
                 if (failure instanceof ApiError && (failure.status === 403 || failure.status === 404)) {
                   setActiveFormTask(current => current ? {...current, canEdit: false, canSubmit: false} : current);
@@ -549,13 +297,13 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                 throw failure;
               }
             }}
-            onSubmit={async (updatedTask) => completeDecision(async () => {
-              const submittedTask = await submitMarkEntry(updatedTask);
+            onSubmit={async (updatedTask, submissionId) => completeDecision(async () => {
+              const submittedTask = await submitMarkEntry(updatedTask, submissionId);
               setTasks((current) => replaceEvaluationTask(current, submittedTask));
             }, () => loadTasks(true))}
           />
         ) : null}
-      </AnimatePresence>
+      </>
 
     </div>
   );

@@ -1,4 +1,5 @@
 import type {
+  ReconciliationAcceptance,
   ReconciliationApplyRequest,
   ReconciliationAudit,
   ReconciliationFilters,
@@ -28,5 +29,13 @@ export const applyReconciliationIssue = (
   { method: 'POST', body: JSON.stringify(payload) },
 );
 
-export const getReconciliationAudits = (): Promise<{ results: ReconciliationAudit[] }> =>
-  request('/dashboard/reconciliation/audits/');
+export const getReconciliationAudits = (record?: { entityType: string; entityId: string }): Promise<{ results: ReconciliationAudit[]; count?: number }> => {
+  const query = record ? `?${new URLSearchParams(record)}` : '';
+  return request(`/dashboard/reconciliation/audits/${query}`);
+};
+
+export const acceptReconciliationIssue = (issueId: string, payload: { expectedFingerprint: string; reason: string }): Promise<{
+  accepted: boolean; issueId: string; acceptance: ReconciliationAcceptance;
+}> => request(`/dashboard/reconciliation/issues/${encodeURIComponent(issueId)}/accept/`, {
+  method: 'POST', body: JSON.stringify(payload),
+});

@@ -1,4 +1,5 @@
 import { RecordPage } from './RecordPage';
+import { AlertMessage } from './AlertMessage';
 import { appointmentDetailTypography as typography } from './AppointmentPrimitives';
 import { RequestSection } from './RequestDetailPrimitives';
 import { ResearchAbstract } from './ResearchAbstract';
@@ -41,6 +42,7 @@ interface RecommendPanelMemberDrawerProps {
   backLabel?: string;
   isOpen: boolean;
   busy?: boolean;
+  submitError?: string | null;
   onClose: () => void;
   student: StudentData;
   candidates: PanelCandidate[];
@@ -51,6 +53,7 @@ interface RecommendPanelMemberDrawerProps {
 export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProps> = ({
   isOpen,
   busy = false,
+  submitError,
   onClose,
   backLabel = 'Back to Panel Appointments',
   student,
@@ -392,6 +395,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                 />
               </div>
 
+              {submitError ? <AlertMessage type="error" title="Recommendation could not be submitted" message={submitError}/> : null}
               <button
                 id="submit-recommendation-btn"
                 type="submit"

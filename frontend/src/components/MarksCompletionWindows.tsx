@@ -1,9 +1,12 @@
+import { MarksHeading } from './MarksPrimitives';
+import { CalendarClock } from 'lucide-react';
 import { DecisionDialog } from './DecisionDialog';
 import { completeDecision } from '../utils/decisionSubmission';
 import React, { useEffect, useRef, useState } from 'react';
 import type { CompletionWindow, EvaluationPreviewTask } from '../types/marks';
 import { grantCompletionWindows, getCompletionWindows, revokeCompletionWindow } from '../services/marksCompletionApi';
 import { PortalButton } from './PortalPrimitives';
+import {ErrorState} from './StateViews';
 import { malaysiaDeadline, formatMalaysiaDateTime as date } from '../utils/malaysiaDateTime';
 
 export { malaysiaDeadline } from '../utils/malaysiaDateTime';
@@ -58,7 +61,7 @@ export function MarksCompletionWindows({ tasks, onChanged }: { tasks: Evaluation
       await revokeCompletionWindow(revoke.id,revokeReason.trim());committed.current=true;
     },refresh);}finally{setBusy(false);}
   };
-  return <section aria-label="Completion windows" className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+  return <section aria-label="Completion windows" className="marks-workspace space-y-4 rounded-xl border border-slate-200 bg-white p-5">
     <DecisionDialog isOpen={confirmation!==null} kind="confirmation" decisionKey={confirmationKey}
       title={confirmation==='revoke'?'Revoke this completion window?':'Grant these completion windows?'}
       context={<p>{confirmation==='grant'?tasks.filter(task=>selected.includes(task.taskId!)).map(task=>`${task.studentName} · ${task.panelMember}`).join('; '):tasks.find(task=>task.taskId===historyTask)?.studentName}</p>}
@@ -66,14 +69,14 @@ export function MarksCompletionWindows({ tasks, onChanged }: { tasks: Evaluation
       confirmLabel={confirmation==='revoke'?'Revoke completion window':'Grant completion windows'} tone="warning"
       successMessage={confirmation==='revoke'?'Completion window revoked.':'Completion windows granted.'}
       onConfirm={confirmation==='revoke'?revokeWindow:grant} onClose={()=>{if(committed.current){if(confirmation==='grant'){setSelected([]);setReason('');setDeadline('');}else{setRevoke(null);setRevokeReason('');}}committed.current=false;setConfirmation(null);}} busy={busy} onReload={refresh}/>
-    <h2 className="section-label">Task completion windows</h2>
-    <p className="card-description">Allow selected eligible unfinished tasks to finish by a specific deadline. The period remains closed. A new grant replaces an existing active window for the same task.</p>
-    {error?<p role="alert" className="card-description text-red-700">{error}</p>:null}{notice?<p role="status" className="card-description text-green-700">{notice}</p>:null}
-    <div className="max-h-72 overflow-auto"><table className="w-full text-left text-sm"><thead><tr><th className="p-2 text-[10px] font-extrabold">Select</th><th className="text-[10px] font-extrabold">Task</th><th className="text-[10px] font-extrabold">Status</th><th className="text-[10px] font-extrabold">History</th></tr></thead><tbody>
+    <MarksHeading icon={CalendarClock}>Task completion windows</MarksHeading>
+    <p className="card-description">Give selected unfinished tasks extra time. The period stays closed; a new window replaces any active window for that task.</p>
+    {notice?<p role="status" className="card-description text-green-700">{notice}</p>:null}
+    <div role="region" aria-label="Task completion eligibility" tabIndex={0} className="max-h-72 overflow-auto focus-visible:outline-2 focus-visible:outline-blue-600"><table className="w-full min-w-[560px] text-left text-sm"><caption className="sr-only">Evaluation tasks and eligibility for extra time</caption><thead><tr><th scope="col" className="p-2 text-[10px] font-extrabold">Select</th><th scope="col" className="text-[10px] font-extrabold">Task</th><th scope="col" className="text-[10px] font-extrabold">Status</th><th scope="col" className="text-[10px] font-extrabold">History</th></tr></thead><tbody>
       {tasks.filter(task=>task.taskId).map(task=><tr key={task.taskId} className="border-t border-slate-100"><td className="p-2 text-xs font-semibold"><input type="checkbox" aria-label={`Select ${task.studentName}, ${task.panelMember}`} disabled={busy||!task.canGrantCompletionWindow} checked={selected.includes(task.taskId!)} onChange={e=>setSelected(ids=>e.target.checked?[...ids,task.taskId!]:ids.filter(id=>id!==task.taskId))}/></td><td className="text-xs font-semibold">{task.studentName} · {task.panelMember}<span className="card-description block">{task.evaluatorRoleLabel || task.evaluatorRole} · {task.semester}</span></td><td className="text-xs font-semibold">{task.status}{task.completionWindow?<span className="card-description block">Window: {task.completionWindow.status}</span>:null}</td><td className="text-xs font-semibold"><PortalButton disabled={busy} onClick={()=>void loadHistory(task.taskId!)}>History</PortalButton></td></tr>)}
     </tbody></table></div>
     <div className="grid gap-3 md:grid-cols-2"><label className="form-label">Deadline (Malaysia, UTC+08:00)<input type="datetime-local" value={deadline} onChange={e=>setDeadline(e.target.value)} disabled={busy} className="form-control mt-1"/></label><label className="form-label">Reason<textarea value={reason} onChange={e=>setReason(e.target.value)} disabled={busy} className="form-control mt-1"/></label></div>
     <PortalButton variant="primary" disabled={busy||!selected.length||!deadline||!reason.trim()} onClick={()=>{committed.current=false;setConfirmationKey(selected.join(','));setConfirmation('grant');}}>Grant to {selected.length} selected task(s)</PortalButton>
-    {historyTask?<div className="border-t pt-4"><h3 className="section-label">Completion history · Task #{historyTask}</h3>{historyLoading?<p className="card-description">Loading history…</p>:<CompletionWindowHistory windows={windows} onRevoke={window=>{setRevoke(window);setRevokeReason('');}}/>}{revoke?<div className="mt-3 space-y-2"><label className="form-label block">Reason for revocation<textarea className="form-control mt-1" value={revokeReason} onChange={e=>setRevokeReason(e.target.value)} disabled={busy}/></label><PortalButton disabled={busy||!revokeReason.trim()} onClick={()=>{committed.current=false;setConfirmationKey(String(revoke?.id));setConfirmation('revoke');}}>Confirm revocation</PortalButton><PortalButton disabled={busy} onClick={()=>setRevoke(null)}>Cancel</PortalButton></div>:null}</div>:null}
+    {historyTask?<div className="border-t pt-4"><h3 className="section-label">Completion history · Task #{historyTask}</h3>{historyLoading?<p className="card-description">Loading history…</p>:error?<ErrorState compact title="Completion history could not be loaded" message={error} onRetry={()=>loadHistory(historyTask)}/>:<CompletionWindowHistory windows={windows} onRevoke={window=>{setRevoke(window);setRevokeReason('');}}/>}{revoke?<div className="mt-3 space-y-2"><label className="form-label block">Reason for revocation<textarea className="form-control mt-1" value={revokeReason} onChange={e=>setRevokeReason(e.target.value)} disabled={busy}/></label><PortalButton disabled={busy||!revokeReason.trim()} onClick={()=>{committed.current=false;setConfirmationKey(String(revoke?.id));setConfirmation('revoke');}}>Confirm revocation</PortalButton><PortalButton disabled={busy} onClick={()=>setRevoke(null)}>Cancel</PortalButton></div>:null}</div>:null}
   </section>;
 }

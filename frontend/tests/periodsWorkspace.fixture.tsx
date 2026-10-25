@@ -127,20 +127,24 @@ await scenario('managed window blocks stale actions and offers visible reload af
  check(text().includes('Synthetic period read failed'),'Read error hidden behind record');check(buttons().find(node=>node.textContent?.trim()==='Review and publish')?.matches(':disabled'),'Stale draft can publish again');check(!buttons().some(node=>node.textContent?.trim()==='Create linked event'),'Stale window can create calendar event');
  periodFailure=false;await click('Reload window');await until(()=>buttons().some(node=>node.textContent?.trim()==='Extend deadline'));check(writes.length===1,'Read failure caused duplicate publication');
 });
-await scenario('Marks semester-only context preserves selected fields on list reload',async()=>{
- await mount('/marks/config?semester=9');const row=buttons().find(node=>node.textContent?.includes('Semester evaluation'))!;row.click();await until(()=>text().includes('Period configuration'));
- const archived=[...document.querySelectorAll<HTMLLabelElement>('label')].find(node=>node.textContent?.includes('Show archived'))!.querySelector<HTMLInputElement>('input')!;archived.click();await new Promise(resolve=>setTimeout(resolve,50));await until(()=>!text().includes('Loading evaluation periods'));
- check(document.querySelector<HTMLInputElement>('input[required]')?.value==='Semester evaluation','Reload cleared selected period fields');
+await scenario('Marks semester-only context opens details and returns to its scoped list',async()=>{
+ await mount('/marks/config?semester=9');check(!document.querySelector('form'),'Browsing unexpectedly opens editor');
+ buttons().find(node=>node.textContent?.includes('Semester evaluation'))!.click();await until(()=>text().includes('Period configuration'));
+ check(document.querySelector<HTMLInputElement>('input[required]')?.value==='Semester evaluation','Selection lost fields');
+ await click('Back to period list');await until(()=>document.querySelector('[aria-label="Configured evaluation periods"]'));
+ check(!document.querySelector('form')&&!text().includes('Other semester evaluation'),'Returning leaked editor or another semester');
+ buttons().find(node=>node.textContent?.includes('Semester evaluation'))!.click();await until(()=>text().includes('Period configuration'));
+ check(document.querySelector<HTMLInputElement>('input[required]')?.value==='Semester evaluation','Reopening lost identity');
 });
 await scenario('late Marks selection cannot overwrite a newly selected semester context',async()=>{
  await mount('/marks/config?semester=9');holdMarksDetail=true;buttons().find(node=>node.textContent?.includes('Semester evaluation'))!.click();await until(()=>releaseMarksDetail!==null);await router!.navigate('/marks/config?semester=10');await until(()=>[...document.querySelectorAll('p.card-value')].some(node=>node.textContent==='Semester II 2026/2027'));await until(()=>!text().includes('Loading evaluation periods'));
- holdMarksDetail=false;releaseMarksDetail!();await new Promise(resolve=>setTimeout(resolve,40));check(!text().includes('Period configuration'),`Old detail replaced new context: ${text().slice(-1800)}`);check(document.querySelector<HTMLInputElement>('input[required]')?.value==='','Old period values leaked');
+ holdMarksDetail=false;releaseMarksDetail!();await new Promise(resolve=>setTimeout(resolve,40));check(!text().includes('Period configuration'),`Old detail replaced new context: ${text().slice(-1800)}`);check(!document.querySelector('form'),'Old period editor leaked');
 });
 await scenario('late Marks save cannot insert an old record into a new semester context',async()=>{
  await mount('/marks/config?semester=9',{draftMarks:true});buttons().find(node=>node.textContent?.includes('Semester evaluation'))!.click();await until(()=>text().includes('Period configuration'));
  input(document.querySelector<HTMLInputElement>('input[required]')!,'Updated prior semester');await new Promise(resolve=>setTimeout(resolve,20));holdMarksWrite=true;await click('Save changes');await until(()=>releaseMarksWrite!==null);
  await router!.navigate('/marks/config?semester=10');await until(()=>[...document.querySelectorAll('p.card-value')].some(node=>node.textContent==='Semester II 2026/2027'));await until(()=>!text().includes('Loading evaluation periods'));
- holdMarksWrite=false;releaseMarksWrite!();await new Promise(resolve=>setTimeout(resolve,60));check(!text().includes('Updated prior semester'),'Old save inserted into new list');check(document.querySelector<HTMLInputElement>('input[required]')?.value==='','Old save replaced new form');
+ holdMarksWrite=false;releaseMarksWrite!();await new Promise(resolve=>setTimeout(resolve,60));check(!text().includes('Updated prior semester'),'Old save inserted into new list');check(!document.querySelector('form'),'Old save reopened editor');
 });
 await scenario('creation modal links an existing event in the same draft request',async()=>{
  await mount('/dashboard/periods?semester=9',{empty:true});await click('Add submission window');await until(()=>document.querySelector('dialog[open]'));await choose('submission-window-calendar-event','Existing calendar event');

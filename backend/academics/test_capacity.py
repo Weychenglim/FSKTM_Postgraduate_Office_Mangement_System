@@ -2352,7 +2352,7 @@ class CapacityLifecycleTests(TestCase):
         with self.assertRaises(ValidationError):
             cancel_availability_window(window, actor=self.office, reason="\t")
 
-    def test_capacity_reduction_below_load_preserves_active_appointment(self):
+    def test_capacity_reduction_below_load_blocks_publication_and_preserves_appointment(self):
         current = self.publish_complete_plan()
         appointment = self.create_student_appointment()
         draft = clone_capacity_plan(current, actor=self.office)
@@ -2365,20 +2365,21 @@ class CapacityLifecycleTests(TestCase):
             panel_limit=8,
             expected_fingerprint=capacity_plan_content_fingerprint(draft),
         )
-        self.assertEqual(validate_capacity_plan_ready(draft), [])
-        published = publish_capacity_plan(
-            draft,
-            actor=self.office,
-            reason="Approved zero-capacity replacement.",
-            expected_fingerprint=capacity_plan_content_fingerprint(draft),
-        )
+        self.assertTrue(validate_capacity_plan_ready(draft))
+        with self.assertRaises(CapacityLifecycleConflict):
+            publish_capacity_plan(
+                draft,
+                actor=self.office,
+                reason="Attempted zero-capacity replacement.",
+                expected_fingerprint=capacity_plan_content_fingerprint(draft),
+            )
 
         appointment.refresh_from_db()
         self.assertEqual(entry.supervisor_limit, 0)
-        self.assertEqual(
-            published.lifecycle_status,
-            SemesterCapacityPlan.Lifecycle.PUBLISHED,
-        )
+        draft.refresh_from_db()
+        current.refresh_from_db()
+        self.assertEqual(draft.lifecycle_status, SemesterCapacityPlan.Lifecycle.DRAFT)
+        self.assertEqual(current.lifecycle_status, SemesterCapacityPlan.Lifecycle.PUBLISHED)
         self.assertEqual(appointment.status, SupervisorAppointment.Status.ACTIVE)
 
     def test_availability_validates_bounds_roles_overlap_and_cancellation(self):

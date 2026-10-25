@@ -1,10 +1,9 @@
 from collections.abc import Mapping
 
-from django.db.models import Count
 from django.utils import timezone
 from rest_framework import serializers
 
-from .capacity import CapacityRole, derive_capacity_resolution
+from .capacity import CapacityRole, capacity_workload_counts, derive_capacity_resolution
 from .capacity_services import (
     capacity_eligible_lecturers,
     capacity_plan_content_fingerprint,
@@ -98,6 +97,30 @@ class CapacityEntryWriteSerializer(StrictCapacitySerializer):
 
 class CapacityPlanPatchSerializer(CapacityEntryWriteSerializer):
     lecturerId = serializers.IntegerField(min_value=1)
+
+
+class CapacityBulkEntrySerializer(StrictCapacitySerializer):
+    lecturerId = serializers.IntegerField(min_value=1)
+    supervisorLimit = serializers.IntegerField(min_value=0, max_value=2147483647, required=False)
+    panelLimit = serializers.IntegerField(min_value=0, max_value=2147483647, required=False)
+
+    def validate(self, values):
+        if not {"supervisorLimit", "panelLimit"}.intersection(values):
+            raise serializers.ValidationError("Provide at least one role limit.")
+        return values
+
+
+class CapacityBulkWriteSerializer(StrictCapacitySerializer):
+    entries = CapacityBulkEntrySerializer(many=True, allow_empty=False, max_length=1000)
+    mode = serializers.ChoiceField(choices=["MISSING_ONLY", "REPLACE"])
+    expectedVersion = serializers.IntegerField(min_value=1)
+    expectedFingerprint = serializers.RegexField(r"^[0-9a-f]{64}$")
+
+    def validate_entries(self, entries):
+        ids = [entry["lecturerId"] for entry in entries]
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError("Each lecturer must appear only once.")
+        return entries
 
 
 class CapacityPlanCommandSerializer(StrictCapacitySerializer):
@@ -221,20 +244,7 @@ def _capacity_resolution_payload(result):
     }
 
 
-def _count_workload(queryset, field_name):
-    return {
-        row[field_name]: row["total"]
-        for row in queryset.values(field_name).annotate(total=Count("pk"))
-    }
-
-
 def _capacity_resolution_context(semester, entries):
-    from appointments.models import (
-        PanelAppointment,
-        PanelRecommendation,
-        SupervisorAppointment,
-    )
-
     lecturer_ids = {entry.lecturer_id for entry in entries}
     user_ids = {entry.lecturer.user_id for entry in entries}
     published_plan = (
@@ -279,27 +289,7 @@ def _capacity_resolution_context(semester, entries):
         "publishedPlan": published_plan,
         "publishedLimits": published_limits,
         "unavailableUntil": unavailable_until,
-        "supervisorLoad": _count_workload(
-            SupervisorAppointment.objects.filter(
-                supervisor_id__in=user_ids,
-                status=SupervisorAppointment.Status.ACTIVE,
-            ),
-            "supervisor_id",
-        ),
-        "panelLoad": _count_workload(
-            PanelAppointment.objects.filter(
-                panel_member_id__in=user_ids,
-                status=PanelAppointment.Status.ACTIVE,
-            ),
-            "panel_member_id",
-        ),
-        "panelReservations": _count_workload(
-            PanelRecommendation.objects.filter(
-                recommended_member_id__in=user_ids,
-                status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
-            ),
-            "recommended_member_id",
-        ),
+        **capacity_workload_counts(user_ids),
     }
 
 
@@ -372,6 +362,7 @@ def _render_capacity_plan_payload(
         plan,
         entries=entries,
         lecturers=readiness_lecturers,
+        workload_context=resolution_context,
     )
     return {
         "id": plan.pk,

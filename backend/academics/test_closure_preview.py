@@ -114,6 +114,8 @@ class ClosurePreviewTests(APITestCase):
     def target(self):
         from academics.test_capacity_helpers import publish_test_capacity_plan
         today = timezone.localdate()
+        self.semester.ends_on = today-timezone.timedelta(days=1)
+        self.semester.save()
         target = AcademicSemester.objects.create(code='NEXT', academic_session='2026/2027', term='SEMESTER_II', starts_on=today, ends_on=today+timezone.timedelta(days=60), created_by=self.office)
         publish_test_capacity_plan(target, self.office)
         return target

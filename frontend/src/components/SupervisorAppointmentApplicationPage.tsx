@@ -4,7 +4,7 @@ import { RecordPage } from './RecordPage';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Search, Send, CheckCircle, FileText, Check, Save, ChevronDown, Clock3, RotateCcw, Trash2 } from 'lucide-react';
 import { StudentSupervisorApplication, SupervisorCandidate, SupervisorDocumentRequirement } from '../types';
 import {
@@ -82,10 +82,19 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   // Form Fields
   const [researchTitle, setResearchTitle] = useState('');
   const [step, setStep] = useState<SupervisorApplicationStep>(1);
+  const pendingStepNavigation = useRef(false);
+  useLayoutEffect(() => {
+    if (!pendingStepNavigation.current) return;
+    pendingStepNavigation.current = false;
+    const heading = document.getElementById('application-step-title');
+    heading?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    heading?.focus({ preventScroll: true });
+  }, [step]);
   const [researchIntent, setResearchIntent] = useState(emptySupervisorResearchIntent);
   const [intentError, setIntentError] = useState<ReturnType<typeof validateSupervisorResearchIntent>>(null);
   const [savedDraft, setSavedDraft] = useState<SupervisorApplicationDraftResponse | null>(null);
   const [draftLoading, setDraftLoading] = useState(true);
+  const [draftInitialized, setDraftInitialized] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [draftBusy, setDraftBusy] = useState(false);
   const [draftMessage, setDraftMessage] = useState<string | null>(null);
@@ -160,9 +169,9 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
 
   const goToStep = (next: SupervisorApplicationStep) => {
     if (submitInFlight.current || draftInFlight.current) return;
+    pendingStepNavigation.current = true;
     setStep(next);
     setSubmissionError(null);
-    requestAnimationFrame(() => document.getElementById('application-step-title')?.focus());
   };
 
   const loadDraft = useCallback(() => {
@@ -253,7 +262,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
 
   useEffect(() => { loadRequirements(); return () => { requirementsRequest.current += 1; }; }, [loadRequirements]);
 
-  const resumeDraft = () => {
+  const resumeDraft = (automatic = false) => {
     if (draftDetails.current) draftDetails.current.open = false;
     const draft = savedDraft?.draft;
     if (!draft || draftInFlight.current || submitInFlight.current || editingContact) return;
@@ -262,10 +271,18 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
     setCourseResults(draft.courseResults); setNoCoursesTaken(draft.noCoursesTaken); setCourseResetKey(value => value + 1);
     setSelectedSupervisorId(draft.proposedSupervisorId); setResearchIntent(draft.researchIntent);
     setSelectedFiles(new Map()); setDocumentErrors({}); setDeclarationAccepted(false); setIntentError(null);
-    setCompletedSteps([]);
+    // Saved progress cannot bypass incomplete answers or a fresh document/availability check.
+    const resumeStep = ([1, 2] as const).find(previous => previous < draft.step && !validateStep(previous, draft, true))
+      ?? (Math.min(draft.step, 3) as SupervisorApplicationStep);
+    setCompletedSteps(([1, 2] as const).filter(previous => previous < resumeStep && validateStep(previous, draft, true)));
     setSavedFingerprint(draftFingerprint({ ...draft, projectCodeEntries: draft.projectCodeEntries.length ? draft.projectCodeEntries : [''] }));
-    setConfirmDraftAction(null); setDraftMessage('Draft resumed. Check supervisor availability and reselect your files before submitting.');
-    goToStep(draft.step); loadSupervisors(); loadRequirements();
+    setConfirmDraftAction(null); setDraftMessage(`${automatic ? 'Draft restored.' : 'Draft resumed.'} Reselect any files and review your supervisor before submitting.`);
+    if (automatic) {
+      // Keep the page heading, restoration notice and progress visible on opening.
+      setStep(resumeStep); setSubmissionError(null);
+    } else {
+      goToStep(resumeStep); loadSupervisors(); loadRequirements();
+    }
   };
   const discardSavedDraft = async () => {
     if (draftDetails.current) draftDetails.current.open = false;
@@ -320,7 +337,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   };
 
   const setRequirementFile = (code: string, file: File | null) => {
-    if (submitInFlight.current || draftInFlight.current) return;
+    if (!draftInitialized || submitInFlight.current || draftInFlight.current) return;
     if (file) {
       const fileError = validateSupervisorDocumentFile(file);
       if (fileError) {
@@ -345,8 +362,9 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
     });
   };
 
-  const validateStep = (checkedStep: SupervisorApplicationStep): boolean => {
-    const invalid = (message: string, target: string, field?: string) => { reportError(message, target, field); return false; };
+  const validateStep = (checkedStep: SupervisorApplicationStep, draft: SupervisorApplicationDraftInput = currentDraft, silent = false): boolean => {
+    const { noCoursesTaken, courseResults, projectCodeEntries, researchArea, researchTitle, titleOrigin, researchIntent, researchAbstract, proposedSupervisorId: selectedSupervisorId } = draft;
+    const invalid = (message: string, target: string, field?: string) => { if (!silent) reportError(message, target, field); return false; };
     if (checkedStep === 1) {
       if (editingContact) return invalid('Save or cancel your contact changes before continuing.', 'student-particulars', 'application-phone');
       if (prefillLoading || prefillError || !prefill || !prefill.declarationText.trim()) return invalid('Load your student particulars and declaration before continuing.', 'student-particulars');
@@ -364,7 +382,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       if (!researchArea.trim() || researchArea.trim().length > 255) return invalid('Provide your research area (up to 255 characters).', 'project-details', 'research-area-input');
       if (!researchTitle.trim() || researchTitle.trim().length > 500) return invalid('Provide your proposed research title (up to 500 characters).', 'project-details', 'research-title-input');
       if (!titleOrigin) return invalid('Choose who proposed the research title.', 'project-details', 'research-title-origin-STUDENT');
-      const error = validateSupervisorResearchIntent(researchIntent); setIntentError(error);
+      const error = validateSupervisorResearchIntent(researchIntent); if (!silent) setIntentError(error);
       if (error) return invalid(error.message, 'research-intent-fields', error.field ? `research-intent-${error.field}` : undefined);
       if (!researchAbstract.trim() || researchAbstract.trim().length > 10000) return invalid('Provide a short research abstract (up to 10,000 characters).', 'project-details', 'research-abstract-input');
     }
@@ -380,14 +398,24 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
     return true;
   };
 
+  // Initialize once per opening. After a failed load, retries must leave new writing
+  // alone; the existing explicit restore action still protects replacement with confirmation.
+  useEffect(() => {
+    if (draftInitialized || draftLoading) return;
+    if (!draftError && savedDraft?.draft && prefillLoading) return;
+    setDraftInitialized(true);
+    if (!draftError && savedDraft?.draft && !dirty && !editingContact) resumeDraft(true);
+  }, [draftInitialized, draftLoading, draftError, savedDraft, prefillLoading, dirty, editingContact, resumeDraft]);
+
   const continueStep = () => {
-    if (!busy && validateStep(step) && step < 4) {
+    if (draftInitialized && !busy && validateStep(step) && step < 4) {
       setCompletedSteps(current => current.includes(step) ? current : [...current, step]);
       goToStep((step + 1) as SupervisorApplicationStep);
     }
   };
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!draftInitialized) return;
     // Enter in earlier steps advances only; only the explicit final step can create an application.
     if (step !== 4) { continueStep(); return; }
     if (submitInFlight.current || draftInFlight.current || intake.blocked) return;
@@ -451,16 +479,16 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
         message={confirmDraftAction === 'resume' ? 'This replaces your current writing with the saved text and choices. Any selected files will be cleared and must be reselected. The declaration must be confirmed again.' : 'This deletes the saved server draft. Any writing currently on this page will remain.'}
         confirmLabel={confirmDraftAction === 'resume' ? 'Resume saved draft' : 'Discard saved draft'} cancelLabel="Keep editing" isLoading={draftBusy}
         onCancel={() => { if (!draftBusy) setConfirmDraftAction(null); }} onConfirm={() => { if (confirmDraftAction === 'resume') resumeDraft(); else void discardSavedDraft(); }} />
-      <fieldset disabled={busy} className="min-w-0 space-y-6">
+      <fieldset disabled={busy || !draftInitialized} aria-busy={!draftInitialized} className="min-w-0 space-y-6">
       <aside aria-label="Application draft" className="sticky top-0 z-20 bg-[#f1f5f9]/95 py-3 backdrop-blur-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0"><OperationalIntakeFeedback {...intake} onRetry={() => void intake.refresh()} /></div>
           <div className="ml-auto flex items-center gap-3">
-            <span role="status" className="hidden text-xs text-slate-500 lg:block">{draftLoading ? 'Checking saved draft…' : textDirty ? 'Unsaved changes' : savedFingerprint && savedDraft?.updatedAt ? null : savedDraft?.draft ? 'Saved draft available' : 'No saved draft'}</span>
+            <span role="status" className={`${!draftInitialized ? '' : 'hidden lg:block'} text-xs text-slate-500`}>{!draftInitialized ? 'Loading your application…' : draftLoading ? 'Checking saved draft…' : textDirty ? 'Unsaved changes' : savedFingerprint && savedDraft?.updatedAt ? null : savedDraft?.draft ? 'Saved draft available' : 'No saved draft'}</span>
             <details ref={draftDetails} className="relative text-xs text-slate-500" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }}>
               <summary className="inline-flex min-h-10 cursor-pointer list-none items-center gap-1 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500">{savedDraft?.draft && !savedFingerprint ? 'Saved draft' : 'Draft details'} <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" /></summary>
               <div className="absolute -right-32 top-full z-30 mt-2 w-[min(18rem,calc(100vw-4rem))] space-y-3 rounded-xl border border-slate-200 bg-white p-4 text-left leading-5 shadow-lg">
-                <p>Save your writing and selections to continue later. Files and the declaration are not saved. Reselect your files and confirm the declaration when you resume.</p>
+                <p>Saved drafts reopen automatically. Use Save draft to keep your latest changes. Files and the declaration must be confirmed again.</p>
                 <p role="status">{draftLoading ? 'Checking for a saved draft…' : textDirty ? 'You have unsaved writing or selections.' : savedFingerprint && savedDraft?.draft ? 'Your writing and selections match the saved draft.' : savedDraft?.draft ? 'A saved draft is available. Resume it to continue.' : 'No saved draft.'}</p>
                 {savedDraft?.updatedAt ? <div className="flex items-start gap-2.5 rounded-lg bg-slate-50 p-3">
                   <Clock3 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
@@ -472,7 +500,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
                 </div> : null}
               </div>
             </details>
-            <PortalButton icon={Save} disabled={busy || draftLoading || Boolean(draftError) || editingContact} onClick={() => void saveDraft()}>{draftBusy ? 'Saving…' : 'Save draft'}</PortalButton>
+            <PortalButton icon={Save} disabled={busy || !draftInitialized || draftLoading || Boolean(draftError) || editingContact} onClick={() => void saveDraft()}>{draftBusy ? 'Saving…' : 'Save draft'}</PortalButton>
           </div>
         </div>
         {draftError ? <ErrorState message={draftError} onRetry={loadDraft} className="py-2" /> : null}
@@ -494,7 +522,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
           </li>;
         })}</ol>
       </nav>
-      <h2 id="application-step-title" tabIndex={-1} className="w-fit rounded text-lg font-semibold text-brand-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-500">{step}. {applicationSteps[step - 1]}</h2>
+      <h2 id="application-step-title" tabIndex={-1} className="scroll-mt-24 w-fit rounded text-lg font-semibold text-brand-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-500">{step}. {applicationSteps[step - 1]}</h2>
 
       <div data-application-step="1" hidden={step !== 1} inert={step !== 1 ? true : undefined} className="space-y-6">
       <section id="student-particulars" aria-labelledby="student-particulars-title" className="application-section scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7 space-y-5">
@@ -701,7 +729,8 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       <div id="application-navigation" className="flex items-center justify-between gap-3 border-t border-slate-200 pt-5">
         {step > 1 ? <PortalButton disabled={busy} onClick={() => goToStep((step - 1) as SupervisorApplicationStep)}>Back</PortalButton> : <span />}
         <div className="ml-auto flex gap-2.5">
-          {step < 4 ? <PortalButton disabled={busy || editingContact} variant="primary" size="lg" className="flex-1 sm:flex-initial" onClick={continueStep}>Continue</PortalButton> : <PortalButton
+          {step < 4 ? <PortalButton key="continue" type="button" disabled={busy || editingContact} variant="primary" size="lg" className="flex-1 sm:flex-initial" onClick={event => { event.preventDefault(); continueStep(); }}>Continue</PortalButton> : <PortalButton
+            key="submit"
             type="submit"
             disabled={busy || intake.blocked}
             variant="primary"

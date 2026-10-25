@@ -41,7 +41,7 @@ export function PanelSuperviseeRoster({ students, recommendations, onOpen }: {
   const filtered = filterPanelSupervisees(students, recommendations, search, stage);
   const pageCount = Math.max(1, Math.ceil(filtered.length / size));
   const safePage = Math.min(page, pageCount);
-  return <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
+  return <section className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white">
     <WorkspaceSectionHeader title="Panels for my supervisees" description="Students you supervise. View their appointed Panel member or manage a nomination." />
     <WorkspaceFilterCard fieldsClassName="flex flex-wrap items-end gap-3" onReset={() => {setSearch('');setStage('');setPage(1);}}>
       <label className="form-label min-w-0 basis-64 flex-1">Find a supervisee<input type="search" className="form-control form-control-sm mt-1" placeholder="Student name, matric number or Panel member" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} /></label>
@@ -65,7 +65,7 @@ export function PanelSuperviseeDetails({ student, pendingRequest, onRecommend, o
   onRecommend: () => void; onOpenRequest: (request: PanelRecommendationDraft) => void;
 }) {
   const appointed = Boolean(student.panelAppointmentId);
-  return <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5" aria-label="Student Panel details">
+  return <section className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white" aria-label="Student Panel details">
     <WorkspaceSectionHeader title={student.studentName} description={student.studentId} />
     <dl className="grid gap-4 sm:grid-cols-2"><div><dt className="card-label">Programme</dt><dd className="card-description mt-1">{student.programme || 'Not recorded'}</dd></div><div><dt className="card-label">Intake semester</dt><dd className="card-description mt-1">{student.semester || 'Not recorded'}</dd></div><div className="sm:col-span-2"><dt className="card-label">Current research title</dt><dd className="card-value mt-1 break-words">{student.proposedTopic || 'Not recorded'}</dd></div></dl>
     <div className="space-y-3 border-t border-slate-200 pt-5">

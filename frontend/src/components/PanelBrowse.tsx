@@ -1,8 +1,9 @@
 import { PortalSelect } from './PortalSelect';
+import { OfficeMonitoringNotice, useOfficeMonitoring } from './OfficeMonitoringContext';
 import React,{useEffect} from 'react';
 import {useListState} from './ListState';
 import {CoordinatorDataTable} from './CoordinatorBrowsePrimitives';
-import {WorkspaceSectionHeader,WorkspacePagination,RequestViewSwitch,WorkspaceFilterCard,type RequestListView} from './RequestWorkspacePrimitives';
+import {AppointmentViewSwitch,WorkspaceSectionHeader,WorkspacePagination,RequestViewSwitch,WorkspaceFilterCard,type RequestListView} from './RequestWorkspacePrimitives';
 import {PortalButton,StatusBadge} from './PortalPrimitives';
 import {panelRequestPending,panelStatusLabel,panelStatusTone,panelRecordedDate,type PanelPresentation} from '../utils/panelPresentation';
 import {formatRequestDisplayDate} from './ApprovalProcess';
@@ -21,9 +22,12 @@ export function filterPanelBrowse(records:PanelPresentation[],f:Filters):PanelPr
 function date(value?:string|null){return formatRequestDisplayDate(panelRecordedDate(value));}
 export function PanelBrowse({scope,title,description,records,onOpen,canReview,appointments=false,initialHistory=false,exportable=false,view:controlledView,onViewChange,requestViewForRecord}:{scope:string;title:string;description?:string;records:PanelPresentation[];onOpen:(row:PanelPresentation)=>void;canReview?:(row:PanelPresentation)=>boolean;appointments?:boolean;initialHistory?:boolean;exportable?:boolean;view?:RequestListView;onViewChange?:(view:RequestListView)=>void;requestViewForRecord?:(record:PanelPresentation)=>RequestListView}) {
   const excel = useExcelExport();
+  const monitoring = useOfficeMonitoring();
+  const pendingApprovals = monitoring?.view === 'panel-pending';
+  if (pendingApprovals) records = records.filter(record => record.status === 'PENDING_COORDINATOR');
   const key=`PanelBrowse:${scope}`;
   const [rememberedView,setView]=useListState<'requests'|'history'>(key,'view',initialHistory?'history':'requests');
-  const view=controlledView??rememberedView;
+  const view=pendingApprovals?'requests':controlledView??rememberedView;
   const [q,setQ]=useListState(key,'q',''),[programme,setProgramme]=useListState(key,'programme',''),[semester,setSemester]=useListState(key,'semester',''),[status,setStatus]=useListState(key,'status',''),[from,setFrom]=useListState(key,'from',''),[,setTo]=useListState(key,'to',''),[sort,setSort]=useListState(key,'sort',appointments?'name':initialHistory?'newest':'waiting');
   const [page,setPage]=useListState(key,'page',1),[size,setSize]=useListState(key,'size',10);
   const base=appointments?records.filter(r=>!!r.appointmentLifecycle):records.filter(r=>r.status!=='NOT_SUBMITTED');
@@ -47,9 +51,9 @@ export function PanelBrowse({scope,title,description,records,onOpen,canReview,ap
   const reviewHistory=!!requestViewForRecord&&!appointments&&view==='history';
   const columns=['Student','Programme','Panel member',appointments?'Appointment status':'Current stage',...(reviewHistory?['Your Panel decision']:[]),appointments?'Started on':'Waiting at this stage',...(appointments&&view==='history'?['Ended on','Outcome']:[]),'Action'];
   const exportRows=()=>excel.download('panel_appointment_records.xlsx',filtered,[{header:'Student ID',value:r=>r.studentId},{header:'Student Name',value:r=>r.studentName},{header:'Programme',value:r=>r.programme},{header:'Semester',value:r=>r.semester??''},{header:'Supervisor',value:r=>r.supervisorName??''},{header:'Panel Member',value:r=>r.recommendedMember},{header:'Status',value:r=>panelStatusLabel(appointments?r.appointmentLifecycle!.status:r.status)},{header:'Submitted',value:r=>date(r.submittedAt||r.submittedDate)},{header:'Waiting at this stage',value:r=>panelRequestPending(r.status)?r.waitingDays??'Not recorded':'Final outcome recorded'}]);
-  return <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <WorkspaceSectionHeader title={title} description={description} actions={<>{appointments?<div role="group" aria-label="Appointment views" className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1">{(['requests','history'] as const).map(value=><button type="button" key={value} aria-pressed={view===value} className={`card-value rounded-md px-3 py-2 focus-visible:ring-2 focus-visible:ring-brand-navy ${view===value?'bg-white text-brand-navy shadow-sm':'text-slate-600'}`} onClick={()=>changeView(value)}>{value==='requests'?'Current appointments':'Past appointments'}</button>)}</div>:<RequestViewSwitch view={view} reviewCount={canReview?base.filter(canReview).length:0} onChange={changeView}/>}</>}/>
-    {appointments?<p className="card-description">{view==='requests'?'Current appointments are active Panel assignments. They can continue across semesters.':'These assignments have ended. The recorded outcome explains completion, replacement or withdrawal; this is not a list of previous semesters.'}</p>:null}
+  const headerDescription = [description, appointments ? (view === 'requests' ? 'Current appointments are active Panel assignments. They can continue across semesters.' : 'These assignments have ended. View their dates and recorded outcomes.') : null].filter(Boolean).join(' ');
+  return <section className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white shadow-sm"><OfficeMonitoringNotice/>
+    <WorkspaceSectionHeader title={title} description={headerDescription} actions={<>{appointments?<AppointmentViewSwitch view={view==='history'?'past':'current'} onChange={value=>changeView(value==='past'?'history':'requests')} currentLabel="Current" pastLabel="Past"/>:pendingApprovals?null:<RequestViewSwitch view={view} reviewCount={canReview?base.filter(canReview).length:0} onChange={changeView}/>}</>}/>
     <WorkspaceFilterCard fieldsClassName="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-4" onReset={reset} actions={exportable?<PortalButton variant="primary" size="sm" icon={Download} title="Download all matching records across every page as Excel" aria-description="Includes all filtered records across every page" disabled={!filtered.length||excel.busy} isLoading={excel.busy} onClick={()=>void exportRows()}>Export Excel</PortalButton>:null}>
       <label className="form-label min-w-0">{appointments?'Find an appointment':'Find a request'}<input className="form-control form-control-sm mt-1" type="search" value={q} onChange={e=>change(setQ)(e.target.value)} placeholder="Student, matric number, Panel or supervisor"/></label>
       {secondaryFilters}

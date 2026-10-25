@@ -450,6 +450,10 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const setAssignmentSearch = (value: string) => setListParams(current => { const next = new URLSearchParams(current); if (value) next.set('q', value); else next.delete('q'); return next; }, { replace: true });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recommendationError, setRecommendationError] = useState<string | null>(null);
+  const [recommendationLoading, setRecommendationLoading] = useState(!!initialRecommendationId);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const recommendationVersion = useRef(0);
 
   const loadData = useCallback((strict = false) => {
     setLoading(true);
@@ -548,16 +552,25 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     currentUser?.staffId,
   ]);
 
-  useEffect(()=>{
+  const loadRecommendation = useCallback(async () => {
     if(!initialRecommendationId)return;
-    let active=true;
-    getPanelRecommendation(initialRecommendationId).then(row=>{
-      if(!active)return;
+    const version=++recommendationVersion.current;
+    setRecommendationLoading(true);setRecommendationError(null);
+    try {
+      const row=await getPanelRecommendation(initialRecommendationId);
+      if(version!==recommendationVersion.current)return;
       const role:PanelRecommendationReviewerRole=isCoordinator?'PROGRAMME_COORDINATOR':row.recommendedMemberId===currentUser?.staffId?'SELECTED_PANEL':'SUPERVISOR';
       setSelectedRecommendation(row);setSelectedReviewerRole(role);setSelectedRecommendationReadOnly(!canActOnPanelRecord(row,role));
-    }).catch(reason=>{if(active)setError(reason instanceof Error?reason.message:'Recommendation could not be loaded.');});
-    return()=>{active=false;};
+    } catch(reason) {
+      if(version===recommendationVersion.current)setRecommendationError(reason instanceof Error?reason.message:'Recommendation could not be loaded.');
+    } finally {if(version===recommendationVersion.current)setRecommendationLoading(false);}
   },[initialRecommendationId,isCoordinator,currentUser?.staffId]);
+  useEffect(()=>{
+    void loadRecommendation();
+    return()=>{recommendationVersion.current+=1;};
+  },[loadRecommendation]);
+
+  useEffect(()=>{setCreateError(null);},[isRecommendDrawerOpen,selectedSuperviseeId]);
 
   const selectedSupervisee = useMemo(
     () => eligibleSupervisees.find((student) => student.studentId === selectedSuperviseeId) ?? null,
@@ -660,17 +673,17 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     replacementReason: string,
   ) => {
     if (!recommendationStudent) {
-      triggerToast('No supervisee is available for panel recommendation.');
+      setCreateError('No supervisee is available for panel recommendation.');
       return;
     }
 
     if (!canRecommendForStudent) {
-      triggerToast(`A ${currentRecommendation ? PANEL_RECOMMENDATION_STATUS_LABELS[currentRecommendation.status] : 'current'} recommendation already exists for ${recommendationStudent.studentName}.`);
+      setCreateError(`A ${currentRecommendation ? PANEL_RECOMMENDATION_STATUS_LABELS[currentRecommendation.status] : 'current'} recommendation already exists for ${recommendationStudent.studentName}.`);
       return;
     }
 
     if (mutation.current) return;
-    mutation.current = true; setMutationBusy(true);
+    mutation.current = true; setMutationBusy(true);setCreateError(null);
     try {
       const newRec = await createPanelRecommendationApi({
         studentId: recommendationStudent.studentId,
@@ -686,7 +699,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       window.scrollTo({ top: 0, behavior: 'smooth' });
       triggerToast(`Recommendation submitted to Panel member ${newRec.recommendedMember}.`);
     } catch (e) {
-      triggerToast(e instanceof Error ? e.message : 'Failed to save panel recommendation.');
+      setCreateError(e instanceof Error ? e.message : 'Failed to save panel recommendation.');
     } finally { mutation.current = false; setMutationBusy(false); }
   };
 
@@ -754,8 +767,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     },()=>loadData(true));
   };
 
-  if (initialRecommendationId && !selectedRecommendation) return <RecordPage title="Panel recommendation" backLabel={detailBackLabel} onBack={navigateToList}>
-    {loading ? <LoadingState message="Loading Panel recommendation..."/> : error ? <ErrorState message={error} onRetry={loadData}/> : <EmptyState title="Panel recommendation not found" description="The requested recommendation does not exist or is outside your access."/>}
+  if (initialRecommendationId && (!selectedRecommendation || String(selectedRecommendation.id)!==String(initialRecommendationId))) return <RecordPage title="Panel recommendation" backLabel={detailBackLabel} onBack={navigateToList}>
+    {recommendationLoading ? <LoadingState message="Loading Panel recommendation..."/> : recommendationError ? <ErrorState title="Panel recommendation could not be loaded" message={recommendationError} onRetry={()=>void loadRecommendation()}/> : <EmptyState title="Panel recommendation not found" description="The requested recommendation does not exist or is outside your access."/>}
   </RecordPage>;
 
   return (
@@ -782,7 +795,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
             </>}
           </>:null}
           {section==='appointments'?<>
-            {!isCoordinator?<AppointmentSummaryCard title="Panel workload" value={activeAssignmentsCount} progress={ownPanelCapacity?.capacityState!=='NOT_CONFIGURED'&&workloadLimit>0?{current:activeAssignmentsCount,max:workloadLimit}:undefined} badge={ownPanelCapacity?.capacityState?capacityStateLabel(ownPanelCapacity.capacityState):'Not configured'} tone={ownPanelCapacity?.selectable?'success':'warning'} description={`${ownPanelCapacity?.semesterCode??'No active semester'} · Includes active assignments and reserved nominations.`}/>:null}
+            {!isCoordinator?<AppointmentSummaryCard icon={Users} title="Panel workload" value={activeAssignmentsCount} progress={ownPanelCapacity?.capacityState!=='NOT_CONFIGURED'&&workloadLimit>0?{current:activeAssignmentsCount,max:workloadLimit}:undefined} badge={ownPanelCapacity?.capacityState?capacityStateLabel(ownPanelCapacity.capacityState):'Not configured'} tone={ownPanelCapacity?.selectable?'success':'warning'} description={`${ownPanelCapacity?.semesterCode??'No active semester'} · Includes active assignments and reserved nominations.`}/>:null}
             {isCoordinator?<PanelAssignmentsWorkspace role="coordinator" records={coordinatorWorkspace?.records??[]} suspended={!!selectedRecommendation}
               onOpen={row=>{setSelectedReviewerRole('PROGRAMME_COORDINATOR');setSelectedRecommendationReadOnly(true);setSelectedRecommendation(row as PanelRecommendationDraft);}}/>
               :<PanelBrowse scope="lecturer-appointments" title="My Panel students" appointments records={assignments.map(toAssignmentPanelPresentation)} onOpen={row=>onNavigateToAssignment?.(row.studentId,row.appointmentLifecycle?.appointmentId)}/>}
@@ -798,6 +811,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           backLabel={initialSuperviseeId?detailBackLabel:'Back to student Panel details'}
           isOpen={isRecommendDrawerOpen}
           busy={mutationBusy}
+          submitError={createError}
           onClose={() => { setIsRecommendDrawerOpen(false); if (initialSuperviseeId) navigateToList(); }}
           student={recommendationStudent}
           candidates={panelCandidates.filter(

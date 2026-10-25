@@ -4,6 +4,7 @@ import {PortalModal, useModalTitle} from './PortalModal';
 import {PortalButton, PortalToast} from './PortalPrimitives';
 import {useRecordDraft} from './RecordDraft';
 import {useDecisionFeedback} from './DecisionFeedback';
+import {AlertMessage} from './AlertMessage';
 import {createDecisionSubmission, decisionFailure, type DecisionOutcome} from '../utils/decisionSubmission';
 
 export interface DecisionDialogProps {
@@ -102,9 +103,9 @@ export function DecisionDialog({isOpen, decisionKey, title, context, message, ch
         </div>
         <div className="text-xs font-normal leading-relaxed text-slate-700 [overflow-wrap:anywhere]">{message}</div>
         {children ? <fieldset disabled={pending || blocked} className="decision-dialog-fields min-w-0 space-y-4">{children}</fieldset> : null}
-        {error ? <div role="alert" className="space-y-2 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs leading-relaxed text-rose-800">
-          <p>{error}</p>{blocked ? <p>Review the latest record and your access before making another decision.</p> : null}
-        </div> : null}
+        {error ? <AlertMessage type="error" title={blocked?'Record needs review':'Action wasn’t completed'} message={error}>
+          {blocked ? <p>Review the latest record and your access before making another decision.</p> : null}
+        </AlertMessage> : null}
         {discard ? <div role="alert" className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
           <p className="text-xs font-normal leading-relaxed text-amber-900">Discard the information entered in this dialog?</p>
           <div className="flex flex-wrap justify-end gap-3"><PortalButton type="button" autoFocus onClick={() => setDiscard(false)}>Keep editing</PortalButton><PortalButton type="button" variant="danger" onClick={onClose}>Discard changes</PortalButton></div>

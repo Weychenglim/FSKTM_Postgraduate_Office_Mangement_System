@@ -80,6 +80,27 @@ assert.deepEqual(
   ],
 );
 
+const archivedPeriod = { ...period, lifecycleStatus: 'ARCHIVED', taskTotals: { total: 8, submitted: 8 } };
+const emptyPeriod = { ...period, taskTotals: { total: 0, submitted: 0 } };
+for (const periods of [[archivedPeriod], [emptyPeriod, archivedPeriod]]) {
+  const checklist = buildMarksSetupChecklist(periods, [rubric]);
+  assert.equal(checklist.find(item => item.id === 'tasks')?.status, 'PENDING', 'archived tasks cannot satisfy current task setup');
+  assert.equal(checklist.find(item => item.id === 'monitor')?.status, 'PENDING', 'archived submissions cannot satisfy current monitoring');
+}
+assert.deepEqual(
+  buildMarksSetupChecklist([period, archivedPeriod], [rubric]),
+  buildMarksSetupChecklist([period], [rubric]),
+  'historical tasks must not change non-archived setup readiness',
+);
+assert.equal(
+  buildMarksSetupChecklist([
+    { ...period, taskTotals: { total: 8, submitted: 8 } },
+    { ...archivedPeriod, taskTotals: { total: 8, submitted: 0 } },
+  ], [rubric]).find(item => item.id === 'monitor')?.status,
+  'COMPLETED',
+  'unfinished archived work cannot prevent completion of current monitoring',
+);
+
 assert.equal(
   marksMutationErrorMessage({ status: 409, message: 'Period is closed.' }),
   'Period is closed.',

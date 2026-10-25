@@ -309,10 +309,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     {!administrationMode?<SupervisorWorkspaceNavigation role="Office Staff/Admin" />:null}
     {routeView === 'teams' ? <SupervisoryTeamManagement role="Office Staff/Admin" view="roster" showResearchChanges={false} showRefresh={false} refreshVersion={teamRefresh} onBusyChange={setTeamBusy} onNavigateToStudent={onNavigateToTeam} /> : <>
       {!loading && !error ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <AppointmentSummaryCard title="Without supervisor" value={recordSummary.withoutSupervisor} description="Students without an approved supervisor." />
-        <AppointmentSummaryCard title="Pending records" value={recordSummary.pending} description="Appointments awaiting a recorded decision." />
-        <AppointmentSummaryCard title="Approved supervisors" value={recordSummary.approved} description="Active approved appointments." />
-        <AppointmentSummaryCard title="Workload alerts" value={recordSummary.workloadAlerts} description="Lecturers near their supervision limit." />
+        <AppointmentSummaryCard icon={UserX} title="Without supervisor" value={recordSummary.withoutSupervisor} description="Students without an approved supervisor." />
+        <AppointmentSummaryCard icon={FileText} title="Pending records" value={recordSummary.pending} description="Appointments awaiting a recorded decision." />
+        <AppointmentSummaryCard icon={CheckCircle} title="Approved supervisors" value={recordSummary.approved} description="Active approved appointments." />
+        <AppointmentSummaryCard icon={AlertTriangle} title="Workload alerts" value={recordSummary.workloadAlerts} description="Lecturers near their supervision limit." />
       </div> : null}
       <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Appointment records">
         <WorkspaceSectionHeader title="Appointment records" description="View appointment records across students and lecturers." actions={<><PortalButton size="sm" disabled={loading || !!error} variant="primary" isLoading={excel.busy} onClick={()=>void handleExportData()}>Export Excel</PortalButton><PortalButton size="sm" onClick={onNavigateToRequirements}>Document requirements</PortalButton><PortalButton size="sm" onClick={onNavigateToWorkload}>View workload</PortalButton></>} />

@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -27,14 +27,15 @@ from .serializers import (
     EvaluationPeriodCreateSerializer,
     EvaluationPeriodUpdateSerializer,
     EvaluationTaskSerializer,
+    SubmittedEvaluationSerializer,
     MarkDraftSerializer,
+    MarkSubmissionSerializer,
     ReasonSerializer,
     SubmittedMarksCorrectionSerializer,
     SubmittedMarksReasonSerializer,
     RubricComponentInputSerializer,
     RubricCreateSerializer,
     RubricUpdateSerializer,
-    submit_entry,
 )
 from .services import (
     MarksStateConflict,
@@ -764,6 +765,21 @@ def my_evaluation_tasks_view(request):
     return Response(EvaluationTaskSerializer(tasks, many=True).data)
 
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_submitted_evaluations_view(request):
+    if request.user.role != User.Role.LECTURER:
+        return Response({"error": "Only lecturers can view their submitted evaluations."}, status=status.HTTP_403_FORBIDDEN)
+    # A history read is independent of current appointment, semester and task generation.
+    tasks = (
+        EvaluationTask.objects.filter(evaluator=request.user, mark_entry__status=MarkEntry.Status.SUBMITTED)
+        .select_related("profile", "period", "period__rubric", "mark_entry")
+        .prefetch_related("period__rubric__components", "mark_entry__scores__component")
+        .order_by(F("mark_entry__submitted_at").desc(nulls_last=True), "-id")
+    )
+    return Response(SubmittedEvaluationSerializer(tasks, many=True).data)
+
+
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def save_draft_view(request, pk):
@@ -795,8 +811,10 @@ def submit_marks_view(request, pk):
             {"error": "Evaluation task was not found."},
             status=status.HTTP_404_NOT_FOUND,
         )
+    serializer = MarkSubmissionSerializer(data=request.data, context={'task': task})
+    serializer.is_valid(raise_exception=True)
     try:
-        submit_entry(task)
+        serializer.save()
     except MarksStateConflict as exc:
         return state_conflict_response(exc)
     task = lecturer_task_or_none(request.user, pk)
@@ -858,7 +876,7 @@ def mark_records_view(request):
                 "retiredAt": task.retired_at,
                 "retirementReason": task.retirement_reason or None,
                 "submittedDate": (
-                    entry.submitted_at.strftime("%d %b %Y")
+                    timezone.localtime(entry.submitted_at).strftime("%d %b %Y")
                     if entry and entry.submitted_at
                     else "-"
                 ),

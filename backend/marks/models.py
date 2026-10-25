@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q, Sum
 from django.utils.text import slugify
@@ -574,6 +575,40 @@ class MarkScore(models.Model):
                     )
                 }
             )
+
+
+class SubmissionReceiptQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError('Submission receipts are immutable.')
+
+    def delete(self):
+        raise ValidationError('Submission receipts cannot be deleted.')
+
+    def bulk_create(self, objs, batch_size=None, ignore_conflicts=False,
+                    update_conflicts=False, update_fields=None, unique_fields=None):
+        if update_conflicts:
+            raise ValidationError('Submission receipts cannot be overwritten.')
+        return super().bulk_create(objs, batch_size=batch_size, ignore_conflicts=ignore_conflicts)
+
+
+class MarkSubmissionReceipt(models.Model):
+    task = models.ForeignKey(EvaluationTask, on_delete=models.PROTECT, related_name='submission_receipts')
+    submission_id = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    entry_version = models.CharField(max_length=64)
+    created_at = models.DateTimeField(default=timezone.now)
+    objects = SubmissionReceiptQuerySet.as_manager()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['task', 'submission_id'], name='unique_mark_submission_receipt')]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError('Submission receipts are immutable.')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Submission receipts are immutable.')
 
 
 class MarkCorrectionAudit(models.Model):

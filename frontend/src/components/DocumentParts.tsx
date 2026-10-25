@@ -4,7 +4,8 @@
  */
 
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Download, MoreHorizontal, Search, X } from 'lucide-react';
+import { ChevronDown, Download, MoreHorizontal, Search, X } from 'lucide-react';
+import { PortalButton } from './PortalPrimitives';
 import type { DocumentCheckStatus, DocumentKind, TaggableStudent } from '../types';
 import { getTagSuggestions, searchTaggableStudents } from '../services/filesApi';
 import { checkChip, KIND_CLASSES, KIND_SHORT } from '../utils/documentDisplay';
@@ -39,10 +40,9 @@ export interface MenuAction {
 }
 
 /** The "⋯" button that holds the rarely used actions of a row or page. */
-export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; align?: 'left' | 'right' }> = ({ label, actions, align = 'right' }) => {
+export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; align?: 'left' | 'right'; triggerLabel?: string; disabled?: boolean }> = ({ label, actions, align = 'right', triggerLabel, disabled = false }) => {
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
-  const button = useRef<HTMLButtonElement>(null);
   const menuId = useId();
 
   useEffect(() => {
@@ -53,7 +53,7 @@ export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; alig
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setOpen(false);
-        button.current?.focus();
+        wrapper.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.focus();
       }
     };
     document.addEventListener('mousedown', close);
@@ -67,18 +67,13 @@ export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; alig
   if (!actions.length) return null;
   return (
     <div ref={wrapper} className="relative shrink-0">
-      <button
-        ref={button}
-        type="button"
-        className="icon-button h-10 w-10"
-        aria-label={label}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        onClick={() => setOpen(value => !value)}
-      >
+      {triggerLabel ? <PortalButton size="sm" icon={ChevronDown} iconPosition="right" disabled={disabled} aria-label={label} aria-haspopup="menu" aria-expanded={open}
+        aria-controls={open ? menuId : undefined} onClick={() => setOpen(value => !value)}>
+        {triggerLabel}
+      </PortalButton> : <button type="button" disabled={disabled} className="icon-button h-10 w-10" aria-label={label}
+        aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={() => setOpen(value => !value)}>
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-      </button>
+      </button>}
       {open && (
         <div id={menuId} role="menu" className={`absolute top-12 z-30 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg ${align === 'right' ? 'right-0' : 'left-0'}`}>
           {actions.map(action => (
@@ -90,6 +85,7 @@ export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; alig
               className={`flex w-full items-center rounded-lg px-3 py-2.5 text-left text-[13px] font-semibold transition hover:bg-slate-100 disabled:opacity-50 ${action.danger ? 'text-rose-700' : 'text-slate-700'}`}
               onClick={() => {
                 setOpen(false);
+                wrapper.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.focus({preventScroll: true});
                 action.onSelect();
               }}
             >

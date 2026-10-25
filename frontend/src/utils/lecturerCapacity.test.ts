@@ -109,11 +109,15 @@ for (const apiName of [
   'updateLecturerCapacityEntry',
   'cloneSemesterCapacityPlan',
   'publishSemesterCapacityPlan',
-  'getLecturerAvailabilityWindows',
-  'getLecturerCapacityAudits',
 ]) {
   assert.match(workspaceSource, new RegExp(apiName));
 }
+// Historical collections now load through the shared paginated destination.
+assert.match(workspaceSource, /CapacityCollectionPage/);
+const collectionSource = readFileSync(resolve('src/components/CapacityCollectionPage.tsx'), 'utf8');
+assert.match(collectionSource, /getCapacityPage/);
+assert.match(collectionSource, /availability/);
+assert.match(workspaceSource, /capacity-audits/);
 assert.match(workspaceSource, /RightDrawer/);
 assert.match(workspaceSource, /LoadingState/);
 assert.match(workspaceSource, /ErrorState/);
