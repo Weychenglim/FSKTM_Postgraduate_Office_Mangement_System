@@ -3,67 +3,33 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// A student's request for one letter, laid out like UM Maya's "Letter Details
-// Application Form": the student's details on top, then one row per field with
-// its label on the left and a hint on the right. A confirmation letter also
-// asks who it is for: the purpose, the organisation from a built-in list
-// (searched as the student types), the address to print, and the optional
-// details to show.
+// A student's request for one letter, in two steps like the other portal
+// applications: the letter details, laid out like UM Maya's "Letter Details
+// Application Form", then "Check and send", where each answer can be changed
+// before the request goes to the office. The letter's questions come from the
+// office (see LetterFormFields); the student never sees the letter's wording.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Send } from 'lucide-react';
+import { AlertTriangle, Check, Send } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
-import { SelectMenu } from './SelectMenu';
 import { LoadingState, ErrorState } from './StateViews';
+import { AlertMessage } from './AlertMessage';
+import { FORM_ROW, FormRow, LetterFormFields, answersFor, missingAnswers, type LetterAnswers } from './LetterFormFields';
 import { shortDate } from './IssuedLetters';
-import type { GeneratedLetter, LetterRecipientOptions, LetterRequestDetails, LetterTemplate } from '../types';
-import { fieldErrors, getRecipientOptions, inactiveStudentReason, isAlreadyRequested, requestLetter } from '../services';
-import { EMPTY_REQUEST_DETAILS } from '../utils/letterRecipients';
+import type { GeneratedLetter, LetterForm, LetterRequestDetails, LetterTemplate } from '../types';
+import { ApiError, getLetterForm, inactiveStudentReason, isAlreadyRequested, requestLetter } from '../services';
+import { EMPTY_REQUEST_DETAILS, chosenDetailLabels, recipientAddressLines } from '../utils/letterRecipients';
 
 const MAX_NOTE_LENGTH = 500;
-const TYPE_IT = '__type_it__';
+const STEPS = ['Letter details', 'Check and send'] as const;
 
-const ADDRESS_ROWS: ReadonlyArray<{ field: keyof LetterRequestDetails; label: string; hint: string; narrow?: boolean }> = [
-  { field: 'addressLine1', label: 'Address Line 1', hint: 'Enter recipient address' },
-  { field: 'addressLine2', label: 'Address Line 2', hint: 'Enter recipient address' },
-  { field: 'postcode', label: 'Postcode', hint: 'Enter recipient postcode', narrow: true },
-  { field: 'city', label: 'City', hint: 'Enter recipient city' },
-  { field: 'state', label: 'State/Country', hint: 'Enter recipient state or country' },
-];
-
-const ROW = 'grid gap-1.5 sm:grid-cols-[10rem_minmax(0,1fr)] lg:grid-cols-[11rem_minmax(0,30rem)_minmax(0,1fr)] sm:gap-x-6 sm:items-start';
-const LABEL = 'text-[13px] font-bold text-slate-700 sm:text-right sm:pt-3';
-
-const FormRow: React.FC<{
-  label: string;
-  htmlFor?: string;
-  required?: boolean;
-  hint?: string;
-  error?: string;
-  children: React.ReactNode;
-}> = ({ label, htmlFor, required, hint, error, children }) => {
-  const text = (
-    <>
-      {label}
-      {required && <span className="text-rose-600"> *</span>}
-    </>
-  );
-  return (
-    <div className={ROW}>
-      {htmlFor ? <label htmlFor={htmlFor} className={LABEL}>{text}</label> : <span className={LABEL}>{text}</span>}
-      <div className="min-w-0 space-y-1">
-        {children}
-        {error && <p role="alert" className="text-[11.5px] font-semibold text-rose-600">{error}</p>}
-      </div>
-      {hint && (
-        <p id={htmlFor ? `${htmlFor}-hint` : undefined} className="text-[12px] font-semibold text-slate-400 sm:col-start-2 lg:col-start-auto lg:pt-3">
-          {hint}
-        </p>
-      )}
-    </div>
-  );
-};
+/** What a previous request answered, to start "Request again" from. */
+export interface LetterRequestStart {
+  details?: Partial<LetterRequestDetails>;
+  answers?: LetterAnswers;
+  note?: string;
+}
 
 interface StudentLetterRequestFormProps {
   template: LetterTemplate;
@@ -72,6 +38,8 @@ interface StudentLetterRequestFormProps {
   currentCopies: GeneratedLetter[];
   /** A request for this letter that is still waiting, if any. */
   pending: GeneratedLetter | null;
+  /** Last time's answers, when asking again. */
+  start?: LetterRequestStart | null;
   onSent: (created: GeneratedLetter) => void;
   onCancel: () => void;
   onSeeRequests: () => void;
@@ -82,11 +50,32 @@ interface StudentLetterRequestFormProps {
   onMessage: (message: string) => void;
 }
 
+/** The server's field errors as the form shows them. */
+function serverErrors(err: unknown): Record<string, string> {
+  if (!(err instanceof ApiError) || err.status !== 400 || !err.body || typeof err.body !== 'object') return {};
+  const problems: Record<string, string> = {};
+  for (const [key, value] of Object.entries(err.body as Record<string, unknown>)) {
+    if (key === 'answers' && value && typeof value === 'object') {
+      for (const [name, message] of Object.entries(value as Record<string, unknown>)) {
+        if (typeof message === 'string') problems[`answer:${name}`] = message;
+      }
+    } else if (typeof value === 'string' && key !== 'detail') problems[key] = value;
+  }
+  return problems;
+}
+
+const FIELD_FOCUS: Record<string, string> = {
+  purpose: 'letter-form-purpose',
+  organisation: 'letter-form-organisation',
+  note: 'letter-form-note',
+};
+
 export const StudentLetterRequestForm: React.FC<StudentLetterRequestFormProps> = ({
   template,
   student,
   currentCopies,
   pending,
+  start,
   onSent,
   onCancel,
   onSeeRequests,
@@ -94,75 +83,94 @@ export const StudentLetterRequestForm: React.FC<StudentLetterRequestFormProps> =
   onRefused,
   onMessage,
 }) => {
-  const asksRecipient = Boolean(template.asksRecipient);
-  const [details, setDetails] = useState<LetterRequestDetails>(EMPTY_REQUEST_DETAILS);
-  const [note, setNote] = useState('');
+  const [form, setForm] = useState<LetterForm | null>(null);
+  const [formLoading, setFormLoading] = useState(true);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [details, setDetails] = useState<LetterRequestDetails>({ ...EMPTY_REQUEST_DETAILS, ...(start?.details ?? {}), include: start?.details?.include ?? [] });
+  const [answers, setAnswers] = useState<LetterAnswers>(start?.answers ?? {});
+  const [note, setNote] = useState(start?.note ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
-  const [typing, setTyping] = useState(false);
-  const [options, setOptions] = useState<LetterRecipientOptions | null>(null);
-  const [optionsLoading, setOptionsLoading] = useState(asksRecipient);
-  const [optionsError, setOptionsError] = useState<string | null>(null);
   const finished = useRef(false);
+  const stepHeading = useRef<HTMLHeadingElement>(null);
   const today = useRef(new Date().toISOString()).current;
 
-  const loadOptions = useCallback(() => {
-    setOptionsLoading(true);
-    setOptionsError(null);
-    getRecipientOptions()
-      .then(setOptions)
-      .catch((err) => setOptionsError(err instanceof Error ? err.message : 'Could not load the list of organisations.'))
-      .finally(() => setOptionsLoading(false));
-  }, []);
+  const loadForm = useCallback(() => {
+    setFormLoading(true);
+    setFormError(null);
+    getLetterForm(template.id)
+      .then(setForm)
+      .catch((err) => setFormError(err instanceof Error ? err.message : 'Could not load the form.'))
+      .finally(() => setFormLoading(false));
+  }, [template.id]);
 
   useEffect(() => {
-    if (asksRecipient) loadOptions();
-  }, [asksRecipient, loadOptions]);
+    loadForm();
+  }, [loadForm]);
 
-  const purpose = options?.purposes.find((option) => option.code === details.purpose) ?? null;
-  const listed = purpose?.organisations ?? [];
-  const chosen = listed.find((name) => name.toLowerCase() === details.organisation.trim().toLowerCase()) ?? '';
-  const typeIt = typing || (purpose !== null && listed.length === 0);
-  const organisationName = purpose?.organisationLabel.toLowerCase() ?? 'organisation';
-  // Only the details this letter can show; an older server sends no list, so all are offered.
-  const extraDetails = (options?.optionalDetails ?? []).filter(
-    (option) => !template.optionalDetails || template.optionalDetails.includes(option.code),
-  );
-  // The copy an approval replaces: for a confirmation letter, only the one for the same organisation.
+  useEffect(() => {
+    stepHeading.current?.focus({ preventScroll: true });
+  }, [step]);
+
+  const questions = form?.questions ?? [];
+  const recipientQuestion = questions.find((question) => question.kind === 'recipient');
+  const readyIn = form?.readyInDays ?? template.readyInDays ?? null;
+  // The copy an approval replaces: for a letter addressed to someone, only the one for the same organisation.
   const replaces =
     currentCopies.find(
       (copy) =>
-        !asksRecipient ||
+        !recipientQuestion ||
         (details.organisation.trim() !== '' &&
           copy.requestDetails?.organisation?.toLowerCase() === details.organisation.trim().toLowerCase()),
     ) ?? null;
-  const dirty = note.trim() !== '' || JSON.stringify(details) !== JSON.stringify(EMPTY_REQUEST_DETAILS);
+  const dirty = note.trim() !== '' || Object.keys(answersFor(questions, answers)).length > 0 || details.purpose !== '';
 
-  const change = (changes: Partial<LetterRequestDetails>) => {
-    setDetails((current) => ({ ...current, ...changes }));
+  const changeDetails = (next: LetterRequestDetails) => {
     setErrors((current) => {
       const cleared = { ...current };
-      for (const key of Object.keys(changes)) delete cleared[key];
+      for (const key of Object.keys(next) as (keyof LetterRequestDetails)[]) if (next[key] !== details[key]) delete cleared[key];
       return cleared;
+    });
+    setDetails(next);
+  };
+
+  const changeAnswer = (name: string, value: string | boolean) => {
+    setAnswers((current) => ({ ...current, [name]: value }));
+    setErrors((current) => {
+      const { [`answer:${name}`]: _removed, ...rest } = current;
+      return rest;
     });
   };
 
-  const toggle = (code: string) =>
-    change({ include: details.include.includes(code) ? details.include.filter((item) => item !== code) : [...details.include, code] });
+  const goToField = (field?: string) => {
+    setStep(1);
+    if (!field) return;
+    const id = FIELD_FOCUS[field] ?? (field.startsWith('answer:') ? `letter-form-answer-${field.slice(7)}` : `letter-form-${field}`);
+    setTimeout(() => document.getElementById(id)?.focus(), 0);
+  };
 
-  const submit = async () => {
-    if (sending) return;
-    const problems: Record<string, string> = {};
+  const toCheck = () => {
+    const problems = missingAnswers(questions, details, answers);
     if (note.trim().length > MAX_NOTE_LENGTH) problems.note = `Keep the note under ${MAX_NOTE_LENGTH} characters.`;
-    if (asksRecipient) {
-      if (!details.purpose) problems.purpose = 'Choose what the letter is for.';
-      else if (!details.organisation.trim()) problems.organisation = `Choose or type the ${organisationName}.`;
-    }
     setErrors(problems);
-    if (Object.keys(problems).length > 0) return;
+    if (Object.keys(problems).length > 0) {
+      goToField(Object.keys(problems)[0]);
+      return;
+    }
+    setStep(2);
+  };
+
+  const send = async () => {
+    if (sending) return;
     setSending(true);
     try {
-      const created = await requestLetter(template.id, note.trim(), asksRecipient ? details : undefined);
+      const created = await requestLetter(
+        template.id,
+        note.trim(),
+        recipientQuestion ? details : undefined,
+        Object.keys(answersFor(questions, answers)).length ? answersFor(questions, answers) : undefined,
+      );
       finished.current = true;
       onSent(created);
     } catch (err) {
@@ -175,7 +183,9 @@ export const StudentLetterRequestForm: React.FC<StudentLetterRequestFormProps> =
         finished.current = true;
         onRefused(message);
       } else {
-        setErrors(fieldErrors(err));
+        const problems = serverErrors(err);
+        setErrors(problems);
+        if (Object.keys(problems).length) goToField(Object.keys(problems)[0]);
         onMessage(message);
       }
     } finally {
@@ -183,22 +193,31 @@ export const StudentLetterRequestForm: React.FC<StudentLetterRequestFormProps> =
     }
   };
 
-  const input = (field: keyof LetterRequestDetails, narrow = false) => {
-    const id = `letter-form-${field}`;
-    return (
-      <input
-        id={id}
-        type="text"
-        value={String(details[field] ?? '')}
-        maxLength={120}
-        disabled={sending}
-        onChange={(event) => change({ [field]: event.target.value })}
-        aria-invalid={errors[field] ? true : undefined}
-        aria-describedby={`${id}-hint`}
-        className={`form-control form-control-md ${narrow ? 'sm:max-w-[10rem]' : ''} ${errors[field] ? 'form-control-error' : ''}`}
-      />
-    );
-  };
+  const summaryRows: Array<{ label: string; value: React.ReactNode; field?: string }> = [];
+  for (const question of questions) {
+    if (question.kind === 'recipient') {
+      summaryRows.push({ label: 'Purpose', value: question.options.find((o) => o.code === details.purpose)?.label ?? details.purpose, field: 'purpose' });
+      summaryRows.push({ label: 'Recipient', value: details.organisation, field: 'organisation' });
+      if (question.askAddress !== false) {
+        const lines = recipientAddressLines(details);
+        summaryRows.push({ label: 'Address', value: lines.length ? lines.map((line) => <span key={line} className="block">{line}</span>) : null, field: 'addressLine1' });
+      }
+    } else if (question.kind === 'extras') {
+      summaryRows.push({ label: 'Also show', value: chosenDetailLabels(details).join(', ') || null, field: 'include' });
+    } else if (question.name) {
+      const value = answers[question.name];
+      const shown =
+        question.kind === 'yesno'
+          ? value === true ? 'Yes' : 'No'
+          : question.kind === 'choice'
+            ? question.list.items.find((item) => item.id === value)?.name
+            : question.kind === 'date' && typeof value === 'string' && value
+              ? shortDate(value)
+              : (value as string);
+      summaryRows.push({ label: question.label ?? question.name, value: shown || null, field: `answer:${question.name}` });
+    }
+  }
+  summaryRows.push({ label: 'Note to the office', value: note.trim() || null, field: 'note' });
 
   return (
     <RecordPage
@@ -211,217 +230,163 @@ export const StudentLetterRequestForm: React.FC<StudentLetterRequestFormProps> =
       busy={sending}
       navigationComplete={finished}
     >
-      <section aria-label="Student" className="app-card px-5 py-4 sm:px-6">
-        <dl className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-y-2 text-[13px]">
-          <dt className="font-bold text-slate-700">Student ID</dt>
-          <dd className="font-semibold text-slate-700">{student.matricNumber || '-'}</dd>
-          <dt className="font-bold text-slate-700">Student Name</dt>
-          <dd className="font-semibold text-slate-700">{student.name || '-'}</dd>
-        </dl>
-      </section>
+      {pending ? (
+        <AlertMessage
+          type="info"
+          title="This letter is already waiting for the office"
+          message={`You asked for it on ${shortDate(pending.requestedAt)}. You can ask again once it is decided, or withdraw it from My requests.`}
+          actions={<PortalButton size="sm" onClick={onSeeRequests}>See my requests</PortalButton>}
+        />
+      ) : formLoading ? (
+        <LoadingState message="Loading the form…" />
+      ) : formError || !form ? (
+        <ErrorState message={formError ?? 'Could not load the form.'} onRetry={loadForm} />
+      ) : (
+        <>
+          <nav aria-label="Request steps" className="py-1">
+            <ol className="grid grid-cols-2 max-w-xl">
+              {STEPS.map((label, index) => {
+                const number = index + 1;
+                const current = step === number;
+                const done = step > number;
+                return (
+                  <li key={label} aria-current={current ? 'step' : undefined} className="relative min-w-0 pr-3">
+                    {index === 0 ? <span aria-hidden="true" className={`absolute left-10 right-2 top-4 h-px ${done ? 'bg-emerald-200' : 'bg-slate-200'}`} /> : null}
+                    <div className={`relative flex min-w-0 flex-col items-start gap-3 text-xs ${current ? 'font-semibold text-brand-navy' : 'text-slate-500'}`}>
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${current ? 'border-brand-navy bg-brand-navy text-white ring-4 ring-slate-200/70' : done ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-white text-slate-400'}`}>
+                        {done ? <Check aria-hidden="true" className="h-4 w-4" /> : number}
+                      </span>
+                      <span>{label}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+          <h2 ref={stepHeading} tabIndex={-1} className="text-lg font-semibold text-brand-navy focus:outline-none">
+            {step}. {STEPS[step - 1]}
+          </h2>
 
-      <section aria-labelledby="letter-form-heading" className="app-card overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-100 px-5 py-4 sm:px-6">
-          <h2 id="letter-form-heading" className="text-[15px] font-extrabold text-brand-navy">Letter Details Application Form</h2>
-        </div>
+          <div hidden={step !== 1} className="space-y-6">
+            <section aria-label="Student" className="app-card px-5 py-4 sm:px-7">
+              <dl className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-y-2 text-[13px]">
+                <dt className="font-semibold text-slate-500">Student ID</dt>
+                <dd className="text-slate-700">{student.matricNumber || '-'}</dd>
+                <dt className="font-semibold text-slate-500">Student Name</dt>
+                <dd className="text-slate-700">{student.name || '-'}</dd>
+              </dl>
+            </section>
 
-        {pending ? (
-          <div className="px-5 py-8 sm:px-6 space-y-3">
-            <p className="text-[13px] font-semibold text-slate-600">
-              You asked for this letter on {shortDate(pending.requestedAt)}, and it is waiting for the office. You can ask again once it is
-              decided, or withdraw it from My requests.
-            </p>
-            <PortalButton size="sm" onClick={onSeeRequests}>See my requests</PortalButton>
-          </div>
-        ) : asksRecipient && (optionsLoading || optionsError || !options) ? (
-          optionsLoading ? (
-            <LoadingState message="Loading the form…" />
-          ) : (
-            <ErrorState message={optionsError ?? 'Could not load the list of organisations.'} onRetry={loadOptions} />
-          )
-        ) : (
-          <form
-            noValidate
-            className="space-y-4 px-5 py-6 sm:px-6"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submit();
-            }}
-          >
-            {asksRecipient && (
-              <div className={ROW}>
-                <span aria-hidden="true" className="hidden sm:block" />
-                <p className="text-[12.5px] font-bold text-slate-700 sm:text-right">
-                  <span className="text-rose-600">*</span> Required information
-                </p>
+            <section aria-labelledby="letter-form-heading" className="app-card overflow-hidden">
+              <div className="border-b border-slate-200 bg-slate-100 px-5 py-4 sm:px-7">
+                <h3 id="letter-form-heading" className="text-base font-semibold text-brand-navy">Letter Details Application Form</h3>
               </div>
-            )}
-
-            <FormRow label="Programme" htmlFor="letter-form-programme" hint="From your student record">
-              <input
-                id="letter-form-programme"
-                type="text"
-                readOnly
-                value={student.programme || '-'}
-                aria-describedby="letter-form-programme-hint"
-                className="form-control form-control-md bg-slate-50 text-slate-600"
-              />
-            </FormRow>
-
-            {asksRecipient && options && (
-              <>
-                <FormRow label="Purpose" htmlFor="letter-form-purpose" required error={errors.purpose}>
-                  <SelectMenu
-                    id="letter-form-purpose"
-                    value={details.purpose}
-                    placeholder="Choose an option"
-                    searchPlaceholder="Search"
-                    options={options.purposes.map((option) => ({ value: option.code, label: option.label }))}
+              <form
+                noValidate
+                className="feedback-fields space-y-4 px-5 py-6 sm:px-7"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  toCheck();
+                }}
+              >
+                {questions.some((question) => question.kind === 'recipient' || ('required' in question && question.required)) && (
+                  <div className={FORM_ROW}>
+                    <span aria-hidden="true" className="hidden sm:block" />
+                    <p className="text-[12.5px] font-semibold text-slate-700 sm:text-right">
+                      <span className="text-rose-600">*</span> Required information
+                    </p>
+                  </div>
+                )}
+                <LetterFormFields
+                  questions={questions}
+                  programme={student.programme}
+                  applicationDate={shortDate(today)}
+                  details={details}
+                  onDetails={changeDetails}
+                  answers={answers}
+                  onAnswer={changeAnswer}
+                  errors={errors}
+                  disabled={sending}
+                />
+                <FormRow label="Note to the Office" htmlFor="letter-form-note" hint="Optional" error={errors.note}>
+                  <textarea
+                    id="letter-form-note"
+                    rows={3}
+                    value={note}
+                    maxLength={MAX_NOTE_LENGTH}
                     disabled={sending}
-                    aria-invalid={errors.purpose ? true : undefined}
-                    onChange={(code) => {
-                      if (code === details.purpose) return;
-                      setTyping(false);
-                      change({ purpose: code, organisation: '' });
+                    onChange={(event) => {
+                      setNote(event.target.value);
+                      setErrors((current) => ({ ...current, note: '' }));
                     }}
+                    aria-invalid={errors.note ? true : undefined}
+                    aria-describedby="letter-form-note-hint"
+                    placeholder="For example: needed for my student pass renewal appointment on 3 November."
+                    className={`form-control form-control-md resize-none ${errors.note ? 'form-control-error' : ''}`}
                   />
                 </FormRow>
-
-                <FormRow
-                  label="Recipient"
-                  htmlFor="letter-form-organisation"
-                  required
-                  hint={typeIt ? `Type the full name of the ${organisationName}` : undefined}
-                  error={errors.organisation}
-                >
-                  {typeIt ? (
-                    <input
-                      id="letter-form-organisation"
-                      type="text"
-                      value={details.organisation}
-                      maxLength={160}
-                      disabled={sending}
-                      onChange={(event) => change({ organisation: event.target.value })}
-                      aria-invalid={errors.organisation ? true : undefined}
-                      aria-describedby="letter-form-organisation-hint"
-                      className={`form-control form-control-md ${errors.organisation ? 'form-control-error' : ''}`}
-                    />
-                  ) : (
-                    <SelectMenu
-                      id="letter-form-organisation"
-                      value={chosen}
-                      placeholder={purpose ? 'Choose an option' : 'Choose a purpose first'}
-                      searchPlaceholder="Search"
-                      options={[
-                        ...listed.map((name) => ({ value: name, label: name })),
-                        { value: TYPE_IT, label: 'Not in the list? Type the name' },
-                      ]}
-                      disabled={sending || !purpose}
-                      aria-invalid={errors.organisation ? true : undefined}
-                      onChange={(name) => {
-                        if (name === TYPE_IT) {
-                          setTyping(true);
-                          change({ organisation: '' });
-                        } else {
-                          change({ organisation: name });
-                        }
-                      }}
-                    />
-                  )}
-                  {typing && listed.length > 0 && (
-                    <button
-                      type="button"
-                      disabled={sending}
-                      onClick={() => {
-                        setTyping(false);
-                        change({ organisation: '' });
-                      }}
-                      className="text-[11.5px] font-bold text-blue-700 hover:underline cursor-pointer"
-                    >
-                      Choose from the list instead
-                    </button>
-                  )}
-                </FormRow>
-
-                {ADDRESS_ROWS.map((row) => (
-                  <FormRow key={row.field} label={row.label} htmlFor={`letter-form-${row.field}`} hint={row.hint} error={errors[row.field]}>
-                    {input(row.field, row.narrow)}
-                  </FormRow>
-                ))}
-              </>
-            )}
-
-            <FormRow label="Application Date">
-              <p className="text-[13px] font-semibold text-slate-700 sm:pt-3">{shortDate(today)}</p>
-            </FormRow>
-
-            {asksRecipient && extraDetails.length > 0 && (
-              <FormRow label="Additional Information" hint="Shown on the letter" error={errors.include}>
-                <div className="space-y-3 sm:pt-3">
-                  {extraDetails.map((option) => (
-                    <label key={option.code} className="flex items-center gap-2.5 text-[13px] font-semibold text-slate-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="h-[18px] w-[18px] accent-brand-navy"
-                        checked={details.include.includes(option.code)}
-                        disabled={sending}
-                        onChange={() => toggle(option.code)}
-                      />
-                      {option.label}
-                    </label>
-                  ))}
+                {replaces && (
+                  <div className={FORM_ROW}>
+                    <span aria-hidden="true" className="hidden sm:block" />
+                    <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] font-medium text-amber-900">
+                      <AlertTriangle aria-hidden="true" className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>
+                        You already have this letter{recipientQuestion ? ` for ${replaces.requestDetails?.organisation}` : ''} ({replaces.referenceNumber}, approved{' '}
+                        {shortDate(replaces.decidedAt)}). Once the office approves the new one, it replaces that copy, which will no longer be valid.
+                      </span>
+                    </p>
+                  </div>
+                )}
+                <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-5">
+                  <PortalButton type="button" disabled={sending} onClick={onCancel}>Cancel</PortalButton>
+                  <PortalButton type="submit" variant="primary">Continue</PortalButton>
                 </div>
-              </FormRow>
-            )}
+              </form>
+            </section>
+          </div>
 
-            <FormRow label="Note to the Office" htmlFor="letter-form-note" hint="Optional" error={errors.note}>
-              <textarea
-                id="letter-form-note"
-                rows={3}
-                value={note}
-                maxLength={MAX_NOTE_LENGTH}
-                disabled={sending}
-                onChange={(event) => {
-                  setNote(event.target.value);
-                  setErrors((current) => ({ ...current, note: '' }));
-                }}
-                aria-invalid={errors.note ? true : undefined}
-                aria-describedby="letter-form-note-hint"
-                placeholder="For example: needed for my student pass renewal appointment on 3 November."
-                className={`form-control form-control-md resize-none ${errors.note ? 'form-control-error' : ''}`}
-              />
-            </FormRow>
-
-            {replaces && (
-              <div className={ROW}>
-                <span aria-hidden="true" className="hidden sm:block" />
-                <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-semibold text-amber-900">
-                  <AlertTriangle aria-hidden="true" className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>
-                    You already have this letter{asksRecipient ? ` for ${replaces.requestDetails?.organisation}` : ''} ({replaces.referenceNumber},
-                    approved {shortDate(replaces.decidedAt)}). Once the office approves the new one, it replaces that copy, which will no longer be
-                    valid.
-                  </span>
-                </p>
+          <div hidden={step !== 2} className="space-y-6">
+            <section aria-labelledby="letter-check-heading" className="app-card p-5 sm:p-7 space-y-5">
+              <div>
+                <h3 id="letter-check-heading" className="text-base font-semibold text-brand-navy">{template.name}</h3>
+                <p className="card-description mt-1">Your request is not sent until you press Send request.</p>
               </div>
-            )}
-
-            <div className={`${ROW} border-t border-slate-100 pt-5`}>
-              <span aria-hidden="true" className="hidden sm:block" />
-              <div className="flex flex-wrap gap-2">
-                <PortalButton type="submit" variant="primary" icon={Send} isLoading={sending}>Submit request</PortalButton>
-                <PortalButton type="button" disabled={sending} onClick={onCancel}>Cancel</PortalButton>
-              </div>
-            </div>
-            <div className={ROW}>
-              <span aria-hidden="true" className="hidden sm:block" />
-              <p className="text-[12px] font-semibold text-slate-400">
-                The office checks your details and completes the letter. You are notified when it is approved.
+              <dl className="divide-y divide-slate-100 border-y border-slate-100">
+                {summaryRows.map((row) => (
+                  <div key={row.label} className="grid gap-1 py-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto] sm:gap-4">
+                    <dt className="text-[13px] font-semibold text-slate-500">{row.label}</dt>
+                    <dd className="text-[13px] text-slate-800 [overflow-wrap:anywhere]">{row.value ?? <span className="text-slate-400">Not provided</span>}</dd>
+                    <dd>
+                      <button
+                        type="button"
+                        disabled={sending}
+                        onClick={() => goToField(row.field)}
+                        className="text-[13px] font-semibold text-blue-700 hover:underline cursor-pointer"
+                      >
+                        Change<span className="sr-only"> {row.label.toLowerCase()}</span>
+                      </button>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              {replaces && (
+                <AlertMessage
+                  type="warning"
+                  message={`Approving this request replaces your ${template.name}${recipientQuestion ? ` for ${replaces.requestDetails?.organisation}` : ''} (${replaces.referenceNumber}).`}
+                />
+              )}
+              <p className="card-description">
+                The office checks your details and completes the letter.{readyIn ? ` It is usually ready in ${readyIn} working day${readyIn === 1 ? '' : 's'}.` : ''} You are notified when it is
+                approved.
               </p>
+            </section>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-5">
+              <PortalButton type="button" disabled={sending} onClick={() => setStep(1)}>Back</PortalButton>
+              <PortalButton type="button" variant="primary" icon={Send} isLoading={sending} onClick={() => void send()}>Send request</PortalButton>
             </div>
-          </form>
-        )}
-      </section>
+          </div>
+        </>
+      )}
     </RecordPage>
   );
 };

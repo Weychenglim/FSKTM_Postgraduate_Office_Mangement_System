@@ -8,17 +8,18 @@
 // the office approves it, so a letter cannot be copied from the screen.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { FileText, Info, Send } from 'lucide-react';
-import { PageHeader, PortalButton, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
-import { LoadingState, ErrorState } from './StateViews';
+import { CircleHelp, Clock, FilePlus2, FileText, Inbox, Info, Send } from 'lucide-react';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { OfficeToolViews } from './OfficeToolPrimitives';
+import { AppointmentIcon } from './AppointmentPrimitives';
+import { LoadingState, ErrorState, EmptyState } from './StateViews';
 import { StudentLetterRequests, shortDate } from './IssuedLetters';
-import { StudentLetterRequestForm } from './StudentLetterRequestForm';
+import { StudentLetterRequestForm, type LetterRequestStart } from './StudentLetterRequestForm';
 import { GeneratedLetter, LetterTemplate } from '../types';
 import { getMyLetterRequests, getStudentLetterTemplates, inactiveStudentReason } from '../services';
+import { isCustomQuestion, listInWords } from '../utils/letterEditor';
 
 export type StudentLetterView = 'new' | 'history';
-
-const LETTER_VIEWS: readonly StudentLetterView[] = ['new', 'history'];
 
 interface StudentLetterGenerationProps {
   /** Which tab is open; driven by the route when the app provides it. */
@@ -32,6 +33,16 @@ interface StudentLetterGenerationProps {
   studentName?: string;
   studentId?: string;
   programme?: string;
+}
+
+/** What a letter's form will ask, in a few words, e.g. "who it is for and your travel date". */
+export function askedFor(template: LetterTemplate): string {
+  const questions = template.formQuestions ?? [];
+  const parts = [
+    questions.some((question) => question.kind === 'recipient') ? 'who it is for' : '',
+    ...questions.filter(isCustomQuestion).map((question) => (question.label ?? '').replace(/\?$/, '').toLowerCase()),
+  ].filter(Boolean);
+  return parts.length ? listInWords(parts) : '';
 }
 
 export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = ({
@@ -49,6 +60,8 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   const changeView = (next: StudentLetterView) => (onViewChange ? onViewChange(next) : setLocalView(next));
   const [localFormId, setLocalFormId] = useState<string | null>(null);
   const formTemplateId = onOpenRequestForm ? requestTemplateId ?? null : localFormId;
+  // Last time's answers, when the student asks for the same letter again.
+  const [start, setStart] = useState<(LetterRequestStart & { templateId: string }) | null>(null);
 
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (message: string) => {
@@ -61,7 +74,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
 
-  // The student's requests ("My Requests").
+  // The student's requests ("My requests").
   const [letters, setLetters] = useState<GeneratedLetter[]>([]);
   const [lettersLoading, setLettersLoading] = useState(true);
   const [lettersError, setLettersError] = useState<string | null>(null);
@@ -108,25 +121,31 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   const replaceLetter = (changed: GeneratedLetter) =>
     setLetters((rows) => rows.map((row) => (row.id === changed.id ? changed : row)));
 
-  const openForm = (template: LetterTemplate) => {
+  const openForm = (template: LetterTemplate, from: LetterRequestStart | null = null) => {
+    setStart(from ? { ...from, templateId: template.id } : null);
     if (onOpenRequestForm) onOpenRequestForm(template.id);
     else setLocalFormId(template.id);
   };
 
   const closeForm = (next: StudentLetterView = 'new') => {
     setLocalFormId(null);
+    setStart(null);
     if (next === 'history' || !onCloseRequestForm) changeView(next);
     else onCloseRequestForm();
   };
 
-  // From a rejected request: open the same letter's form again.
+  // Ask for the same letter again, starting from that request's answers.
   const requestAgain = (letter: GeneratedLetter) => {
     const template = templates.find((t) => t.id === letter.templateId);
     if (!template) {
       showToast(`A ${letter.templateName} cannot be requested right now.`);
       return;
     }
-    openForm(template);
+    const details = letter.requestDetails ?? {};
+    openForm(template, {
+      details: details.organisation ? details : undefined,
+      answers: Object.fromEntries(Object.entries(details.answers ?? {}).map(([name, answer]) => [name, answer.answer])),
+    });
   };
 
   if (blockedReason) {
@@ -157,11 +176,12 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
           </div>
         ) : (
           <StudentLetterRequestForm
-            key={template.id}
+            key={`${template.id}:${start?.templateId === template.id ? 'again' : 'new'}`}
             template={template}
             student={{ name: studentName, matricNumber: studentId, programme }}
             currentCopies={currentCopies(template.id)}
             pending={pendingFor(template.id)}
+            start={start?.templateId === template.id ? start : null}
             onCancel={() => closeForm()}
             onSeeRequests={() => closeForm('history')}
             onSent={(created) => {
@@ -183,21 +203,23 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     );
   }
 
+  const waiting = letters.filter((letter) => letter.status === 'Pending').length;
+
   return (
     <div id="student-letter-generation-workspace" className="space-y-6 text-left font-sans text-xs pb-12">
       <PortalToast message={toast} />
 
-      <PageHeader
-        title="Letter Generation"
-        subtitle="Ask the PG office for an official letter. You can view, print or download it once it is approved."
-      />
+      <PageHeader title="Letter Generation" subtitle="Ask the PG office for an official letter. You can view, print or download it once it is approved." />
 
-      <SegmentedControl
-        variant="tabs"
-        options={LETTER_VIEWS}
+      <OfficeToolViews<StudentLetterView>
+        label="Letter Generation views"
+        appearance="workspace"
         value={activeView}
         onChange={changeView}
-        labels={{ new: 'Request a letter', history: `My requests (${letters.length})` }}
+        options={[
+          { value: 'new', label: 'Request a letter', icon: FilePlus2 },
+          { value: 'history', label: waiting ? `My requests (${waiting} waiting)` : `My requests (${letters.length})`, icon: Inbox },
+        ]}
       />
 
       {activeView === 'history' ? (
@@ -209,71 +231,95 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
           onMessage={showToast}
           onLetterChange={replaceLetter}
           onRequestAgain={requestAgain}
+          readyInDays={Object.fromEntries(templates.map((template) => [template.id, template.readyInDays]))}
         />
       ) : (
-        <section aria-labelledby="letter-choices-heading" className="app-card">
-          <div className="px-5 pt-5 pb-4">
-            <h2 id="letter-choices-heading" className="section-label">Which letter do you need?</h2>
-            <p className="card-description mt-1">
-              The office checks your details and completes the letter. You get a notification when it is approved.
-            </p>
-          </div>
+        <>
+          <section aria-labelledby="letter-choices-heading" className="app-card appointment-workspace-card">
+            <div>
+              <h2 id="letter-choices-heading" className="section-label">Which letter do you need?</h2>
+              <p className="card-description mt-1">The office checks your details and completes the letter. You are notified when it is approved.</p>
+            </div>
 
-          {templatesLoading ? (
-            <LoadingState message="Loading the letters you can request…" />
-          ) : templatesError ? (
-            <ErrorState message={templatesError} onRetry={loadTemplates} />
-          ) : templates.length === 0 ? (
-            <p className="border-t border-slate-100 py-10 text-center text-slate-400 font-bold">No letters can be requested right now.</p>
-          ) : (
-            <ul>
-              {templates.map((template) => {
-                const pending = pendingFor(template.id);
-                const copies = currentCopies(template.id);
-                const current = copies[0];
-                return (
-                  <li key={template.id} className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center">
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
-                      <span className="mt-0.5 w-9 h-9 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 flex items-center justify-center shrink-0">
-                        <FileText aria-hidden="true" className="w-4 h-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="flex flex-wrap items-center gap-2">
-                          <span className="text-[14px] font-bold text-slate-800">{template.name}</span>
-                          <StatusBadge tone="neutral" className="px-2 py-0.5 text-[9px]">{template.type}</StatusBadge>
-                        </p>
-                        {template.description && <p className="card-description mt-0.5">{template.description}</p>}
-                        {current && !pending && (
-                          <p className="mt-1 text-[12px] font-semibold text-slate-500">
+            {templatesLoading ? (
+              <LoadingState message="Loading the letters you can request…" />
+            ) : templatesError ? (
+              <ErrorState message={templatesError} onRetry={loadTemplates} />
+            ) : templates.length === 0 ? (
+              <EmptyState icon={FileText} title="No letters can be requested right now" description="Check again later, or contact the postgraduate office." />
+            ) : (
+              <ul className="grid gap-4 md:grid-cols-2">
+                {templates.map((template) => {
+                  const pending = pendingFor(template.id);
+                  const copies = currentCopies(template.id);
+                  const asks = askedFor(template);
+                  return (
+                    <li key={template.id}>
+                      <article aria-label={template.name} className="flex h-full flex-col gap-3 rounded-xl border border-slate-200 p-5">
+                        <div className="flex items-start gap-3">
+                          <AppointmentIcon icon={FileText} tone="info" />
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm font-semibold text-brand-navy">{template.name}</h3>
+                            <p className="card-caption mt-0.5">{template.type}</p>
+                          </div>
+                          {pending ? <StatusBadge tone="warning" dot>Waiting</StatusBadge> : copies.length ? <StatusBadge tone="success" dot>You have it</StatusBadge> : null}
+                        </div>
+                        {template.description && <p className="card-description text-slate-700">{template.description}</p>}
+                        <dl className="space-y-1.5 text-[12.5px]">
+                          {asks && (
+                            <div className="flex gap-2">
+                              <dt className="text-slate-500">You will be asked</dt>
+                              <dd className="font-medium text-slate-700">{asks}</dd>
+                            </div>
+                          )}
+                          {template.readyInDays ? (
+                            <div className="flex items-center gap-1.5 text-slate-500">
+                              <Clock aria-hidden="true" className="h-3.5 w-3.5" />
+                              <dd>Usually ready in {template.readyInDays} working day{template.readyInDays === 1 ? '' : 's'}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                        {copies.length > 0 && !pending && (
+                          <p className="card-description">
                             {template.asksRecipient
-                              ? `You have ${copies.length === 1 ? 'a copy' : `${copies.length} copies`} for ${copies
-                                  .map((copy) => copy.requestDetails?.organisation || copy.referenceNumber)
-                                  .join(', ')}. Ask again for another organisation, or to renew one.`
-                              : `Your current copy: ${current.referenceNumber}, approved ${shortDate(current.decidedAt)}.`}
+                              ? `You have ${copies.length === 1 ? 'a copy' : `${copies.length} copies`} for ${listInWords(copies.map((copy) => copy.requestDetails?.organisation || copy.referenceNumber))}.`
+                              : `Your current copy: ${copies[0].referenceNumber}, approved ${shortDate(copies[0].decidedAt)}.`}
                           </p>
                         )}
-                        {pending && (
-                          <p className="mt-1 text-[12px] font-semibold text-amber-700">
-                            Requested on {shortDate(pending.requestedAt)}, waiting for the office.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    {pending ? (
-                      <PortalButton size="sm" className="self-start sm:self-auto" onClick={() => changeView('history')}>
-                        See request
-                      </PortalButton>
-                    ) : (
-                      <PortalButton size="sm" icon={Send} className="self-start sm:self-auto" onClick={() => openForm(template)}>
-                        Request
-                      </PortalButton>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+                        {pending && <p className="card-description text-amber-800">Requested on {shortDate(pending.requestedAt)}, waiting for the office.</p>}
+                        <div className="mt-auto flex flex-wrap gap-2 pt-1">
+                          {pending ? (
+                            <PortalButton size="sm" onClick={() => changeView('history')}>See request</PortalButton>
+                          ) : (
+                            <PortalButton size="sm" variant="primary" icon={Send} aria-label={`Request a ${template.name}`} onClick={() => openForm(template)}>
+                              Request
+                            </PortalButton>
+                          )}
+                        </div>
+                      </article>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+          <section aria-labelledby="letter-guidance-heading" className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <AppointmentIcon icon={CircleHelp} />
+              <h2 id="letter-guidance-heading" className="section-label">About letters</h2>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <article className="space-y-2">
+                <h3 className="card-value">How it works</h3>
+                <p className="card-description text-slate-700">Choose a letter and answer its questions. The office checks your details, fills in what it holds, and approves the letter. You are notified, then you can view, print or download it.</p>
+              </article>
+              <article className="space-y-2">
+                <h3 className="card-value">Letters that expire</h3>
+                <p className="card-description text-slate-700">Some letters are only valid for a few months. Ask again when one is about to expire: the new copy replaces the old one for the same organisation.</p>
+              </article>
+            </div>
+          </section>
+        </>
       )}
     </div>
   );

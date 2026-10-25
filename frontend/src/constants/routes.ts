@@ -47,6 +47,8 @@ export const APP_ROUTES = {
   lettersIssued: '/letters/issued',
   lettersRequests: '/letters/requests',
   lettersApply: '/letters/apply',
+  lettersTypes: '/letters/types',
+  lettersLists: '/letters/lists',
   announcements: '/announcements',
   marks: '/marks',
   marksConfig: '/marks/config',

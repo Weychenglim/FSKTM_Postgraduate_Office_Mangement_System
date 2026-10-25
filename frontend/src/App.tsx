@@ -896,12 +896,20 @@ export default function App() {
                   view={
                     pathname === APP_ROUTES.lettersIssued
                       ? 'issued'
-                      : pathname === APP_ROUTES.lettersRequests || letterRequestMatch
-                        ? 'requests'
-                        : 'templates'
+                      : pathname === APP_ROUTES.lettersLists
+                        ? 'lists'
+                        : pathname === APP_ROUTES.lettersTypes || currentUser.role !== 'Office Staff/Admin'
+                          ? 'templates'
+                          : 'requests'
                   }
                   onViewChange={(view) => navigate(
-                    view === 'issued' ? APP_ROUTES.lettersIssued : view === 'requests' ? APP_ROUTES.lettersRequests : APP_ROUTES.letters,
+                    view === 'issued'
+                      ? APP_ROUTES.lettersIssued
+                      : view === 'lists'
+                        ? APP_ROUTES.lettersLists
+                        : view === 'templates'
+                          ? APP_ROUTES.lettersTypes
+                          : APP_ROUTES.lettersRequests,
                   )}
                   requestId={letterRequestMatch?.params.requestId ?? null}
                   onOpenRequest={(id) => navigate(routeForLetterRequest(id))}

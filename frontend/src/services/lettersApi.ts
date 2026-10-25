@@ -13,6 +13,12 @@ import {
   LetterCustomField,
   LetterPlaceholder,
   LetterPurpose,
+  ChoiceGroup,
+  ChoiceItem,
+  ChoiceListDetail,
+  ChoiceListSummary,
+  LetterForm,
+  LetterQuestion,
   LetterRecipientOptions,
   LetterRequestCounts,
   LetterRequestDetails,
@@ -51,6 +57,8 @@ export interface LetterTemplateInput {
   contentMs?: string;
   asksRecipient?: boolean;
   validMonths?: number | null;
+  readyInDays?: number | null;
+  formQuestions?: LetterQuestion[];
 }
 
 /** All templates, used by the office-staff template manager. */
@@ -99,6 +107,11 @@ export async function deleteLetterTemplate(id: string): Promise<void> {
   await request<void>(`/letter-templates/${id}/`, { method: 'DELETE' });
 }
 
+/** One student's details by tag, to preview a letter type with real values. */
+export async function getLetterSampleValues(matric: string): Promise<{ studentName: string; matricNumber: string; values: Record<string, string> }> {
+  return request(`/letter-templates/sample-values/?student=${encodeURIComponent(matric)}`);
+}
+
 /** The placeholders a template may use, with labels and value sources. */
 export async function getLetterPlaceholders(): Promise<LetterPlaceholder[]> {
   return request<LetterPlaceholder[]>('/letter-templates/placeholders/');
@@ -129,11 +142,84 @@ export function approvalFieldErrors(err: unknown): Record<string, string> | null
 }
 
 /** Student: ask the office for a letter from an Active template. */
-export async function requestLetter(templateId: string, note = '', details?: LetterRequestDetails): Promise<GeneratedLetter> {
+export async function requestLetter(
+  templateId: string,
+  note = '',
+  details?: LetterRequestDetails,
+  answers?: Record<string, string | boolean>,
+): Promise<GeneratedLetter> {
   return request<GeneratedLetter>('/letters/requests/', {
     method: 'POST',
-    body: JSON.stringify(details ? { templateId, note, details } : { templateId, note }),
+    body: JSON.stringify({ templateId, note, ...(details ? { details } : {}), ...(answers ? { answers } : {}) }),
   });
+}
+
+/** The questions a letter's form asks, with what the student chooses from. */
+export async function getLetterForm(templateId: string): Promise<LetterForm> {
+  return request<LetterForm>(`/letters/requests/form/${templateId}/`);
+}
+
+// The office's lists for letter questions: the recipients list (purposes and
+// organisations with saved addresses) and simple lists such as embassies.
+
+export async function getChoiceLists(): Promise<ChoiceListSummary[]> {
+  return request<ChoiceListSummary[]>('/letters/lists/');
+}
+
+export async function getChoiceList(id: string): Promise<ChoiceListDetail> {
+  return request<ChoiceListDetail>(`/letters/lists/${id}/`);
+}
+
+export async function createChoiceList(input: { name: string; description?: string; itemNoun?: string }): Promise<ChoiceListDetail> {
+  return request<ChoiceListDetail>('/letters/lists/', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function updateChoiceList(id: string, input: { name?: string; description?: string; itemNoun?: string }): Promise<ChoiceListDetail> {
+  return request<ChoiceListDetail>(`/letters/lists/${id}/`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export async function deleteChoiceList(id: string): Promise<void> {
+  await request<void>(`/letters/lists/${id}/`, { method: 'DELETE' });
+}
+
+export type ChoiceGroupInput = Partial<Pick<ChoiceGroup, 'name' | 'nameMs' | 'itemNoun' | 'allowOther' | 'hidden'>>;
+
+export async function createChoiceGroup(listId: string, input: ChoiceGroupInput): Promise<ChoiceGroup> {
+  return request<ChoiceGroup>(`/letters/lists/${listId}/groups/`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function updateChoiceGroup(id: string, input: ChoiceGroupInput): Promise<ChoiceGroup> {
+  return request<ChoiceGroup>(`/letters/list-groups/${id}/`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export async function deleteChoiceGroup(id: string): Promise<void> {
+  await request<void>(`/letters/list-groups/${id}/`, { method: 'DELETE' });
+}
+
+export type ChoiceItemInput = Partial<Omit<ChoiceItem, 'id' | 'usedCount' | 'modifiedBy'>>;
+
+/** Add one entry, or many pasted one per line; names already listed come back as skipped. */
+export async function createChoiceItems(
+  listId: string,
+  input: ChoiceItemInput | { groupId?: string | null; names: string },
+): Promise<{ created: ChoiceItem[]; skipped: string[] }> {
+  return request(`/letters/lists/${listId}/items/`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function updateChoiceItem(id: string, input: ChoiceItemInput): Promise<ChoiceItem> {
+  return request<ChoiceItem>(`/letters/list-items/${id}/`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export async function deleteChoiceItem(id: string): Promise<void> {
+  await request<void>(`/letters/list-items/${id}/`, { method: 'DELETE' });
+}
+
+/** Put the purposes, or one purpose's entries, in the order given. */
+export async function orderChoiceList(
+  listId: string,
+  order: { groupIds: string[] } | { groupId: string | null; itemIds: string[] },
+): Promise<ChoiceListDetail> {
+  return request<ChoiceListDetail>(`/letters/lists/${listId}/order/`, { method: 'POST', body: JSON.stringify(order) });
 }
 
 /** The purposes, organisations and optional details a confirmation letter request offers. */

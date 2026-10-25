@@ -63,17 +63,126 @@ export interface LetterTemplate {
   asksRecipient?: boolean;
   /** The optional details a student may tick, because the letter shows them, e.g. MIN_PERIOD. */
   optionalDetails?: string[];
+  /** The questions on the student's form, in order. */
+  formQuestions?: LetterQuestion[];
+  /** "Usually ready in N working days"; null to say nothing. */
+  readyInDays?: number | null;
   /** How many months an issued letter stays valid; null for no limit. */
   validMonths?: number | null;
 }
 
-/** One kind of organisation a confirmation letter can be for, with its built-in list. */
+/** What a student's form asks, as the office set it on a letter type. */
+export type LetterQuestionKind = 'recipient' | 'extras' | 'text' | 'date' | 'choice' | 'yesno';
+
+export interface LetterQuestion {
+  kind: LetterQuestionKind;
+  /** "Who is the letter for?": the purpose codes offered; empty offers all. */
+  purposes?: string[];
+  askAddress?: boolean;
+  /** The office's own questions: the tag on the letter, the words the student sees. */
+  name?: string;
+  label?: string;
+  hint?: string;
+  required?: boolean;
+  /** A "Choose from a list" question's list. */
+  listId?: number;
+}
+
+/** An organisation students can choose, with the address filled in for them. */
+export interface LetterOrganisation {
+  id: string;
+  name: string;
+  addressLine1: string;
+  addressLine2: string;
+  postcode: string;
+  city: string;
+  state: string;
+}
+
+/** One purpose a letter can be for, with the organisations listed under it. */
 export interface LetterRecipientPurpose {
   code: string;
   label: string;
   /** What one organisation is called, e.g. "Bank". */
   organisationLabel: string;
-  organisations: string[];
+  /** Students may type an organisation that is not listed. */
+  allowOther: boolean;
+  organisations: LetterOrganisation[];
+}
+
+/** A question as the student's form shows it, with what to choose from. */
+export type LetterFormQuestion =
+  | (LetterQuestion & { kind: 'recipient'; options: LetterRecipientPurpose[] })
+  | { kind: 'extras'; options: { code: string; label: string }[] }
+  | (LetterQuestion & { kind: 'choice'; list: { id: string | null; name: string; itemNoun: string; items: { id: string; name: string }[] } })
+  | (LetterQuestion & { kind: 'text' | 'date' | 'yesno' });
+
+/** A letter's form, from `GET /api/letters/requests/form/<id>/`. */
+export interface LetterForm {
+  templateId: string;
+  questions: LetterFormQuestion[];
+  readyInDays: number | null;
+}
+
+/** What the student answered one of the office's questions, as saved with the request. */
+export interface LetterAnswer {
+  kind: LetterQuestionKind;
+  label: string;
+  answer: string | boolean;
+  value: string;
+  valueMs: string;
+}
+
+/** The office's lists for letter questions. */
+export type ChoiceListKind = 'RECIPIENTS' | 'SIMPLE';
+
+export interface ChoiceListSummary {
+  id: string;
+  name: string;
+  kind: ChoiceListKind;
+  description: string;
+  itemNoun: string;
+  groupCount: number;
+  itemCount: number;
+  hiddenCount: number;
+  /** Letter types with a question that uses the list. */
+  usedBy: string[];
+  modifiedBy: string;
+}
+
+/** A purpose in the recipients list. */
+export interface ChoiceGroup {
+  id: string;
+  code: string;
+  name: string;
+  nameMs: string;
+  itemNoun: string;
+  allowOther: boolean;
+  hidden: boolean;
+  /** Letters asked for with this purpose. */
+  usedCount: number;
+  modifiedBy: string;
+}
+
+export interface ChoiceItem {
+  id: string;
+  groupId: string | null;
+  name: string;
+  nameMs: string;
+  addressLine1: string;
+  addressLine2: string;
+  postcode: string;
+  city: string;
+  state: string;
+  hidden: boolean;
+  /** Letters that used this entry; only unused entries can be deleted. */
+  usedCount: number;
+  modifiedBy: string;
+}
+
+export interface ChoiceListDetail extends ChoiceListSummary {
+  groups: ChoiceGroup[];
+  items: ChoiceItem[];
 }
 
 /** What the student chooses from on a confirmation letter request. */
@@ -85,7 +194,12 @@ export interface LetterRecipientOptions {
 /** Who a letter is for, as the student entered it. */
 export interface LetterRequestDetails {
   purpose: string;
+  /** The purpose as it was called when the student asked. */
+  purposeLabel?: string;
   organisation: string;
+  /** The chosen organisation's entry in the recipients list, when chosen from it. */
+  organisationId?: string | number | null;
+  organisationMs?: string;
   /** Typed in by the student rather than chosen from the list. */
   typedIn?: boolean;
   addressLine1: string;
@@ -95,6 +209,8 @@ export interface LetterRequestDetails {
   state: string;
   /** The optional details to show, e.g. MIN_PERIOD. */
   include: string[];
+  /** Answers to the office's own questions, by tag name. */
+  answers?: Record<string, LetterAnswer>;
 }
 
 /** Someone an appointment letter was sent to, besides the office. */
@@ -146,7 +262,7 @@ export interface LetterRequestField {
   label: string;
   hint: string;
   /** From the student's record, or typed in by the office. */
-  source: 'record' | 'office';
+  source: 'record' | 'office' | 'student';
   /** The record's value (blank when the record has none). */
   value: string;
   /** The office must type it in before approving. */

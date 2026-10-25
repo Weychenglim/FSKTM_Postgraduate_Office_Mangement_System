@@ -68,7 +68,7 @@ const documentSource = readFileSync(resolve('src/utils/letterDocument.ts'), 'utf
 const studentScreen = readFileSync(resolve('src/components/StudentLetterGeneration.tsx'), 'utf8');
 const applicationForm = readFileSync(resolve('src/components/StudentLetterRequestForm.tsx'), 'utf8');
 assert.doesNotMatch(documentSource, /generateReferenceNumber|Math\.random/);
-assert.match(applicationForm, /requestLetter\(template\.id, note\.trim\(\),/);
+assert.match(applicationForm, /requestLetter\(\s*template\.id,\s*note\.trim\(\),/);
 for (const source of [studentScreen, applicationForm]) {
   assert.doesNotMatch(source, /LetterPages|renderLetterBodyHtml|\.content\b/, 'no wording reaches the student before approval');
 }

@@ -12,6 +12,9 @@ import { Ban, BellRing, Eye, FileDown, Printer, RotateCcw, Search, Undo2, X } fr
 import { PortalButton, PortalConfirmModal, StatusBadge, type BadgeTone } from './PortalPrimitives';
 import { PortalModal, useModalTitle } from './PortalModal';
 import { LoadingState, ErrorState } from './StateViews';
+import { AlertMessage } from './AlertMessage';
+import { ApprovalProcess } from './ApprovalProcess';
+import type { ApprovalStep } from '../utils/approvalProcess';
 import { LetterPages } from './LetterPages';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { MissingAppointmentLetters } from './MissingAppointmentLetters';
@@ -194,22 +197,52 @@ const TableMessage: React.FC<{ colSpan: number; children: React.ReactNode }> = (
   </tr>
 );
 
-/** The line under a request's status: where it stands, or why. */
-const StatusNote: React.FC<{ letter: GeneratedLetter }> = ({ letter }) => {
-  const note =
-    letter.status === 'Pending'
-      ? { text: 'Waiting for the office', tone: 'text-slate-400' }
-      : letter.status === 'Issued'
-        ? { text: `${isAppointmentLetter(letter.purpose) ? 'Issued' : 'Approved'} ${shortDate(letter.decidedAt)}`, tone: 'text-slate-400' }
-        : letter.status === 'Withdrawn'
-          ? { text: `Withdrawn ${shortDate(letter.withdrawnAt)}`, tone: 'text-slate-400' }
-          : letter.status === 'Rejected'
-            ? { text: `Reason: ${letter.rejectReason}`, tone: 'text-rose-600' }
-            : letter.replacedById
-              ? { text: `${letter.revokeReason} It is no longer valid.`, tone: 'text-slate-500' }
-              : { text: `Reason: ${letter.revokeReason}`, tone: 'text-rose-600' };
-  return <p className={`mt-1 text-[10.5px] font-semibold leading-snug max-w-[260px] ${note.tone}`}>{note.text}</p>;
-};
+const DAY = 24 * 60 * 60 * 1000;
+const OFFICE = 'Postgraduate office';
+const EXPIRY_WARNING_DAYS = 30;
+
+/** Days until a letter's last valid day, counted in Malaysia; negative once it has passed. */
+export function daysLeft(validUntil: string | null | undefined, today: Date = new Date()): number | null {
+  if (!validUntil) return null;
+  const end = Date.parse(`${validUntil}T23:59:59+08:00`);
+  return Number.isFinite(end) ? Math.ceil((end - today.getTime()) / DAY) - 1 : null;
+}
+
+/** Where a request stands, as steps from sending it to the letter being ready. */
+export function requestSteps(letter: GeneratedLetter, readyInDays?: number | null): ApprovalStep[] {
+  if (isAppointmentLetter(letter.purpose)) {
+    return [{ id: 'issued', label: 'Issued after your appointment was approved', state: 'completed', actorName: OFFICE, occurredAt: letter.decidedAt ?? undefined, description: `Reference ${letter.referenceNumber}.` }];
+  }
+  const sent: ApprovalStep = { id: 'submitted', label: 'Sent to the office', state: 'completed', actorName: 'You', occurredAt: letter.requestedAt, description: letter.note ? `Your note: ${letter.note}` : undefined };
+  const wait = readyInDays ? `Usually ready in ${readyInDays} working day${readyInDays === 1 ? '' : 's'}. You are notified when it is decided.` : 'You are notified when it is decided.';
+  if (letter.status === 'Pending') {
+    return [sent, { id: 'office', label: 'With the office', state: 'current', description: wait }, { id: 'ready', label: 'Ready to download', state: 'upcoming' }];
+  }
+  if (letter.status === 'Withdrawn') {
+    return [sent, { id: 'office', label: 'You withdrew it', state: 'cancelled', actorName: 'You', occurredAt: letter.withdrawnAt ?? undefined }, { id: 'ready', label: 'Ready to download', state: 'not_reached' }];
+  }
+  if (letter.status === 'Rejected') {
+    return [
+      sent,
+      { id: 'office', label: 'Not approved', state: 'rejected', occurredAt: letter.decidedAt ?? undefined, actorName: letter.decidedBy || OFFICE, reason: letter.rejectReason || undefined },
+      { id: 'ready', label: 'Ready to download', state: 'not_reached' },
+    ];
+  }
+  const approved: ApprovalStep = { id: 'office', label: 'Approved', state: 'completed', occurredAt: letter.decidedAt ?? undefined, actorName: letter.decidedBy || OFFICE };
+  if (letter.status === 'Revoked') {
+    return [
+      sent,
+      approved,
+      letter.replacedById
+        ? { id: 'ready', label: 'Replaced by a newer copy', state: 'cancelled', actorName: OFFICE, occurredAt: letter.revokedAt ?? undefined, description: `${letter.revokeReason || 'A newer copy replaced it.'} It is no longer valid.` }
+        : { id: 'ready', label: 'Revoked by the office', state: 'rejected', actorName: OFFICE, occurredAt: letter.revokedAt ?? undefined, reason: letter.revokeReason || undefined },
+    ];
+  }
+  return [sent, approved, { id: 'ready', label: 'Ready to view and download', state: 'completed', showRecordedDetails: false, description: `Reference ${letter.referenceNumber}.` }];
+}
+
+/** Requests still in play (waiting, or a letter that is valid) come first; the rest are history. */
+export const isCurrentRequest = (letter: GeneratedLetter) => letter.status === 'Pending' || letter.status === 'Issued';
 
 interface StudentLetterRequestsProps {
   letters: GeneratedLetter[];
@@ -219,11 +252,13 @@ interface StudentLetterRequestsProps {
   onMessage: (message: string) => void;
   /** A request changed, e.g. withdrawn. */
   onLetterChange?: (letter: GeneratedLetter) => void;
-  /** Ask for the same letter again after a rejection. */
+  /** Ask for the same letter again, starting from this request's answers. */
   onRequestAgain?: (letter: GeneratedLetter) => void;
+  /** How many working days each letter type usually takes, by template id. */
+  readyInDays?: Record<string, number | null | undefined>;
 }
 
-/** The signed-in student's letter requests: their status, and the letter once approved. */
+/** The signed-in student's letter requests: where each one stands, and the letter once approved. */
 export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
   letters,
   loading,
@@ -232,10 +267,12 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
   onMessage,
   onLetterChange,
   onRequestAgain,
+  readyInDays = {},
 }) => {
   const { viewLetter, printLetter, downloadPdf, isBusy, viewing, closeView } = useLetterOutput(onMessage);
   const [withdrawing, setWithdrawing] = useState<GeneratedLetter | null>(null);
   const [withdrawSaving, setWithdrawSaving] = useState(false);
+  const [view, setView] = useState<'current' | 'history'>('current');
 
   const confirmWithdraw = async () => {
     if (!withdrawing) return;
@@ -252,107 +289,110 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
     }
   };
 
-  // What the student can do with a request at its stage.
-  const actionsFor = (letter: GeneratedLetter): React.ReactNode =>
-    letter.status === 'Pending' ? (
-      <PortalButton variant="ghost" size="sm" icon={Undo2} onClick={() => setWithdrawing(letter)}>
-        Withdraw
-      </PortalButton>
-    ) : letter.status === 'Issued' ? (
-      <>
-        <PortalButton variant="secondary" size="sm" icon={Eye} isLoading={isBusy(letter, 'view')} onClick={() => void viewLetter(letter)}>
-          View
-        </PortalButton>
-        <PortalButton variant="secondary" size="sm" icon={Printer} isLoading={isBusy(letter, 'print')} onClick={() => void printLetter(letter)}>
-          Print
-        </PortalButton>
-        <PortalButton variant="secondary" size="sm" icon={FileDown} isLoading={isBusy(letter, 'pdf')} onClick={() => void downloadPdf(letter)}>
-          PDF
-        </PortalButton>
-      </>
-    ) : letter.status === 'Rejected' && onRequestAgain ? (
-      <PortalButton variant="secondary" size="sm" icon={RotateCcw} onClick={() => onRequestAgain(letter)}>
-        Request again
-      </PortalButton>
-    ) : null;
+  const current = letters.filter(isCurrentRequest);
+  const history = letters.filter((letter) => !isCurrentRequest(letter));
+  const shown = view === 'current' ? current : history;
+  const switchButton = (value: 'current' | 'history', label: string, count: number) => (
+    <button
+      key={value}
+      type="button"
+      aria-pressed={view === value}
+      onClick={() => setView(value)}
+      className={`card-value rounded-md px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy cursor-pointer ${view === value ? 'bg-white text-brand-navy shadow-sm' : 'text-slate-600 hover:bg-white/60'}`}
+    >
+      {label} ({count})
+    </button>
+  );
 
   return (
-    <div id="student-letter-history" className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden">
-      <div className="px-5 pt-5 pb-3 flex items-center justify-between gap-3">
-        <h2 className="section-label">My Requests</h2>
-        <span className="text-[11px] font-semibold text-slate-400">
-          {letters.length} request{letters.length === 1 ? '' : 's'}
-        </span>
+    <section id="student-letter-history" aria-label="My requests" className="app-card appointment-workspace-card">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 basis-64 flex-1">
+          <h2 className="section-label">My requests</h2>
+          <p className="card-description mt-1">Where each request stands. Approved letters can be viewed, printed or downloaded here.</p>
+        </div>
+        <div role="group" aria-label="Request views" className="flex w-fit flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
+          {switchButton('current', 'Current', current.length)}
+          {switchButton('history', 'History', history.length)}
+        </div>
       </div>
+
       {loading ? (
         <LoadingState message="Loading your requests…" />
       ) : error ? (
         <ErrorState message={error} onRetry={onRetry} />
-      ) : letters.length === 0 ? (
-        <p className="px-5 py-12 text-center text-slate-400 font-semibold">
-          You have not requested any letters yet. Once the office approves a request, you can view, print or download the letter here.
+      ) : shown.length === 0 ? (
+        <p className="rounded-xl bg-slate-50 px-4 py-6 card-description">
+          {view === 'current'
+            ? letters.length
+              ? 'Nothing waiting or valid right now. Past requests are under History.'
+              : 'You have not asked for any letters yet. Choose one under Request a letter.'
+            : 'No past requests yet.'}
         </p>
       ) : (
-        <>
-          {/* Phones: one card per request, with its buttons in view. */}
-          <ul className="md:hidden divide-y divide-slate-100 border-t border-slate-100">
-            {letters.map((letter) => (
-              <li key={letter.id} className="px-5 py-4 space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <span className="block font-bold text-slate-800 text-[12.5px]">{letter.templateName}</span>
-                    {letterForLine(letter) && <span className="block text-[11px] font-semibold text-slate-500">{letterForLine(letter)}</span>}
-                    <span className="block text-[10.5px] text-slate-400">
-                      {isAppointmentLetter(letter.purpose)
-                        ? `${letterOrigin(letter)} · ${shortDate(letter.requestedAt)}`
-                        : `${letter.letterType} · Requested ${shortDate(letter.requestedAt)}`}
-                    </span>
+        <ul className="space-y-4">
+          {shown.map((letter) => {
+            const left = letter.status === 'Issued' ? daysLeft(letter.validUntil) : null;
+            const automatic = isAppointmentLetter(letter.purpose);
+            return (
+              <li key={letter.id}>
+                <article aria-label={`${letter.templateName}${letter.requestDetails?.organisation ? ` for ${letter.requestDetails.organisation}` : ''}`} className="rounded-xl border border-slate-200 p-5 space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-brand-navy">{letter.templateName}</h3>
+                      <p className="card-description mt-0.5">
+                        {[letter.requestDetails?.organisation ? `For ${letter.requestDetails.organisation}` : '', automatic ? letterOrigin(letter) : `Requested ${shortDate(letter.requestedAt)}`]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
                   </div>
-                  <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
-                </div>
-                <StatusNote letter={letter} />
-                {letter.referenceNumber && (
-                  <p className="font-mono text-[11px] font-semibold text-slate-700">{letter.referenceNumber}</p>
-                )}
-                {actionsFor(letter) && <div className="flex flex-wrap gap-2 pt-1">{actionsFor(letter)}</div>}
+                  <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_16rem]">
+                    <ApprovalProcess steps={requestSteps(letter, letter.templateId ? readyInDays[letter.templateId] : null)} title="Progress" />
+                    <div className="space-y-3">
+                      {letter.referenceNumber && (
+                        <dl className="space-y-1">
+                          <dt className="card-label">Reference</dt>
+                          <dd className="font-mono text-[12.5px] font-semibold text-slate-800">{letter.referenceNumber}</dd>
+                        </dl>
+                      )}
+                      {letter.status === 'Issued' && letter.validUntil && (
+                        <dl className="space-y-1">
+                          <dt className="card-label">Valid until</dt>
+                          <dd className="text-[12.5px] font-semibold text-slate-800">{shortDate(letter.validUntil)}</dd>
+                        </dl>
+                      )}
+                      {left !== null && left < 0 && (
+                        <AlertMessage type="warning" message="This letter is no longer valid. Request a new one if you still need it." />
+                      )}
+                      {left !== null && left >= 0 && left <= EXPIRY_WARNING_DAYS && (
+                        <AlertMessage type="warning" message={`It stops being valid ${left === 0 ? 'today' : `in ${left} day${left === 1 ? '' : 's'}`}. Request again to renew it.`} />
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {letter.status === 'Pending' && (
+                          <PortalButton size="sm" icon={Undo2} onClick={() => setWithdrawing(letter)}>Withdraw</PortalButton>
+                        )}
+                        {letter.status === 'Issued' && (
+                          <>
+                            <PortalButton size="sm" icon={Eye} isLoading={isBusy(letter, 'view')} onClick={() => void viewLetter(letter)}>View</PortalButton>
+                            <PortalButton size="sm" icon={Printer} isLoading={isBusy(letter, 'print')} onClick={() => void printLetter(letter)}>Print</PortalButton>
+                            <PortalButton size="sm" icon={FileDown} isLoading={isBusy(letter, 'pdf')} onClick={() => void downloadPdf(letter)}>PDF</PortalButton>
+                          </>
+                        )}
+                        {!automatic && letter.status !== 'Pending' && onRequestAgain && (
+                          <PortalButton size="sm" variant={left !== null && left <= EXPIRY_WARNING_DAYS ? 'primary' : 'secondary'} icon={RotateCcw} onClick={() => onRequestAgain(letter)}>
+                            Request again
+                          </PortalButton>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </article>
               </li>
-            ))}
-          </ul>
-
-          <div className="hidden md:block overflow-x-auto">
-            <table className="data-table text-xs">
-              <thead>
-                <tr className="data-thead bg-[#f8fafc]">
-                  <th className="data-th">Letter</th>
-                  <th className="data-th">Requested</th>
-                  <th className="data-th">Status</th>
-                  <th className="data-th">Reference</th>
-                  <th className="data-th text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {letters.map((letter) => (
-                  <tr key={letter.id} className="hover:bg-slate-50/50 transition align-top">
-                    <td className="data-td">
-                      <span className="block font-bold text-slate-800">{letter.templateName}</span>
-                      {letterForLine(letter) && <span className="block text-[10.5px] font-semibold text-slate-500">{letterForLine(letter)}</span>}
-                      <span className="block text-[10px] text-slate-400">{letterOrigin(letter)}</span>
-                    </td>
-                    <td className="data-td whitespace-nowrap">{shortDate(letter.requestedAt)}</td>
-                    <td className="data-td">
-                      <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
-                      <StatusNote letter={letter} />
-                    </td>
-                    <td className="data-td font-mono whitespace-nowrap text-slate-700">{letter.referenceNumber || '-'}</td>
-                    <td className="data-td text-right">
-                      <div className="inline-flex flex-wrap justify-end gap-2">{actionsFor(letter)}</div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+            );
+          })}
+        </ul>
       )}
 
       {viewing && <LetterView letter={viewing} onClose={closeView} />}
@@ -360,11 +400,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
       <PortalConfirmModal
         isOpen={withdrawing !== null}
         title="Withdraw this request?"
-        message={
-          withdrawing
-            ? `The office will not process your request for a ${withdrawing.templateName}. You can request it again later.`
-            : ''
-        }
+        message={withdrawing ? `The office will not process your request for a ${withdrawing.templateName}. You can request it again later.` : ''}
         confirmLabel="Withdraw"
         cancelLabel="Keep request"
         tone="warning"
@@ -372,7 +408,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
         onConfirm={() => void confirmWithdraw()}
         onCancel={() => setWithdrawing(null)}
       />
-    </div>
+    </section>
   );
 };
 

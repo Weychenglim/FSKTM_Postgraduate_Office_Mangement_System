@@ -9,13 +9,16 @@
 // reason. Approval issues the reference number; either way the student is told.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Download, Eye, MessageSquareText, Printer, Search, Send, XCircle } from 'lucide-react';
-import { PortalButton, PortalConfirmModal, SegmentedControl, StatusBadge } from './PortalPrimitives';
+import { AlertTriangle, CheckCircle2, ChevronRight, Clock, Download, Eye, MessageSquareText, Printer, Send, XCircle } from 'lucide-react';
+import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
+import { AppointmentIcon } from './AppointmentPrimitives';
+import { PortalSelect } from './PortalSelect';
+import { WORKSPACE_PAGE_SIZE, WorkspaceFilterCard, WorkspacePagination, WorkspaceSectionHeader, workspacePageSize } from './RequestWorkspacePrimitives';
 import { RecordPage } from './RecordPage';
 import { LoadingState, ErrorState } from './StateViews';
 import { LetterPages } from './LetterPages';
 import { LetterStatusBadge, LetterView, shortDate, useLetterOutput } from './IssuedLetters';
-import { GeneratedLetter, GeneratedLetterStatus, LetterRequestCounts, LetterRequestField } from '../types';
+import { GeneratedLetter, GeneratedLetterStatus, LetterRequestCounts, LetterRequestField, LetterTemplate } from '../types';
 import {
   approvalFieldErrors,
   approveLetterRequest,
@@ -53,6 +56,8 @@ interface OfficeLetterRequestsProps {
   /** Ask the parent to reload the counts after a decision. */
   onCountsStale: () => void;
   onMessage: (message: string) => void;
+  /** The letter types, for filtering the queue by letter. */
+  templates?: LetterTemplate[];
 }
 
 export const OfficeLetterRequests: React.FC<OfficeLetterRequestsProps> = ({
@@ -62,37 +67,51 @@ export const OfficeLetterRequests: React.FC<OfficeLetterRequestsProps> = ({
   counts,
   onCountsStale,
   onMessage,
+  templates = [],
 }) => {
   if (requestId) {
     return (
       <LetterRequestReview
+        key={requestId}
         requestId={requestId}
         onClose={onCloseRequest}
-        onDecided={() => {
+        onDecided={(nextId) => {
           onCountsStale();
-          onCloseRequest();
+          if (nextId) onOpenRequest(nextId);
+          else onCloseRequest();
         }}
         onMessage={onMessage}
+        waiting={counts?.Pending ?? 0}
       />
     );
   }
-  return <LetterRequestQueue counts={counts} onOpenRequest={onOpenRequest} onMessage={onMessage} />;
+  return <LetterRequestQueue counts={counts} templates={templates} onOpenRequest={onOpenRequest} onMessage={onMessage} />;
 };
 
 // ---------------- The queue ----------------
 
+const SUMMARY: ReadonlyArray<{ status: GeneratedLetterStatus; title: string; description: string; icon: typeof Clock; tone: 'warning' | 'success' | 'danger' }> = [
+  { status: 'Pending', title: 'Waiting for a decision', description: 'Requests to check, fill in and approve or reject.', icon: Clock, tone: 'warning' },
+  { status: 'Issued', title: 'Approved', description: 'Letters issued and ready for the student.', icon: CheckCircle2, tone: 'success' },
+  { status: 'Rejected', title: 'Not approved', description: 'Requests turned down, with the reason given.', icon: XCircle, tone: 'danger' },
+];
+
 const LetterRequestQueue: React.FC<{
   counts: LetterRequestCounts | null;
+  templates: LetterTemplate[];
   onOpenRequest: (id: string) => void;
   onMessage: (message: string) => void;
-}> = ({ counts, onOpenRequest, onMessage }) => {
+}> = ({ counts, templates, onOpenRequest, onMessage }) => {
   const [filter, setFilter] = useState<QueueFilter>('Pending');
   const [search, setSearch] = useState('');
+  const [letter, setLetter] = useState('');
   const [rows, setRows] = useState<GeneratedLetter[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<GeneratedLetter | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(WORKSPACE_PAGE_SIZE);
   const latestLoad = useRef(0);
 
   const load = useCallback(() => {
@@ -116,10 +135,10 @@ const LetterRequestQueue: React.FC<{
     return () => clearTimeout(timer);
   }, [load, search]);
 
-  const viewLetter = async (letter: GeneratedLetter) => {
-    setOpening(letter.id);
+  const viewLetter = async (row: GeneratedLetter) => {
+    setOpening(row.id);
     try {
-      setViewing(await getLetterRequest(letter.id));
+      setViewing(await getLetterRequest(row.id));
     } catch (err) {
       onMessage(errorText(err, 'Could not open this letter.'));
     } finally {
@@ -127,141 +146,161 @@ const LetterRequestQueue: React.FC<{
     }
   };
 
+  const shown = letter ? rows.filter((row) => row.templateId === letter) : rows;
+  const pageCount = Math.max(1, Math.ceil(shown.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageRows = shown.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const total = counts ? Object.values(counts).reduce((sum, n) => sum + n, 0) : null;
-  const countFor = (option: QueueFilter) =>
-    counts ? (option === 'All' ? total : counts[option as GeneratedLetterStatus]) : null;
+  const choose = (next: QueueFilter) => {
+    setFilter(next);
+    setPage(1);
+  };
+  const columns = ['Student', 'Letter', 'For', 'Requested', 'Status', 'Action'];
 
   return (
     <div id="letter-requests-queue" className="space-y-6">
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-3xs flex flex-col lg:flex-row lg:items-center gap-3">
-        <SegmentedControl<QueueFilter>
-          options={QUEUE_FILTERS}
-          value={filter}
-          onChange={setFilter}
-          labels={Object.fromEntries(
-            QUEUE_FILTERS.map((option) => {
-              const count = countFor(option);
-              return [option, count === null ? FILTER_LABEL[option] : `${FILTER_LABEL[option]} (${count})`];
-            }),
-          )}
-          className="w-full lg:w-fit overflow-x-auto"
-        />
-        <label className="relative block flex-1 min-w-0">
-          <span className="sr-only">Search letter requests</span>
-          <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
-            <Search className="w-3.5 h-3.5" />
-          </span>
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Student name, matric number, letter or reference"
-            className="form-control form-control-sm pl-9"
-          />
-        </label>
+      <div className="grid gap-4 md:grid-cols-3">
+        {SUMMARY.map((card) => {
+          const selected = filter === card.status;
+          return (
+            <button
+              key={card.status}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => choose(selected ? 'All' : card.status)}
+              className={`group space-y-3 rounded-2xl border bg-white p-5 text-left shadow-sm transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${selected ? 'border-brand-navy bg-slate-50/70' : 'border-slate-200 hover:border-slate-300'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <AppointmentIcon icon={card.icon} tone={card.tone === 'warning' ? 'warning' : card.tone === 'success' ? 'success' : 'danger'} />
+                <ChevronRight aria-hidden="true" className="h-4 w-4 text-slate-400 group-hover:text-slate-600" />
+              </div>
+              <h2 className="card-value text-slate-800">{card.title}</h2>
+              <p className="flex items-baseline gap-1.5"><span className="card-metric">{counts ? counts[card.status] : '-'}</span><span className="card-caption">requests</span></p>
+              <p className="card-description">{card.description}</p>
+            </button>
+          );
+        })}
       </div>
 
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden">
-        <div className="px-5 pt-5 pb-3 flex items-center justify-between gap-3">
-          <h2 className="section-label">{filter === 'Pending' ? 'Waiting for a Decision' : `${FILTER_LABEL[filter]} Requests`}</h2>
-          <span className="text-[11px] font-semibold text-slate-400">
-            {rows.length} request{rows.length === 1 ? '' : 's'}
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="data-table text-xs">
-            <thead>
-              <tr className="data-thead bg-[#f8fafc]">
-                <th className="data-th">Student</th>
-                <th className="data-th">Letter</th>
-                <th className="data-th">Requested</th>
-                <th className="data-th">Status</th>
-                <th className="data-th text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading && rows.length === 0 ? (
-                <tr><td colSpan={5} className="p-0"><LoadingState message="Loading letter requests…" /></td></tr>
-              ) : error ? (
-                <tr><td colSpan={5} className="p-0"><ErrorState message={error} onRetry={load} /></td></tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center text-slate-400 font-semibold">
-                    {search
-                      ? 'No requests match this search.'
-                      : filter === 'Pending'
-                        ? 'No requests are waiting. New requests from students appear here.'
-                        : 'Nothing here yet.'}
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.id} className="hover:bg-slate-50/50 transition align-top">
-                    <td className="data-td">
-                      <span className="block font-bold text-slate-800">{row.studentName || 'Unknown student'}</span>
-                      <span className="block text-[10px] text-slate-400">{row.matricNumber}</span>
+      <section aria-label="Letter requests" className="app-card appointment-workspace-card">
+        <WorkspaceSectionHeader
+          title={filter === 'All' ? 'All requests' : filter === 'Pending' ? 'Waiting for a decision' : `${FILTER_LABEL[filter]} requests`}
+          description={filter === 'Pending' ? 'Newest first. Open one to check it and approve or reject it.' : 'Open one to see the letter or the reason given.'}
+        />
+        <WorkspaceFilterCard
+          fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          onReset={() => {
+            setSearch('');
+            setLetter('');
+            choose('Pending');
+          }}
+        >
+          <label className="form-label xl:col-span-2">
+            Find a request
+            <input type="search" className="form-control form-control-sm mt-1" value={search} placeholder="Student name, matric number, letter or reference" onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
+          </label>
+          <label className="form-label">
+            Letter
+            <PortalSelect className="form-control form-control-sm mt-1" value={letter} onChange={(event) => { setLetter(event.target.value); setPage(1); }}>
+              <option value="">All letters</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>{template.name}</option>
+              ))}
+            </PortalSelect>
+          </label>
+          <label className="form-label">
+            Status
+            <PortalSelect className="form-control form-control-sm mt-1" value={filter} onChange={(event) => choose(event.target.value as QueueFilter)}>
+              {QUEUE_FILTERS.map((option) => (
+                <option key={option} value={option}>{option === 'All' ? `All statuses${total !== null ? ` (${total})` : ''}` : `${FILTER_LABEL[option]}${counts ? ` (${counts[option]})` : ''}`}</option>
+              ))}
+            </PortalSelect>
+          </label>
+        </WorkspaceFilterCard>
+
+        {loading && rows.length === 0 ? (
+          <LoadingState message="Loading letter requests…" />
+        ) : error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : shown.length === 0 ? (
+          <p className="rounded-xl bg-slate-50 px-4 py-6 card-description">
+            {search || letter ? 'No requests match these filters.' : filter === 'Pending' ? 'No requests are waiting. New requests from students appear here.' : 'Nothing here yet.'}
+          </p>
+        ) : (
+          <>
+            <table aria-label="Letter requests" className="data-table block table-fixed lg:table">
+              <colgroup className="hidden lg:table-column-group">
+                {[22, 22, 18, 12, 14, 12].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
+              </colgroup>
+              <thead className="hidden lg:table-header-group">
+                <tr className="data-thead bg-slate-50">{columns.map((column) => <th key={column} scope="col" className="data-th">{column}</th>)}</tr>
+              </thead>
+              <tbody className="block space-y-3 lg:table-row-group lg:space-y-0">
+                {pageRows.map((row) => (
+                  <tr key={row.id} className="data-row grid grid-cols-2 rounded-xl border border-slate-200 py-2 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0 lg:py-0">
+                    <td className="data-td-strong col-span-2 block min-w-0 px-3 py-2 align-middle [overflow-wrap:anywhere] lg:table-cell lg:px-5 lg:py-4">
+                      <p>{row.studentName || 'Unknown student'}</p>
+                      <p className="card-caption mt-1">{row.matricNumber}</p>
                     </td>
-                    <td className="data-td">
-                      <span className="block font-bold text-slate-800">{row.templateName}</span>
-                      <span className="block text-[10px] text-slate-400">{letterOrigin(row)}</span>
-                      {row.requestDetails?.organisation && (
-                        <span className="mt-0.5 block text-[10.5px] font-semibold text-slate-500 max-w-[280px] truncate">For {row.requestDetails.organisation}</span>
-                      )}
+                    <td className="data-td block min-w-0 px-3 py-2 align-middle [overflow-wrap:anywhere] lg:table-cell lg:px-5 lg:py-4">
+                      <span className="card-label mb-1 block lg:hidden">Letter</span>
+                      <p>{row.templateName}</p>
+                      <p className="card-caption mt-1">{letterOrigin(row)}</p>
                       {row.note && (
-                        <span className="mt-1 inline-flex items-start gap-1 text-[10.5px] font-semibold text-slate-500 max-w-[280px]">
+                        <p className="mt-1 inline-flex items-start gap-1 card-caption text-slate-600">
                           <MessageSquareText aria-hidden="true" className="w-3 h-3 mt-0.5 shrink-0 text-slate-400" />
                           <span className="line-clamp-2">{row.note}</span>
-                        </span>
+                        </p>
                       )}
                     </td>
-                    <td className="data-td whitespace-nowrap">{shortDate(row.requestedAt)}</td>
-                    <td className="data-td">
+                    <td className="data-td block min-w-0 px-3 py-2 align-middle [overflow-wrap:anywhere] lg:table-cell lg:px-5 lg:py-4">
+                      <span className="card-label mb-1 block lg:hidden">For</span>
+                      {row.requestDetails?.organisation ? row.requestDetails.organisation : <span className="text-slate-400">Not asked</span>}
+                    </td>
+                    <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
+                      <span className="card-label mb-1 block lg:hidden">Requested</span>
+                      {shortDate(row.requestedAt)}
+                    </td>
+                    <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
+                      <span className="card-label mb-1 block lg:hidden">Status</span>
                       <LetterStatusBadge status={row.status} replaced={Boolean(row.replacedById)} />
-                      {row.status === 'Issued' && (
-                        <span className="mt-1 block text-[10px] font-semibold text-slate-400">
-                          <span className="font-mono">{row.referenceNumber}</span>
-                          {row.decidedBy ? ` by ${row.decidedBy}` : ''}
-                        </span>
-                      )}
-                      {row.status === 'Rejected' && (
-                        <span className="mt-1 block text-[10px] font-semibold text-rose-600 max-w-[240px] leading-snug">
-                          {row.decidedBy ? `${row.decidedBy}: ` : ''}{row.rejectReason}
-                        </span>
-                      )}
-                      {row.status === 'Withdrawn' && (
-                        <span className="mt-1 block text-[10px] font-semibold text-slate-400">By the student, {shortDate(row.withdrawnAt)}</span>
-                      )}
+                      {row.status === 'Issued' && <p className="card-caption mt-1 font-mono">{row.referenceNumber}</p>}
+                      {row.status === 'Rejected' && row.rejectReason && <p className="card-caption mt-1 text-rose-700 line-clamp-2">{row.rejectReason}</p>}
                     </td>
-                    <td className="data-td text-right">
+                    <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
                       {row.status === 'Pending' ? (
-                        <PortalButton
-                          variant="primary"
-                          size="sm"
-                          aria-label={`Review the ${row.templateName} request from ${row.studentName}`}
-                          onClick={() => onOpenRequest(row.id)}
-                        >
+                        <PortalButton variant="primary" size="sm" className="whitespace-nowrap" aria-label={`Review the ${row.templateName} request from ${row.studentName}`} onClick={() => onOpenRequest(row.id)}>
                           Review
                         </PortalButton>
                       ) : row.status === 'Issued' || row.status === 'Revoked' ? (
-                        <PortalButton
-                          variant="secondary"
-                          size="sm"
-                          icon={Eye}
-                          isLoading={opening === row.id}
-                          aria-label={`View ${row.referenceNumber}`}
-                          onClick={() => void viewLetter(row)}
-                        >
+                        <PortalButton size="sm" icon={Eye} className="whitespace-nowrap" isLoading={opening === row.id} aria-label={`View ${row.referenceNumber}`} onClick={() => void viewLetter(row)}>
                           View
                         </PortalButton>
-                      ) : null}
+                      ) : (
+                        <PortalButton size="sm" className="whitespace-nowrap" aria-label={`Open the ${row.templateName} request from ${row.studentName}`} onClick={() => onOpenRequest(row.id)}>
+                          Details
+                        </PortalButton>
+                      )}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                ))}
+              </tbody>
+            </table>
+            <WorkspacePagination
+              page={currentPage}
+              pageCount={pageCount}
+              total={shown.length}
+              noun="requests"
+              onPage={setPage}
+              pageSize={pageSize}
+              onPageSize={(size) => {
+                setPageSize(workspacePageSize(size));
+                setPage(1);
+              }}
+            />
+          </>
+        )}
+      </section>
 
       {viewing && <LetterView letter={viewing} onClose={() => setViewing(null)} />}
     </div>
@@ -273,9 +312,12 @@ const LetterRequestQueue: React.FC<{
 const LetterRequestReview: React.FC<{
   requestId: string;
   onClose: () => void;
-  onDecided: () => void;
+  /** After a decision: the next waiting request to open, if the office asked for it. */
+  onDecided: (nextId?: string) => void;
   onMessage: (message: string) => void;
-}> = ({ requestId, onClose, onDecided, onMessage }) => {
+  /** How many requests are waiting, this one included. */
+  waiting: number;
+}> = ({ requestId, onClose, onDecided, onMessage, waiting }) => {
   const [request, setRequest] = useState<GeneratedLetter | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -288,6 +330,7 @@ const LetterRequestReview: React.FC<{
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [rejectSaving, setRejectSaving] = useState(false);
   const decided = useRef(false);
+  const openNext = useRef(false);
   const output = useLetterOutput(onMessage);
 
   const load = useCallback(() => {
@@ -356,7 +399,8 @@ const LetterRequestReview: React.FC<{
     return Object.keys(problems).length === 0;
   };
 
-  const startApprove = () => {
+  const startApprove = (andNext = false) => {
+    openNext.current = andNext;
     if (checkValues()) setConfirmApprove(true);
   };
 
@@ -373,7 +417,13 @@ const LetterRequestReview: React.FC<{
           ? `Issued ${issued.referenceNumber}. Everyone on the letter has been notified.`
           : `Approved. ${issued.referenceNumber} was issued to ${issued.studentName}, who has been notified.`,
       );
-      onDecided();
+      if (openNext.current) {
+        const next = await getLetterRequests({ status: 'Pending' }).then((rows) => rows.find((row) => row.id !== request.id)).catch(() => undefined);
+        if (!next) onMessage('That was the last request waiting.');
+        onDecided(next?.id);
+      } else {
+        onDecided();
+      }
     } catch (err) {
       setConfirmApprove(false);
       const problems = approvalFieldErrors(err);
@@ -517,7 +567,12 @@ const LetterRequestReview: React.FC<{
                     Reject
                   </PortalButton>
                 )}
-                <PortalButton variant="primary" icon={Send} disabled={busy || Boolean(request.problem)} onClick={startApprove}>
+                {waiting > 1 && (
+                  <PortalButton icon={Send} disabled={busy || Boolean(request.problem)} onClick={() => startApprove(true)}>
+                    {automatic ? 'Issue and open next' : 'Approve and open next'}
+                  </PortalButton>
+                )}
+                <PortalButton variant="primary" icon={Send} disabled={busy || Boolean(request.problem)} onClick={() => startApprove()}>
                   {automatic ? 'Issue letter' : 'Approve and issue'}
                 </PortalButton>
               </div>
@@ -622,7 +677,7 @@ const RequestSummary: React.FC<{ request: GeneratedLetter; automatic: boolean; s
               <span key={line} className="block">{line}</span>
             ))}
             <span className="mt-0.5 block text-[11px] text-slate-400">
-              {RECIPIENT_PURPOSE_LABELS[request.requestDetails.purpose ?? ''] ?? request.requestDetails.purpose}
+              {request.requestDetails.purposeLabel ?? RECIPIENT_PURPOSE_LABELS[request.requestDetails.purpose ?? ''] ?? request.requestDetails.purpose}
               {request.requestDetails.typedIn ? ', typed in by the student' : ''}
             </span>
           </dd>
@@ -630,6 +685,12 @@ const RequestSummary: React.FC<{ request: GeneratedLetter; automatic: boolean; s
           <dd className="font-semibold text-slate-700">{chosenDetailLabels(request.requestDetails).join(', ') || 'Nothing extra'}</dd>
         </>
       )}
+      {Object.entries(request.requestDetails?.answers ?? {}).map(([name, answer]) => (
+        <React.Fragment key={name}>
+          <dt className="font-semibold text-slate-400">{answer.label}</dt>
+          <dd className="font-semibold text-slate-700 [overflow-wrap:anywhere]">{answer.value || 'Not answered'}</dd>
+        </React.Fragment>
+      ))}
       {sentTo && (
         <>
           <dt className="font-semibold text-slate-400">Goes to</dt>
@@ -729,14 +790,15 @@ const FieldRow: React.FC<{
 }> = ({ field, value, error, disabled, onChange }) => {
   const id = `letter-value-${field.name}`;
   const fromOffice = field.source === 'office';
+  const fromStudent = field.source === 'student';
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
         <label htmlFor={field.needed ? id : undefined} className="text-[11.5px] font-extrabold text-slate-700">
           {field.label}
         </label>
-        <StatusBadge tone={fromOffice ? 'warning' : field.needed ? 'danger' : 'neutral'} className="px-2 py-0.5 text-[8.5px]">
-          {fromOffice ? 'Office fills in' : field.needed ? 'Missing from record' : 'From record'}
+        <StatusBadge tone={fromOffice ? 'warning' : field.needed ? 'danger' : fromStudent ? 'info' : 'neutral'} className="px-2 py-0.5 text-[8.5px]">
+          {fromOffice ? 'Office fills in' : field.needed ? 'Missing from record' : fromStudent ? 'Student answered' : 'From record'}
         </StatusBadge>
       </div>
       {field.needed ? (
@@ -757,7 +819,9 @@ const FieldRow: React.FC<{
           </p>
         </>
       ) : (
-        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-700 whitespace-pre-line">{field.value}</p>
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-700 whitespace-pre-line">
+          {field.value || <span className="font-medium text-slate-400">Not answered</span>}
+        </p>
       )}
     </div>
   );
