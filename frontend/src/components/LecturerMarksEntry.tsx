@@ -289,6 +289,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                   throw new Error('This evaluation task is no longer available.');
                 }
                 setActiveFormTask(latest);
+                return latest;
               } catch (failure) {
                 if (failure instanceof ApiError && (failure.status === 403 || failure.status === 404)) {
                   setActiveFormTask(current => current ? {...current, canEdit: false, canSubmit: false} : current);

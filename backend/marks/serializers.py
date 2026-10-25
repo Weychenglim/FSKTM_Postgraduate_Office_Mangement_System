@@ -134,6 +134,7 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
     evaluatorRoleLabel = serializers.CharField(source="get_evaluator_role_display")
     totalMark = serializers.SerializerMethodField()
     submittedDate = serializers.SerializerMethodField()
+    submittedAt = serializers.DateTimeField(source="mark_entry.submitted_at", read_only=True, allow_null=True)
     components = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     dueAt = serializers.SerializerMethodField()
@@ -155,6 +156,7 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
             "evaluatorRoleLabel",
             "totalMark",
             "submittedDate",
+            "submittedAt",
             "components",
             "comments",
             "dueAt",
@@ -186,7 +188,7 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
             submitted_at = obj.mark_entry.submitted_at
         except MarkEntry.DoesNotExist:
             return None
-        return submitted_at.strftime("%d %b %Y") if submitted_at else None
+        return timezone.localtime(submitted_at).strftime("%d %b %Y") if submitted_at else None
 
     def get_comments(self, obj):
         try:
@@ -250,7 +252,6 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
 
 
 class SubmittedEvaluationSerializer(EvaluationTaskSerializer):
-    submittedAt = serializers.DateTimeField(source="mark_entry.submitted_at", read_only=True, allow_null=True)
     taskLifecycleStatus = serializers.CharField(source="lifecycle_status")
     periodId = serializers.IntegerField(source="period_id")
     periodName = serializers.CharField(source="period.name")
@@ -259,7 +260,7 @@ class SubmittedEvaluationSerializer(EvaluationTaskSerializer):
 
     class Meta(EvaluationTaskSerializer.Meta):
         fields = EvaluationTaskSerializer.Meta.fields + [
-            "submittedAt", "taskLifecycleStatus", "periodId", "periodName", "rubricName", "rubricVersion",
+            "taskLifecycleStatus", "periodId", "periodName", "rubricName", "rubricVersion",
         ]
 
     def to_representation(self, obj):

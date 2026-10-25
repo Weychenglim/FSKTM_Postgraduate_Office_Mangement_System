@@ -290,20 +290,9 @@ function withLegacyRubricFields(task: EvaluationTask): EvaluationTask {
 }
 
 function taskScores(task: EvaluationTask) {
-  const components = (task.components || []).map((component) => {
-    const fields = legacyScoreFields[component.code];
-    if (!fields) return component;
-    const legacyScore = task[fields.score] as number | undefined;
-    return {
-      ...component,
-      marksAwarded: legacyScore === undefined
-        ? component.marksAwarded
-        : String(legacyScore),
-      feedback:
-        (task[fields.feedback] as string | undefined) ?? component.feedback,
-    };
-  });
-  return buildMarkScorePayload(components);
+  // The rubric editor updates components; compatibility aliases are read-only
+  // projections of the last API response and must never overwrite new input.
+  return buildMarkScorePayload(task.components || []);
 }
 
 export async function saveMarkDraft(

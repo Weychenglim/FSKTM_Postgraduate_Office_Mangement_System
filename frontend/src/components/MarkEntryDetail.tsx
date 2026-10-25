@@ -23,7 +23,7 @@ interface MarkEntryDetailProps {
   task: EvaluationTask;
   backLabel?: string;
   onBack: () => void;
-  onReload?: () => Promise<unknown>;
+  onReload?: () => Promise<EvaluationTask>;
   onSave: (updatedTask: EvaluationTask) => void | Promise<void>;
   onSubmit: (updatedTask: EvaluationTask) => void | DecisionOutcome | Promise<void | DecisionOutcome>;
 }
@@ -37,6 +37,13 @@ const evaluatorRoleLabel = (task: EvaluationTask): string =>
         : 'Panel Member'
   );
 
+const draftValues = (task: EvaluationTask) => Object.fromEntries(
+  (task.components || []).map(component => [component.id, {
+    mark: component.marksAwarded === null ? '' : component.marksAwarded,
+    feedback: component.feedback,
+  }]),
+);
+
 export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   task,
   onBack,
@@ -46,15 +53,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   backLabel = 'Back to Marks Entry',
 }) => {
   const components = task.components || [];
-  const [values, setValues] = useState(() => Object.fromEntries(
-    components.map((component) => [
-      component.id,
-      {
-        mark: component.marksAwarded === null ? '' : component.marksAwarded,
-        feedback: component.feedback,
-      },
-    ]),
-  ));
+  const [values, setValues] = useState(() => draftValues(task));
   const [comments, setComments] = useState(task.comments || '');
   const [showValidation, setShowValidation] = useState(false);
   const [submitted, setSubmitted] = useState(task.status === 'SUBMITTED');
@@ -65,6 +64,20 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   const savingRef = useRef(false);
   const initial = useRef(JSON.stringify({ values, comments }));
   const dirty = JSON.stringify({ values, comments }) !== initial.current;
+  const reload = onReload ? async () => {
+    const latest = await onReload();
+    const refreshedValues = draftValues(latest);
+    const refreshedComments = latest.comments || '';
+    // Replace local input only after an explicit successful reload. Keeping the
+    // record page mounted also preserves its transient browser-history entry.
+    initial.current = JSON.stringify({ values: refreshedValues, comments: refreshedComments });
+    setValues(refreshedValues);
+    setComments(refreshedComments);
+    setSubmitted(latest.status === 'SUBMITTED');
+    setDraftSaved(false);
+    setShowValidation(false);
+    setSaveFeedback(null);
+  } : undefined;
   const save = async (submit: boolean) => {
     if (savingRef.current) return false;
     savingRef.current = true;
@@ -152,7 +165,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
         message="Submitted marks lock immediately. Authorized Office staff can reopen them only while the period is open."
         confirmLabel="Submit and lock marks" cancelLabel="Review again" tone="warning"
         canConfirm={!isReadOnly && task.canSubmit === true && errors.length === 0} busy={saving}
-        successMessage="Marks submitted and locked." onReload={onReload} onConfirm={() => save(true)} onClose={() => setConfirmOpen(false)} />
+        successMessage="Marks submitted and locked." onReload={reload} onConfirm={() => save(true)} onClose={() => setConfirmOpen(false)} />
 
       {task.periodEffectiveStatus ? <p className="card-description text-slate-600">Period: {task.periodEffectiveStatus}</p> : null}
       {task.completionWindow ? <p className="card-description text-sky-800">Completion window · {task.completionWindow.status} · Due {new Date(task.effectiveDueAt || task.completionWindow.deadline).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })} (Malaysia)</p> : null}

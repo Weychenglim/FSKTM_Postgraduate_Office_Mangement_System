@@ -108,6 +108,17 @@ class LecturerSubmissionHistoryTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, [])
 
+    def test_queue_and_history_use_the_same_submission_instant_at_malaysia_midnight(self):
+        instant = datetime(2026, 1, 1, 17, 30, tzinfo=dt_timezone.utc)
+        self.submitted(self.task, instant)
+        self.client.force_authenticate(self.lecturer)
+        history = self.client.get(self.url)
+        queue = self.client.get('/api/marks/my-evaluation-tasks/')
+        self.assertEqual(queue.status_code, 200)
+        row = next(row for row in queue.data if row['id'] == self.task.pk)
+        self.assertEqual(row.get('submittedAt'), history.data[0]['submittedAt'])
+        self.assertEqual(row['submittedDate'], '02 Jan 2026')
+
     def test_unknown_submission_dates_sort_after_known_dates(self):
         self.submitted(self.task)
         historical = self.task_for("SUPERVISOR", "RETIRED")
@@ -118,6 +129,17 @@ class LecturerSubmissionHistoryTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([row["id"] for row in response.data], [self.task.pk, historical.pk])
         self.assertIsNone(response.data[-1]["submittedAt"])
+
+    def test_office_records_use_the_same_malaysia_submission_day_as_lecturer_history(self):
+        self.submitted(self.task, datetime(2026, 1, 1, 17, 30, tzinfo=dt_timezone.utc))
+        self.client.force_authenticate(self.lecturer)
+        history = self.client.get(self.url)
+        self.assertEqual(history.data[0]['submittedDate'], '02 Jan 2026')
+        self.client.force_authenticate(self.office_admin)
+        records = self.client.get('/api/marks/')
+        self.assertEqual(records.status_code, 200)
+        record = next(row for row in records.data if row['id'] == f'MRK-{self.task.pk:05d}')
+        self.assertEqual(record['submittedDate'], history.data[0]['submittedDate'])
 
     def test_history_prefetches_scores_and_components_without_per_record_queries(self):
         for _ in range(8):

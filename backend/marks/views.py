@@ -874,7 +874,7 @@ def mark_records_view(request):
                 "retiredAt": task.retired_at,
                 "retirementReason": task.retirement_reason or None,
                 "submittedDate": (
-                    entry.submitted_at.strftime("%d %b %Y")
+                    timezone.localtime(entry.submitted_at).strftime("%d %b %Y")
                     if entry and entry.submitted_at
                     else "-"
                 ),
