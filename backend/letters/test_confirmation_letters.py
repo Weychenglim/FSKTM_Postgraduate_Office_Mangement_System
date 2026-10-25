@@ -214,6 +214,13 @@ class ReviewAndIssueTests(ConfirmationLetterTestCase):
         notice = self.office.notifications.latest("id")
         self.assertIn("for Keretapi Tanah Melayu Berhad (KTMB).", notice.message)
 
+    def test_the_student_sees_when_the_letter_stops_being_valid(self):
+        user = self.student("SCL015")
+        letter = self.issued_for(user, MAYBANK)
+        self.client.force_authenticate(user)
+        listed = {row["id"]: row for row in self.client.get(REQUESTS).data}
+        self.assertEqual(listed[str(letter.pk)]["validUntil"], add_months(letter.issued_on, 3).isoformat())
+
 
 class ReplacementTests(ConfirmationLetterTestCase):
     def test_a_new_letter_replaces_only_the_copy_for_the_same_recipient(self):

@@ -332,7 +332,7 @@ class GeneratedLetter(models.Model):
             "revokedAt": _moment(self.revoked_at),
             "revokeReason": self.revoke_reason,
             "requestDetails": dict(self.request_details or {}),
-            "validUntil": _day(self.valid_until),
+            "validUntil": self.valid_until.isoformat() if self.valid_until else None,
         }
         if include_content:
             data["content"] = self.content
