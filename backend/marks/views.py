@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -27,6 +27,7 @@ from .serializers import (
     EvaluationPeriodCreateSerializer,
     EvaluationPeriodUpdateSerializer,
     EvaluationTaskSerializer,
+    SubmittedEvaluationSerializer,
     MarkDraftSerializer,
     ReasonSerializer,
     SubmittedMarksCorrectionSerializer,
@@ -762,6 +763,21 @@ def my_evaluation_tasks_view(request):
         )
     )
     return Response(EvaluationTaskSerializer(tasks, many=True).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_submitted_evaluations_view(request):
+    if request.user.role != User.Role.LECTURER:
+        return Response({"error": "Only lecturers can view their submitted evaluations."}, status=status.HTTP_403_FORBIDDEN)
+    # A history read is independent of current appointment, semester and task generation.
+    tasks = (
+        EvaluationTask.objects.filter(evaluator=request.user, mark_entry__status=MarkEntry.Status.SUBMITTED)
+        .select_related("profile", "period", "period__rubric", "mark_entry")
+        .prefetch_related("period__rubric__components", "mark_entry__scores__component")
+        .order_by(F("mark_entry__submitted_at").desc(nulls_last=True), "-id")
+    )
+    return Response(SubmittedEvaluationSerializer(tasks, many=True).data)
 
 
 @api_view(["PUT"])

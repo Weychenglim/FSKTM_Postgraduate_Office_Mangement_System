@@ -245,8 +245,31 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
                     else ""
                 ),
             }
-            for component in obj.period.rubric.components.filter(is_active=True)
+            for component in obj.period.rubric.components.all() if component.is_active
         ]
+
+
+class SubmittedEvaluationSerializer(EvaluationTaskSerializer):
+    submittedAt = serializers.DateTimeField(source="mark_entry.submitted_at", read_only=True, allow_null=True)
+    taskLifecycleStatus = serializers.CharField(source="lifecycle_status")
+    periodId = serializers.IntegerField(source="period_id")
+    periodName = serializers.CharField(source="period.name")
+    rubricName = serializers.CharField(source="period.rubric.name")
+    rubricVersion = serializers.IntegerField(source="period.rubric.version")
+
+    class Meta(EvaluationTaskSerializer.Meta):
+        fields = EvaluationTaskSerializer.Meta.fields + [
+            "submittedAt", "taskLifecycleStatus", "periodId", "periodName", "rubricName", "rubricVersion",
+        ]
+
+    def to_representation(self, obj):
+        # History never evaluates editing or completion-window grant eligibility.
+        return {
+            **serializers.ModelSerializer.to_representation(self, obj),
+            "canEdit": False, "canSubmit": False,
+            "periodEffectiveStatus": obj.period.effective_status,
+            "effectiveDueAt": task_due_at(obj),
+        }
 
 
 class ScoreInputSerializer(serializers.Serializer):
