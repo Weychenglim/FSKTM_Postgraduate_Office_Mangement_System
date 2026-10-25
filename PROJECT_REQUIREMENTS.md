@@ -1,5 +1,21 @@
 # Project Requirements
 
+## Acting delegation acceptance boundary (25 October 2026)
+
+Verify reasoned Office grant/revocation, programme-bound effective authority, regular-programme retention, stale decision denial, mounted queue refresh, personal history and dependent report/export/dossier privacy with isolated synthetic records. Verify scheduled, inclusive-end-date and expired states with an isolated test clock; retain grant history and completed academic work. Distinguish production-component/HTTP evidence, parsed XLSX content and backend retirement/concurrency/migration regressions from full-shell/login, compound lifecycle and external policy acceptance. This work introduces no academic policy, cross-account identity rule or technical-admin permission change.
+
+## Research and transfer acceptance boundary (25 October 2026)
+
+Acceptance must distinguish primary-Supervisor final decisions on Student research changes from separate source/destination Coordinator decisions on Office programme transfers. Verify reason validation, cancellation/rejection, successful UI approval, stale-decision recovery, one-pending-request conflicts, per-stage team acknowledgement, unauthorized access, retained history and consistent programme/revision outcomes with isolated synthetic records. Compare original applications, primary/supporting/Panel membership, submitted/draft Marks and completion windows before/after. Preserve remaining compound lifecycle/report/export/reconciliation and faculty-policy boundaries; this acceptance work adds no academic approval, Registry ownership change or runtime workflow.
+
+## Supporting supervision acceptance boundary (25 October 2026)
+
+Verify supporting nomination, candidate/Coordinator rejection, reasoned cancellation, approval, replacement and closure through existing role-scoped screens and real authenticated HTTP using isolated synthetic records. Check Student redaction, private-application/Marks denial, incumbent retention, former-member history/access revocation and exact preservation of primary/Panel/research/submitted Marks. Distinguish component-level browser evidence from full-shell/login, concurrency, remaining compound lifecycle/report/export/dossier/reconciliation cases and external faculty-policy/template decisions. This acceptance work introduces no new workflow or academic policy.
+
+## Lecturer draft and submission reliability (25 October 2026)
+
+Public lecturer draft and submission writes require the version of the record that was reviewed. Reject stale writes without changing newer scores, feedback or comments. A submission carries the full reviewed rubric payload and a task-scoped UUID; save and lock atomically. Repeating an identical committed attempt returns its result without a second write, including after the evaluation period closes. Reusing a reference for different input, or replaying after an Office correction/reopening, requires reviewing the latest record. Ownership, task lifecycle, eligibility, deadlines and required-component checks remain authoritative. Failed requests retain local entries; replacing them with saved values requires explicit loading. No automatic submission retries or browser persistence of academic draft data.
+
 Marks acceptance verification must cover Office rubric/period setup, one lecturer's separate Supervisor/Panel assignments, revised draft persistence, submission locking, own read-only history and matching Office results using isolated test data. Submission-day labels in Office records also use Malaysia time consistently with lecturer views.
 
 Lecturer marking responsibility navigation uses compact numeric badges for nonzero pending-task counts (or submitted counts in history), omits zero-count text, and preserves descriptive counts for assistive technology.
