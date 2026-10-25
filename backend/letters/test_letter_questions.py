@@ -109,6 +109,21 @@ class SettingQuestionsTests(QuestionTestCase):
         self.assertEqual(made.data["requestDetails"]["addressLine1"], "")
 
 
+class SampleValuesTests(QuestionTestCase):
+    def test_the_office_previews_a_letter_with_a_real_student(self):
+        make_student("QST020")
+        self.client.force_authenticate(self.office)
+        sample = self.client.get(f"{TEMPLATES}sample-values/?student=qst020").data
+        self.assertEqual(sample["matricNumber"], "QST020")
+        self.assertEqual(sample["values"]["STUDENT_NAME"], "Student QST020")
+        self.assertEqual(sample["values"]["PASSPORT_NUMBER"], "A1234567")
+        self.assertEqual(self.client.get(f"{TEMPLATES}sample-values/?student=NOPE").status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_students_cannot_look_up_other_students(self):
+        self.client.force_authenticate(make_student("QST021"))
+        self.assertEqual(self.client.get(f"{TEMPLATES}sample-values/?student=QST021").status_code, status.HTTP_403_FORBIDDEN)
+
+
 class AnsweringTests(QuestionTestCase):
     def test_the_form_lists_the_questions_with_their_choices(self):
         self.client.force_authenticate(make_student("QST010"))

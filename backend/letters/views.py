@@ -20,11 +20,15 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from accounts.models import Student
+
 from .choice_lists import recipients_list
+from .confirmation import request_values
+from .details import letter_details
 from .eligibility import inactive_student_refusal
 from .form_questions import clean_questions, known_fields, question_names
 from .models import GeneratedLetter, LetterPurpose, LetterTemplate
-from .placeholders import field_names, placeholder_catalogue, placeholder_problems, purpose_hint
+from .placeholders import VALUE_KEYS, field_names, placeholder_catalogue, placeholder_problems, purpose_hint
 from .serializers import LetterTemplateSerializer
 
 ACTIVE_CLASH_CODE = "appointment_template_already_active"
@@ -168,6 +172,26 @@ def _save(template):
 def placeholders_list(request):
     """The placeholders a template may use, with labels and where each value comes from."""
     return Response(placeholder_catalogue())
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def sample_values(request):
+    """Staff: one student's details by tag (``?student=<matric number>``), to
+    preview a letter type with real values before students ask for it."""
+    _require_staff(request)
+    matric = (request.query_params.get("student") or "").strip()
+    student = Student.objects.select_related("user").filter(matric_no__iexact=matric).first() if matric else None
+    if student is None:
+        raise NotFound("No student has this matric number.")
+    values = request_values(letter_details(student), {})
+    return Response(
+        {
+            "studentName": student.user.full_name,
+            "matricNumber": student.matric_no,
+            "values": {name: str(values.get(key)) for name, key in VALUE_KEYS.items() if values.get(key)},
+        }
+    )
 
 
 @api_view(["GET", "POST"])

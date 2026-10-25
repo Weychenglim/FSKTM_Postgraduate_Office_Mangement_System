@@ -132,7 +132,15 @@ audit record.
 | Method | Path | Actor |
 | ------ | ---- | ----- |
 | POST | `requests/` (`{templateId, note?, details?}`) | Active student |
-| GET | `requests/recipient-options/` | Signed in: the purposes, organisations and optional details of a confirmation letter |
+| GET | `requests/recipient-options/` | Signed in: the visible purposes, organisations (with saved addresses) and optional details |
+| GET | `requests/form/<template id>/` | Active student (Active request letters) or Office Staff/Admin (any request letter): the letter's questions with what to choose from |
+| GET, POST | `lists/` (`{name, itemNoun?, description?}`) | Office Staff/Admin: every list with its counts; make a simple list |
+| GET, PATCH, DELETE | `lists/<id>/` | Office Staff/Admin: one list with its purposes and entries, hidden ones included |
+| POST | `lists/<id>/groups/` (`{name, nameMs?, itemNoun?, allowOther?}`) | Office Staff/Admin: a purpose in the recipients list |
+| PATCH, DELETE | `list-groups/<id>/` | Office Staff/Admin: rename, hide or delete a purpose |
+| POST | `lists/<id>/items/` (`{groupId?, name, nameMs?, address…}` or `{groupId?, names}`) | Office Staff/Admin: add one entry, or many pasted one per line |
+| PATCH, DELETE | `list-items/<id>/` | Office Staff/Admin: edit, hide or delete an entry |
+| POST | `lists/<id>/order/` (`{groupIds}` or `{groupId, itemIds}`) | Office Staff/Admin: put purposes or one purpose's entries in order |
 | GET | `requests/` | Student (own requests) or Office Staff/Admin (`search`, `status` (one or several, comma separated), `from`, `to` on the issue date) |
 | GET | `requests/counts/` | Office Staff/Admin |
 | GET | `requests/<id>/` | The request's student or Office Staff/Admin |
@@ -170,9 +178,16 @@ The office's `GET requests/` also takes `madeBy=request|automatic`.
 
 **The PDF.** The download is a PDF built with `reportlab`, locked against editing (printing and copying text stay allowed), so a letter cannot simply be changed. Its reference number lets anyone verify it with the office. Revoked letters keep their number but can no longer be downloaded.
 
+**Lists and each letter's student form (2026-10-25).**
+- The recipients list (purposes such as Banking, each with its organisations and their saved addresses) and simple lists (such as embassies) are kept by the office in `ChoiceList`, `ChoiceGroup` and `ChoiceItem`, seeded by migration `letters.0009`. An entry a letter used (`GeneratedLetter.choice_items`) can only be hidden; an unused one can be deleted. A purpose can stop students typing an organisation that is not listed (`allowOther`).
+- A letter type's `formQuestions` lists what its form asks, in order: `recipient` ("Who is the letter for?", with the purposes it offers and whether it asks for the address), `extras` ("Additional information", the optional lines its wording shows), and the office's own `text`, `date`, `choice` (from a simple list) and `yesno` questions. Each own question's `name` is also its tag on the letter. `asksRecipient` follows from the questions.
+- A request's `answers` are checked against the questions and saved with the label and the printed value in English and Malay, so editing a question or a list never changes a letter already asked for. Unanswered optional questions print as blank.
+- `readyInDays` ("Usually ready in N working days") is shown to students.
+
 **Student confirmation letters (as in Maya).**
-- A template with `asksRecipient` makes the student say who the letter is for (`details`): a purpose (Banking, Government agencies, Mobility, Non-government agencies, Sponsorship, Transportation), an organisation from the built-in list in `letters/recipients.py` or typed in, the address to print, and which optional lines to show (`MIN_PERIOD`, `MAX_PERIOD`, `CURRENT_SEMESTER`). Lines for options not chosen are left out of the letter.
-- Request templates may use `{{RECIPIENT}}`, `{{VALID_UNTIL}}`, `{{BALANCE_SEMESTERS_MIN}}` and `{{BALANCE_SEMESTERS_MAX}}`. The first and the semesters need `asksRecipient`; the valid-until date (issue date plus the template's `validMonths`) needs `validMonths`.
+- A template with `asksRecipient` makes the student say who the letter is for (`details`): a purpose the letter offers (seeded as Banking, Government agencies, Mobility, Non-government agencies, Sponsorship, Transportation), an organisation from the office's recipients list or typed in where the purpose allows it, the address to print (when the letter asks for it), and which optional lines to show (`MIN_PERIOD`, `MAX_PERIOD`, `CURRENT_SEMESTER`). Lines for options not chosen are left out of the letter.
+- Request templates may use `{{RECIPIENT}}`, `{{VALID_UNTIL}}`, `{{BALANCE_SEMESTERS_MIN}}` and `{{BALANCE_SEMESTERS_MAX}}`. The first needs `asksRecipient`; the valid-until date (issue date plus the template's `validMonths`) needs `validMonths`.
+- `GET /api/letter-templates/sample-values/?student=<matric>` (Office Staff/Admin) returns that student's values for every built-in tag, so the editor's preview can show a letter filled in with a real record.
 - A template with `asksRecipient` must show `{{RECIPIENT}}` on each page it has. Its `optionalDetails` (in every template listing, students included) names the optional lines its wording shows; students are offered only those, and any other ticked option is dropped.
 - Semesters left come from the registry's current semester, expected completion and maximum semester when they can be read (a semester label, or a count from the intake); otherwise the office types them in at approval.
 - A template's `contentMs` is the same letter in Malay. It is filled with Malay dates, programme names and mode of study, and printed as a second page.

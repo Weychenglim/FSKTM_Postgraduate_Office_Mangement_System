@@ -6,5 +6,6 @@ from . import views
 urlpatterns = [
     path("", views.templates_list, name="letter-templates-list"),
     path("placeholders/", views.placeholders_list, name="letter-template-placeholders"),
+    path("sample-values/", views.sample_values, name="letter-template-sample-values"),
     path("<int:pk>/", views.templates_detail, name="letter-templates-detail"),
 ]
