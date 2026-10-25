@@ -10,41 +10,45 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { FileText, Info, Send } from 'lucide-react';
 import { PageHeader, PortalButton, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
-import { PortalModal, useModalTitle } from './PortalModal';
 import { LoadingState, ErrorState } from './StateViews';
 import { StudentLetterRequests, shortDate } from './IssuedLetters';
-import { LetterRecipientFields } from './LetterRecipientFields';
-import { GeneratedLetter, LetterRecipientOptions, LetterRequestDetails, LetterTemplate } from '../types';
-import {
-  fieldErrors,
-  getMyLetterRequests,
-  getRecipientOptions,
-  getStudentLetterTemplates,
-  inactiveStudentReason,
-  isAlreadyRequested,
-  requestLetter,
-} from '../services';
-import { EMPTY_REQUEST_DETAILS } from '../utils/letterRecipients';
+import { StudentLetterRequestForm } from './StudentLetterRequestForm';
+import { GeneratedLetter, LetterTemplate } from '../types';
+import { getMyLetterRequests, getStudentLetterTemplates, inactiveStudentReason } from '../services';
 
 export type StudentLetterView = 'new' | 'history';
 
 const LETTER_VIEWS: readonly StudentLetterView[] = ['new', 'history'];
-const MAX_NOTE_LENGTH = 500;
 
 interface StudentLetterGenerationProps {
   /** Which tab is open; driven by the route when the app provides it. */
   view?: StudentLetterView;
   onViewChange?: (view: StudentLetterView) => void;
-  // Kept for the app shell, which passes the signed-in student's identity.
+  /** The letter whose application form is open, from the route. */
+  requestTemplateId?: string | null;
+  onOpenRequestForm?: (templateId: string) => void;
+  onCloseRequestForm?: () => void;
+  // The signed-in student's identity, shown on the application form.
   studentName?: string;
   studentId?: string;
   programme?: string;
 }
 
-export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = ({ view, onViewChange }) => {
+export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = ({
+  view,
+  onViewChange,
+  requestTemplateId,
+  onOpenRequestForm,
+  onCloseRequestForm,
+  studentName = '',
+  studentId = '',
+  programme = '',
+}) => {
   const [localView, setLocalView] = useState<StudentLetterView>('new');
   const activeView = view ?? localView;
   const changeView = (next: StudentLetterView) => (onViewChange ? onViewChange(next) : setLocalView(next));
+  const [localFormId, setLocalFormId] = useState<string | null>(null);
+  const formTemplateId = onOpenRequestForm ? requestTemplateId ?? null : localFormId;
 
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (message: string) => {
@@ -56,24 +60,12 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   const [templates, setTemplates] = useState<LetterTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
-  // The letter whose request pop-up is open.
-  const [requesting, setRequesting] = useState<LetterTemplate | null>(null);
-  const modalTitle = useModalTitle();
 
   // The student's requests ("My Requests").
   const [letters, setLetters] = useState<GeneratedLetter[]>([]);
   const [lettersLoading, setLettersLoading] = useState(true);
   const [lettersError, setLettersError] = useState<string | null>(null);
 
-  const [note, setNote] = useState('');
-  const [noteError, setNoteError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  // Who a confirmation letter is for, and the lists the student chooses from.
-  const [details, setDetails] = useState<LetterRequestDetails>(EMPTY_REQUEST_DETAILS);
-  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
-  const [recipientOptions, setRecipientOptions] = useState<LetterRecipientOptions | null>(null);
-  const [optionsLoading, setOptionsLoading] = useState(false);
-  const [optionsError, setOptionsError] = useState<string | null>(null);
   // Set when the server refuses letters because the student's status is not Active.
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
@@ -108,108 +100,33 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     loadLetters();
   }, [loadTemplates, loadLetters]);
 
-  const loadRecipientOptions = useCallback(() => {
-    setOptionsLoading(true);
-    setOptionsError(null);
-    getRecipientOptions()
-      .then(setRecipientOptions)
-      .catch((err) => setOptionsError(err instanceof Error ? err.message : 'Could not load the list of organisations.'))
-      .finally(() => setOptionsLoading(false));
-  }, []);
-
   const pendingFor = (templateId: string) =>
     letters.find((letter) => letter.templateId === templateId && letter.status === 'Pending') ?? null;
   const currentCopies = (templateId: string) =>
     letters.filter((letter) => letter.templateId === templateId && letter.status === 'Issued');
-  // A letter addressed to someone replaces only the copy for the same organisation.
-  const requestingCurrent = requesting
-    ? currentCopies(requesting.id).find(
-        (letter) =>
-          !requesting.asksRecipient ||
-          (details.organisation.trim() !== '' &&
-            letter.requestDetails?.organisation?.toLowerCase() === details.organisation.trim().toLowerCase()),
-      ) ?? null
-    : null;
 
   const replaceLetter = (changed: GeneratedLetter) =>
     setLetters((rows) => rows.map((row) => (row.id === changed.id ? changed : row)));
 
-  const openRequest = (template: LetterTemplate) => {
-    setRequesting(template);
-    setNote('');
-    setNoteError(null);
-    setDetails(EMPTY_REQUEST_DETAILS);
-    setDetailErrors({});
-    if (template.asksRecipient && !recipientOptions && !optionsLoading) loadRecipientOptions();
+  const openForm = (template: LetterTemplate) => {
+    if (onOpenRequestForm) onOpenRequestForm(template.id);
+    else setLocalFormId(template.id);
   };
 
-  const changeDetails = (next: LetterRequestDetails) => {
-    setDetailErrors((current) => {
-      const cleared = { ...current };
-      for (const key of Object.keys(next) as (keyof LetterRequestDetails)[]) {
-        if (next[key] !== details[key]) delete cleared[key];
-      }
-      return cleared;
-    });
-    setDetails(next);
+  const closeForm = (next: StudentLetterView = 'new') => {
+    setLocalFormId(null);
+    if (next === 'history' || !onCloseRequestForm) changeView(next);
+    else onCloseRequestForm();
   };
 
-  const closeRequest = () => {
-    if (!sending) setRequesting(null);
-  };
-
-  const handleRequest = async () => {
-    if (!requesting || sending) return;
-    if (note.trim().length > MAX_NOTE_LENGTH) {
-      setNoteError(`Keep the note under ${MAX_NOTE_LENGTH} characters.`);
-      return;
-    }
-    if (requesting.asksRecipient) {
-      const problems: Record<string, string> = {};
-      if (!details.purpose) problems.purpose = 'Choose what the letter is for.';
-      else if (!details.organisation.trim()) problems.organisation = 'Choose or type who the letter is for.';
-      setDetailErrors(problems);
-      if (Object.keys(problems).length > 0) return;
-    }
-    setSending(true);
-    try {
-      const created = await requestLetter(requesting.id, note.trim(), requesting.asksRecipient ? details : undefined);
-      setLetters((rows) => [created, ...rows]);
-      setRequesting(null);
-      setNote('');
-      setNoteError(null);
-      changeView('history');
-      showToast(`Request sent for a ${created.templateName}. You will be notified when the office decides.`);
-    } catch (err) {
-      const reason = inactiveStudentReason(err);
-      if (reason) {
-        setRequesting(null);
-        setBlockedReason(reason);
-      } else if (isAlreadyRequested(err)) {
-        setRequesting(null);
-        loadLetters();
-        showToast(err instanceof Error ? err.message : 'You already asked for this letter.');
-      } else {
-        const problems = fieldErrors(err);
-        if (problems.note) setNoteError(problems.note);
-        setDetailErrors(Object.fromEntries(Object.entries(problems).filter(([key]) => key !== 'note')));
-        showToast(err instanceof Error ? err.message : 'Could not send the request. Please try again.');
-        if (err instanceof Error && /no longer available/i.test(err.message)) loadTemplates();
-      }
-    } finally {
-      setSending(false);
-    }
-  };
-
-  // From a rejected request: open the same letter's request again.
+  // From a rejected request: open the same letter's form again.
   const requestAgain = (letter: GeneratedLetter) => {
     const template = templates.find((t) => t.id === letter.templateId);
     if (!template) {
       showToast(`A ${letter.templateName} cannot be requested right now.`);
       return;
     }
-    changeView('new');
-    openRequest(template);
+    openForm(template);
   };
 
   if (blockedReason) {
@@ -221,6 +138,47 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
           <p className="mt-3 text-sm font-black text-slate-800">Letter requests are not available</p>
           <p className="mt-1.5 text-[12px] font-semibold text-slate-500 leading-relaxed">{blockedReason}</p>
         </div>
+      </div>
+    );
+  }
+
+  if (formTemplateId) {
+    const template = templates.find((t) => t.id === formTemplateId);
+    return (
+      <div id="student-letter-generation-workspace" className="text-left font-sans text-xs">
+        <PortalToast message={toast} />
+        {templatesLoading || lettersLoading ? (
+          <LoadingState message="Opening the form…" />
+        ) : !template ? (
+          <div className="app-card p-8 text-center space-y-3 max-w-xl mx-auto">
+            <p className="text-sm font-black text-slate-800">This letter cannot be requested right now</p>
+            <p className="text-[12px] font-semibold text-slate-500">It may have been withdrawn by the office. Choose another letter.</p>
+            <PortalButton size="sm" onClick={() => closeForm()}>Back to letters</PortalButton>
+          </div>
+        ) : (
+          <StudentLetterRequestForm
+            key={template.id}
+            template={template}
+            student={{ name: studentName, matricNumber: studentId, programme }}
+            currentCopies={currentCopies(template.id)}
+            pending={pendingFor(template.id)}
+            onCancel={() => closeForm()}
+            onSeeRequests={() => closeForm('history')}
+            onSent={(created) => {
+              setLetters((rows) => [created, ...rows]);
+              closeForm('history');
+              showToast(`Request sent for a ${created.templateName}. You will be notified when the office decides.`);
+            }}
+            onBlocked={setBlockedReason}
+            onRefused={(message) => {
+              loadTemplates();
+              loadLetters();
+              closeForm();
+              showToast(message);
+            }}
+            onMessage={showToast}
+          />
+        )}
       </div>
     );
   }
@@ -306,7 +264,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                         See request
                       </PortalButton>
                     ) : (
-                      <PortalButton size="sm" icon={Send} className="self-start sm:self-auto" onClick={() => openRequest(template)}>
+                      <PortalButton size="sm" icon={Send} className="self-start sm:self-auto" onClick={() => openForm(template)}>
                         Request
                       </PortalButton>
                     )}
@@ -317,69 +275,6 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
           )}
         </section>
       )}
-
-      <PortalModal isOpen={requesting !== null} onClose={closeRequest} busy={sending} labelledBy={modalTitle} className={requesting?.asksRecipient ? 'max-w-xl p-6' : 'max-w-lg p-6'}>
-        <form
-          className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleRequest();
-          }}
-        >
-          <div>
-            <h2 id={modalTitle} className="section-label">Request a {requesting?.name}</h2>
-            <p className="card-description mt-1">
-              {requesting?.asksRecipient
-                ? 'Say who the letter is for. Your name, matric number and programme come from the student registry.'
-                : 'The office fills it in with your details from the student registry.'}
-            </p>
-          </div>
-          {requesting?.asksRecipient && (
-            <LetterRecipientFields
-              options={recipientOptions}
-              loading={optionsLoading}
-              error={optionsError}
-              onRetry={loadRecipientOptions}
-              details={details}
-              onChange={changeDetails}
-              errors={detailErrors}
-              disabled={sending}
-            />
-          )}
-          {requestingCurrent && (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-semibold text-amber-900">
-              You already have this letter{requesting?.asksRecipient ? ` for ${requestingCurrent.requestDetails?.organisation}` : ''} ({requestingCurrent.referenceNumber}, approved {shortDate(requestingCurrent.decidedAt)}). Once the office approves the new one, it replaces that copy, which will no longer be valid.
-            </p>
-          )}
-          <div className="space-y-1.5">
-            <label htmlFor="letter-request-note" className="form-label block">
-              Note to the office (optional)
-            </label>
-            <textarea
-              id="letter-request-note"
-              rows={requesting?.asksRecipient ? 2 : 4}
-              value={note}
-              maxLength={MAX_NOTE_LENGTH}
-              disabled={sending}
-              onChange={(e) => {
-                setNote(e.target.value);
-                setNoteError(null);
-              }}
-              aria-invalid={noteError ? true : undefined}
-              aria-describedby="letter-request-note-hint"
-              placeholder="For example: needed for my student pass renewal appointment on 3 November."
-              className={`form-control form-control-md resize-none ${noteError ? 'form-control-error' : ''}`}
-            />
-            <p id="letter-request-note-hint" className={`text-[10px] font-semibold ${noteError ? 'text-rose-600' : 'text-slate-400'}`}>
-              {noteError ?? `${note.length}/${MAX_NOTE_LENGTH} characters`}
-            </p>
-          </div>
-          <div className="flex flex-wrap justify-end gap-2">
-            <PortalButton type="button" disabled={sending} onClick={closeRequest}>Cancel</PortalButton>
-            <PortalButton type="submit" variant="primary" icon={Send} isLoading={sending}>Send request</PortalButton>
-          </div>
-        </form>
-      </PortalModal>
     </div>
   );
 };

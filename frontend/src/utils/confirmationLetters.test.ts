@@ -54,13 +54,21 @@ assert.match(both, /Rujukan Kami: <span class="value">UMF\/PG\/SCL\/2026\/0001<\
 assert.match(both, /Tarikh: <span class="value">23 Oktober 2026<\/span>/);
 assert.match(both, /Surat ini dikeluarkan atas permintaan pelajar/);
 
-// the student form, the office review and the template editor use these
+// the student applies on a page laid out like Maya's form, not in a pop-up
 const student = readFileSync(resolve('src/components/StudentLetterGeneration.tsx'), 'utf8');
-assert.match(student, /<LetterRecipientFields\b/);
-assert.match(student, /requestLetter\(requesting\.id, note\.trim\(\), requesting\.asksRecipient \? details : undefined\)/);
-const fields = readFileSync(resolve('src/components/LetterRecipientFields.tsx'), 'utf8');
-assert.match(fields, /searchPlaceholder="Type to search"/, 'the long lists can be searched');
-assert.match(fields, /Not in the list\? Type the name/);
+assert.match(student, /<StudentLetterRequestForm\b/);
+assert.doesNotMatch(student, /PortalModal/);
+const form = readFileSync(resolve('src/components/StudentLetterRequestForm.tsx'), 'utf8');
+assert.match(form, /Letter Details Application Form/);
+assert.match(form, /Required information/);
+for (const label of ['Programme', 'Purpose', 'Recipient', 'Address Line 1', 'Address Line 2', 'Postcode', 'City', 'State/Country', 'Application Date', 'Additional Information']) {
+  assert.ok(form.includes(`'${label}'`) || form.includes(`"${label}"`), `the form has ${label}`);
+}
+assert.match(form, /requestLetter\(template\.id, note\.trim\(\), asksRecipient \? details : undefined\)/);
+assert.equal((form.match(/searchPlaceholder="Search"/g) ?? []).length, 2, 'the purpose and recipient lists can be searched');
+assert.match(form, /Not in the list\? Type the name/);
+const app = readFileSync(resolve('src/App.tsx'), 'utf8');
+assert.match(app, /onOpenRequestForm=\{\(templateId\) => navigate\(routeForLetterApplication\(templateId\)\)\}/);
 const review = readFileSync(resolve('src/components/OfficeLetterRequests.tsx'), 'utf8');
 assert.match(review, /malayBodyHtml=\{previewMsHtml \|\| undefined\}/);
 const editor = readFileSync(resolve('src/components/LetterTemplateManagement.tsx'), 'utf8');

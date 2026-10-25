@@ -485,6 +485,7 @@ Browser coverage: Office attention and exact pending recommendation were inspect
 The supervisor asked for UM Maya's confirmation letter request to be part of the system.
 
 - **The student says who the letter is for.**
+  - They apply on a page laid out like Maya's "Letter Details Application Form" (`/letters/apply/<template id>`, added 2026-10-25): their ID and name on top, then one row per field with the label on the left and a hint on the right. Every letter now uses this page instead of a pop-up; a plain letter only has the programme, the date and a note.
   - They choose a purpose (Banking, Government agencies, Mobility, Non-government agencies, Sponsorship or Transportation), then the organisation from a built-in list they can search: 47 Malaysian banks, 27 agencies and embassies, sponsors, NGOs and transport companies. An organisation not listed can be typed in.
   - They type the address to print, and tick what else to show: minimum period of study, maximum period of study, current semester. Lines they do not tick are left out.
 - **The letter** follows the Maya sample: the recipient block, a details table (name, IC/passport, matric number, programme, method of study, faculty, date valid, semesters left), and a Malay second page ("Surat Pengesahan Pelajar") with Malay dates, programme name and mode of study.

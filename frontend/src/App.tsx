@@ -35,6 +35,7 @@ import {
   isKnownAppPath,
   routeForDashboardTimeline,
   routeForDocument,
+  routeForLetterApplication,
   routeForLetterRequest,
   routeForMarkRecord,
   routeForNotificationTarget,
@@ -234,6 +235,7 @@ export default function App() {
   const activeSidebarItem = sidebarItemForPath(pathname);
   const markRecordMatch = matchPath(`${APP_ROUTES.marksRecords}/:recordId`, pathname);
   const letterRequestMatch = matchPath(`${APP_ROUTES.lettersRequests}/:requestId`, pathname);
+  const letterApplicationMatch = matchPath(`${APP_ROUTES.lettersApply}/:templateId`, pathname);
   const documentMatch = matchPath(`${APP_ROUTES.filesDocuments}/:documentId`, pathname);
   const fileLetterMatch = matchPath(`${APP_ROUTES.filesLetters}/:letterId`, pathname);
   const faqEntryMatch = pathname === APP_ROUTES.faqEntryNew ? null : matchPath(`${APP_ROUTES.faqEntries}/:entryId`, pathname);
@@ -1066,6 +1068,9 @@ export default function App() {
                   programme={currentUser.department}
                   view={pathname === APP_ROUTES.lettersMine ? 'history' : 'new'}
                   onViewChange={(view) => navigate(view === 'history' ? APP_ROUTES.lettersMine : APP_ROUTES.letters)}
+                  requestTemplateId={letterApplicationMatch?.params.templateId ?? null}
+                  onOpenRequestForm={(templateId) => navigate(routeForLetterApplication(templateId))}
+                  onCloseRequestForm={() => navigate(APP_ROUTES.letters)}
                 />
               ) : (
                 <LetterTemplateManagement

@@ -13,6 +13,7 @@ import { SIDEBAR_ITEMS } from '../constants/navigation';
 import {
   APP_ROUTES,
   isKnownAppPath,
+  routeForLetterApplication,
   routeForLetterRequest,
   routeForNotificationTarget,
   sidebarItemForPath,
@@ -65,9 +66,12 @@ assert.equal(letterFileName(letterDataFromIssued(issued)), 'UM_Confirmation_of_S
 // students request letters; they never fill or preview one themselves
 const documentSource = readFileSync(resolve('src/utils/letterDocument.ts'), 'utf8');
 const studentScreen = readFileSync(resolve('src/components/StudentLetterGeneration.tsx'), 'utf8');
+const applicationForm = readFileSync(resolve('src/components/StudentLetterRequestForm.tsx'), 'utf8');
 assert.doesNotMatch(documentSource, /generateReferenceNumber|Math\.random/);
-assert.match(studentScreen, /requestLetter\(requesting\.id, note\.trim\(\),/);
-assert.doesNotMatch(studentScreen, /LetterPages|renderLetterBodyHtml|\.content\b/, 'no wording reaches the student before approval');
+assert.match(applicationForm, /requestLetter\(template\.id, note\.trim\(\),/);
+for (const source of [studentScreen, applicationForm]) {
+  assert.doesNotMatch(source, /LetterPages|renderLetterBodyHtml|\.content\b/, 'no wording reaches the student before approval');
+}
 assert.equal(PENDING_REFERENCE, 'Assigned on approval');
 
 // a refused approval names the values that need attention
@@ -152,7 +156,14 @@ assert.equal(
   routeForLetterRequest('12'),
 );
 assert.equal(routeForLetterRequest('12'), '/letters/requests/12');
-for (const path of [APP_ROUTES.lettersMine, APP_ROUTES.lettersIssued, APP_ROUTES.lettersRequests, routeForLetterRequest('12')]) {
+assert.equal(routeForLetterApplication('62'), '/letters/apply/62');
+for (const path of [
+  APP_ROUTES.lettersMine,
+  APP_ROUTES.lettersIssued,
+  APP_ROUTES.lettersRequests,
+  routeForLetterRequest('12'),
+  routeForLetterApplication('62'),
+]) {
   assert.equal(isKnownAppPath(path), true, path);
   assert.equal(sidebarItemForPath(path), SIDEBAR_ITEMS.LETTER_GENERATION, path);
 }

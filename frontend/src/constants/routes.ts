@@ -46,6 +46,7 @@ export const APP_ROUTES = {
   lettersMine: '/letters/my-letters',
   lettersIssued: '/letters/issued',
   lettersRequests: '/letters/requests',
+  lettersApply: '/letters/apply',
   announcements: '/announcements',
   marks: '/marks',
   marksConfig: '/marks/config',
@@ -153,6 +154,10 @@ export const routeForFileLetter = (letterId: number | string): string =>
 
 export const routeForLetterRequest = (requestId: string): string =>
   `${APP_ROUTES.lettersRequests}/${encodeURIComponent(requestId)}`;
+
+/** A student's application form for one letter. */
+export const routeForLetterApplication = (templateId: string): string =>
+  `${APP_ROUTES.lettersApply}/${encodeURIComponent(templateId)}`;
 
 export const routeForPanelRecommendation = (recommendationId: string): string =>
   `${APP_ROUTES.panelAppointments}/recommendations/${encodeURIComponent(recommendationId)}`;
