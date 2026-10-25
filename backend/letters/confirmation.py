@@ -67,15 +67,15 @@ def semesters_left(current, target, intake=""):
 
 
 def request_values(values, details):
-    """``values`` plus who the letter is for and the semesters left."""
-    if not details:
-        return values
+    """``values`` plus who the letter is for (in English and Malay) and the semesters left."""
+    details = details or {}
     current = values.get("currentSemester", "")
     minimum = semesters_left(current, values.get("expectedCompletion", ""), values.get("initialSemester", ""))
     maximum = semesters_left(current, values.get("maxSemester", ""), values.get("initialSemester", ""))
     return {
         **values,
         "recipient": recipient_block(details),
+        "recipientMs": recipient_block(details, malay=True),
         "balanceSemestersMin": f"{minimum} SEMESTER(S)" if minimum else "",
         "balanceSemestersMax": f"{maximum} SEMESTER(S)" if maximum else "",
     }
@@ -84,6 +84,8 @@ def request_values(values, details):
 def malay_values(values):
     """The same values with dates, programme, mode of study and semesters in Malay."""
     malay = dict(values)
+    if values.get("recipientMs"):
+        malay["recipient"] = values["recipientMs"]
     programme = (values.get("programName") or "").strip().upper()
     if programme in PROGRAMMES_MS:
         malay["programName"] = PROGRAMMES_MS[programme]

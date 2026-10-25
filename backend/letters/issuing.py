@@ -6,6 +6,7 @@ issued by itself, so both kinds of letter are filled the same way.
 from django.utils import timezone
 
 from .confirmation import add_months, drop_unchosen_lines, english_date, malay_typed, malay_values, request_values
+from .form_questions import answer_values, question_names
 from .models import GeneratedLetter
 from .placeholders import fill_placeholders
 from .references import next_reference_number
@@ -13,9 +14,9 @@ from .references import next_reference_number
 
 def letter_wording(template, details):
     """The English and Malay wording to fill, without the optional lines the
-    student did not ask for."""
+    student did not tick when the letter asks about them."""
     english, malay = template.content or "", template.content_ms or ""
-    if template.asks_recipient:
+    if template.question("extras"):
         include = (details or {}).get("include")
         english, malay = drop_unchosen_lines(english, include), drop_unchosen_lines(malay, include)
     return english, malay
@@ -38,9 +39,15 @@ def issue_letter(letter, template, values, typed, actor):
         "validUntil": english_date(valid_until).upper(),
     }
     english, malay = letter_wording(template, details)
-    letter.content = fill_placeholders(english, values, typed)
+    answers = details.get("answers")
+    unanswered = dict.fromkeys(question_names(template.form_questions), "")
+    letter.content = fill_placeholders(english, values, {**unanswered, **answer_values(answers), **typed})
     letter.content_ms = (
-        fill_placeholders(malay, malay_values({**values, "_issuedOn": issued_on, "_validUntil": valid_until}), malay_typed(typed))
+        fill_placeholders(
+            malay,
+            malay_values({**values, "_issuedOn": issued_on, "_validUntil": valid_until}),
+            {**unanswered, **answer_values(answers, malay=True), **malay_typed(typed)},
+        )
         if malay.strip()
         else ""
     )

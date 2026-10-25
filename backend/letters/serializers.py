@@ -21,6 +21,9 @@ class LetterTemplateSerializer(serializers.Serializer):
     contentMs = serializers.CharField(required=False, allow_blank=True)
     asksRecipient = serializers.BooleanField(required=False)
     validMonths = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=60)
+    readyInDays = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=60)
+    # Checked in the views, which know the template's purpose and own fields.
+    formQuestions = serializers.JSONField(required=False)
     referencePrefix = serializers.CharField(max_length=64, required=False, allow_blank=True)
     signatoryName = serializers.CharField(max_length=120, required=False, allow_blank=True)
     signatoryTitle = serializers.CharField(max_length=120, required=False, allow_blank=True)
@@ -36,6 +39,8 @@ class LetterTemplateSerializer(serializers.Serializer):
         "contentMs": "content_ms",
         "asksRecipient": "asks_recipient",
         "validMonths": "valid_months",
+        "readyInDays": "ready_in_days",
+        "formQuestions": "form_questions",
     }
 
     def validate_name(self, value):

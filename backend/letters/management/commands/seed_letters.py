@@ -26,7 +26,9 @@ TEMPLATES = [
         "content": confirmation.CONTENT,
         "content_ms": confirmation.CONTENT_MS,
         "asks_recipient": True,
+        "form_questions": [{"kind": "recipient", "purposes": [], "askAddress": True}, {"kind": "extras"}],
         "valid_months": 3,
+        "ready_in_days": 2,
         "signatory_name": "Dean / Director",
     },
     {

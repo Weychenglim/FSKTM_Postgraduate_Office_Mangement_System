@@ -51,13 +51,15 @@ from .appointment_letters import (
 )
 from .details import letter_details
 from .eligibility import inactive_student_refusal
+from .choice_lists import recipient_options
 from .confirmation import add_months, english_date, malay_values, request_values
+from .form_questions import answer_values, clean_answers, custom_questions, known_fields, resolve
 from .issuing import issue_letter, letter_wording
 from .models import AUTOMATIC_PURPOSES, GeneratedLetter, LetterPurpose, LetterTemplate
 from .notices import send_notice
 from .pdf_export import build_letter_pdf
 from .placeholders import VALUE_KEYS, letter_fields, placeholder_problems, used_names, value_problem
-from .recipients import clean_request_details, recipient_options, same_recipient
+from .recipients import OPTIONAL_DETAILS, clean_request_details, same_recipient
 
 PDF_TYPE = "application/pdf"
 # Students' notifications point at their letter; office ones at the request.
@@ -297,16 +299,28 @@ def _create_request(request):
     ).first()
     if template is None:
         raise NotFound("This letter is no longer available.")
-    unknown, malformed = placeholder_problems(f"{template.content}\n{template.content_ms}", template.custom_fields)
+    unknown, malformed = placeholder_problems(f"{template.content}\n{template.content_ms}", known_fields(template))
     if unknown or malformed or not template.content.strip():
         return _conflict("This letter cannot be requested right now. Please contact the postgraduate office.")
-    details = {}
-    if template.asks_recipient:
-        details, errors = clean_request_details(request.data.get("details"))
-        if errors:
-            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
-        offered = template.optional_details()
-        details["include"] = [code for code in details["include"] if code in offered]
+    details, chosen, errors = {}, [], {}
+    recipient = template.question("recipient")
+    if recipient:
+        cleaned, problems, item = clean_request_details(request.data.get("details"), recipient)
+        if problems:
+            errors.update(problems)
+        else:
+            details = cleaned
+            offered = template.optional_details()
+            details["include"] = [code for code in details["include"] if code in offered]
+            chosen += [item] if item else []
+    answers, answer_errors, answer_items = clean_answers(template.form_questions, request.data.get("answers"))
+    if answer_errors:
+        errors["answers"] = answer_errors
+    if errors:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+    if answers:
+        details["answers"] = answers
+    chosen += answer_items
 
     pending = Response(
         {
@@ -331,6 +345,7 @@ def _create_request(request):
                 status=Status.PENDING,
                 requested_by=request.user,
             )
+            letter.choice_items.set(chosen)
             _notify_office(letter)
     except IntegrityError:
         # A second request raced this one past the check above.
@@ -350,7 +365,7 @@ def _earlier_copies(letter):
         purpose=LetterPurpose.REQUEST,
         status=Status.ISSUED,
     ).exclude(pk=letter.pk)
-    if letter.request_details:
+    if (letter.request_details or {}).get("organisation"):
         return [old for old in copies if same_recipient(old.request_details, letter.request_details)]
     return list(copies)
 
@@ -362,7 +377,14 @@ def _review(letter):
     content, content_ms = letter_wording(template, letter.request_details) if template else ("", "")
     custom = template.custom_fields if template else []
     values = request_values(letter_values(letter), letter.request_details)
-    unknown, malformed = placeholder_problems(f"{content}\n{content_ms}", custom, template.purpose if template else LetterPurpose.REQUEST)
+    answers = (letter.request_details or {}).get("answers") or {}
+    student = {
+        question["name"]: {"label": question["label"], "value": answer_values(answers).get(question["name"], "")}
+        for question in custom_questions(template.form_questions if template else [])
+    }
+    unknown, malformed = placeholder_problems(
+        f"{content}\n{content_ms}", known_fields(template) if template else [], template.purpose if template else LetterPurpose.REQUEST
+    )
     if template is None:
         problem = "The letter template was deleted."
     elif template.purpose != letter.purpose:
@@ -384,6 +406,9 @@ def _review(letter):
     valid_until = add_months(today, template.valid_months) if template and template.valid_months else None
     preview = {**values, "validUntil": english_date(valid_until).upper()}
     malay = malay_values({**preview, "_issuedOn": today, "_validUntil": valid_until})
+    malay_answers = {
+        name: text for name, text in answer_values(answers, malay=True).items() if text != answer_values(answers).get(name)
+    }
     return {
         "templateContent": content,
         "templateContentMs": content_ms,
@@ -392,13 +417,14 @@ def _review(letter):
             name: str(malay.get(VALUE_KEYS[name]) or "")
             for name in used_names(content_ms)
             if name in VALUE_KEYS and malay.get(VALUE_KEYS[name]) != preview.get(VALUE_KEYS[name])
-        },
+        }
+        | malay_answers,
         "templateStatus": template.status if template else None,
         "referencePrefix": template.reference_prefix if template else "",
         # Who will sign it: the letter takes the template's signatory when issued.
         "signatoryName": template.signatory_name if template else "",
         "signatoryTitle": template.signatory_title if template else "",
-        "fields": letter_fields(f"{content}\n{content_ms}", values, custom),
+        "fields": letter_fields(f"{content}\n{content_ms}", values, custom, student),
         "problem": problem,
         "replaces": [
             {"id": str(old.pk), "referenceNumber": old.reference_number, "issuedAt": old.to_public_dict(include_content=False)["issuedAt"]}
@@ -410,8 +436,32 @@ def _review(letter):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def recipient_options_view(request):
-    """The purposes and organisations a student chooses from on a confirmation letter."""
-    return Response(recipient_options())
+    """The visible purposes and organisations a student chooses from, and the optional details."""
+    return Response(
+        {
+            "purposes": recipient_options(),
+            "optionalDetails": [{"code": code, "label": label} for code, label, _ in OPTIONAL_DETAILS],
+        }
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def letter_form(request, template_id):
+    """The questions a letter's form asks, with what the student chooses from.
+    Students get it for Active request letters; office staff for any, to preview."""
+    refused = _inactive_refusal(request)
+    if refused:
+        return refused
+    templates = LetterTemplate.objects.filter(purpose=LetterPurpose.REQUEST)
+    if not _is_office(request.user):
+        if _own_student(request) is None:
+            raise PermissionDenied("Only students ask for letters.")
+        templates = templates.filter(status=LetterTemplate.Status.ACTIVE)
+    template = templates.filter(pk=template_id).first()
+    if template is None:
+        raise NotFound("This letter is no longer available.")
+    return Response({"templateId": str(template.pk), "questions": resolve(template), "readyInDays": template.ready_in_days})
 
 
 @api_view(["GET"])

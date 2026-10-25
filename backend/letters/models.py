@@ -18,6 +18,7 @@ lecturers named on them.
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
+from django.db.models.functions import Lower
 from django.utils.timezone import localtime
 
 from .recipients import OPTIONAL_DETAILS
@@ -57,10 +58,17 @@ class LetterTemplate(models.Model):
     # Values the office types in when it approves a request, e.g.
     # [{"name": "ATTENDANCE", "label": "Attendance (%)", "hint": ""}].
     custom_fields = models.JSONField(default=list, blank=True)
-    # Students say who the letter is for (purpose, organisation, address).
+    # What the student answers when asking for it, in order (see form_questions.py),
+    # e.g. [{"kind": "recipient", "purposes": [], "askAddress": true}, {"kind": "extras"},
+    # {"kind": "date", "name": "DATE_NEEDED", "label": "Date needed by", ...}].
+    form_questions = models.JSONField(default=list, blank=True)
+    # Students say who the letter is for (purpose, organisation, address); kept
+    # in step with a "recipient" question in form_questions.
     asks_recipient = models.BooleanField(default=False)
     # How long an issued letter stays valid, for {{VALID_UNTIL}}; blank for no limit.
     valid_months = models.PositiveSmallIntegerField(null=True, blank=True)
+    # "Usually ready in N working days", shown to students; blank to say nothing.
+    ready_in_days = models.PositiveSmallIntegerField(null=True, blank=True)
     # Prefix used to build the student's reference number, e.g. "UMF/PG".
     reference_prefix = models.CharField(max_length=64, blank=True, default="UMF/PG")
     # Printed under the signature line; blank keeps the faculty default.
@@ -87,10 +95,14 @@ class LetterTemplate(models.Model):
     def is_automatic(self):
         return self.purpose in AUTOMATIC_PURPOSES
 
+    def question(self, kind):
+        """The first form question of ``kind``, or None."""
+        return next((q for q in self.form_questions or [] if q.get("kind") == kind), None)
+
     def optional_details(self):
         """The optional lines a student may tick for this letter: those whose
-        tag the letter uses. Only letters that ask who they are for have them."""
-        if not self.asks_recipient:
+        tag the letter uses, when it has an "Additional information" question."""
+        if not self.question("extras"):
             return []
         both = f"{self.content}\n{self.content_ms}"
         return [code for code, _, tag in OPTIONAL_DETAILS if f"{{{{{tag}}}}}" in both]
@@ -111,7 +123,9 @@ class LetterTemplate(models.Model):
             "signatoryTitle": self.signatory_title,
             "asksRecipient": self.asks_recipient,
             "optionalDetails": self.optional_details(),
+            "formQuestions": list(self.form_questions or []),
             "validMonths": self.valid_months,
+            "readyInDays": self.ready_in_days,
             "lastModified": localtime(self.updated_at).strftime("%b %d, %Y"),
             "modifiedBy": self.modified_by,
         }
@@ -199,6 +213,8 @@ class GeneratedLetter(models.Model):
         related_name="letters",
     )
     recipients = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="received_letters")
+    # The list items the student chose, so the office knows which ones are in use.
+    choice_items = models.ManyToManyField("ChoiceItem", blank=True, related_name="letters")
     replaced_by = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     signatory_name = models.CharField(max_length=120, blank=True, default="")
     signatory_title = models.CharField(max_length=120, blank=True, default="")
@@ -322,3 +338,98 @@ class GeneratedLetter(models.Model):
             data["content"] = self.content
             data["contentMs"] = self.content_ms
         return data
+
+
+class ChoiceList(models.Model):
+    """A list the office keeps for letter questions: the recipients students
+    choose from, grouped by purpose, or a simple list such as embassies."""
+
+    class Kind(models.TextChoices):
+        RECIPIENTS = "RECIPIENTS", "Recipients"
+        SIMPLE = "SIMPLE", "Simple list"
+
+    name = models.CharField(max_length=120)
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.SIMPLE)
+    description = models.CharField(max_length=300, blank=True, default="")
+    # What one entry is called, e.g. "Embassy"; recipient groups name their own.
+    item_noun = models.CharField(max_length=60, blank=True, default="Item")
+    modified_by = models.CharField(max_length=255, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-kind", "name"]
+        constraints = [
+            models.UniqueConstraint(Lower("name"), name="choice_list_name_unique"),
+            models.UniqueConstraint(fields=["kind"], condition=Q(kind="RECIPIENTS"), name="one_recipients_list"),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class ChoiceGroup(models.Model):
+    """A purpose in the recipients list, such as Banking, with the organisations
+    students choose from for it."""
+
+    choice_list = models.ForeignKey(ChoiceList, on_delete=models.CASCADE, related_name="groups")
+    # Saved on requests, so it never changes once made.
+    code = models.CharField(max_length=40)
+    name = models.CharField(max_length=120)
+    name_ms = models.CharField(max_length=120, blank=True, default="")
+    # What one organisation is called, e.g. "Bank".
+    item_noun = models.CharField(max_length=60, blank=True, default="Organisation")
+    # Students may type an organisation that is not listed.
+    allow_other = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+    hidden = models.BooleanField(default=False)
+    modified_by = models.CharField(max_length=255, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["choice_list", "code"], name="choice_group_code_unique"),
+            models.UniqueConstraint("choice_list", Lower("name"), name="choice_group_name_unique"),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class ChoiceItem(models.Model):
+    """One entry in a list: an organisation under a purpose, with the address
+    filled in for the student, or an entry of a simple list."""
+
+    choice_list = models.ForeignKey(ChoiceList, on_delete=models.CASCADE, related_name="items")
+    group = models.ForeignKey(ChoiceGroup, null=True, blank=True, on_delete=models.CASCADE, related_name="items")
+    name = models.CharField(max_length=160)
+    name_ms = models.CharField(max_length=160, blank=True, default="")
+    address_line1 = models.CharField(max_length=120, blank=True, default="")
+    address_line2 = models.CharField(max_length=120, blank=True, default="")
+    postcode = models.CharField(max_length=20, blank=True, default="")
+    city = models.CharField(max_length=80, blank=True, default="")
+    state = models.CharField(max_length=80, blank=True, default="")
+    order = models.PositiveIntegerField(default=0)
+    hidden = models.BooleanField(default=False)
+    modified_by = models.CharField(max_length=255, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                "choice_list", "group", Lower("name"), name="choice_item_name_unique", nulls_distinct=False
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def address(self):
+        return {
+            "addressLine1": self.address_line1,
+            "addressLine2": self.address_line2,
+            "postcode": self.postcode,
+            "city": self.city,
+            "state": self.state,
+        }

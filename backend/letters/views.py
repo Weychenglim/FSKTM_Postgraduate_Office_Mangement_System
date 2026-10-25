@@ -20,9 +20,11 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from .choice_lists import recipients_list
 from .eligibility import inactive_student_refusal
+from .form_questions import clean_questions, known_fields, question_names
 from .models import GeneratedLetter, LetterPurpose, LetterTemplate
-from .placeholders import placeholder_catalogue, placeholder_problems, purpose_hint
+from .placeholders import field_names, placeholder_catalogue, placeholder_problems, purpose_hint
 from .serializers import LetterTemplateSerializer
 
 ACTIVE_CLASH_CODE = "appointment_template_already_active"
@@ -77,21 +79,44 @@ def _placeholder_errors(content, custom_fields=(), purpose=LetterPurpose.REQUEST
     }
 
 
-RECIPIENT_TAGS = ("{{RECIPIENT}}", "{{BALANCE_SEMESTERS_MIN}}", "{{BALANCE_SEMESTERS_MAX}}")
+RECIPIENT_QUESTION = [{"kind": "recipient", "purposes": [], "askAddress": True}, {"kind": "extras"}]
+
+
+def _apply_questions(template, data):
+    """Check the student form and keep ``asks_recipient`` in step with it.
+    Turning ``asksRecipient`` on or off adds or removes "Who is the letter for?"
+    and "Additional information". Returns an error body, or None."""
+    if "formQuestions" in data:
+        recipients = recipients_list()
+        codes = set(recipients.groups.values_list("code", flat=True)) if recipients else set()
+        questions, error = clean_questions(data["formQuestions"], template.custom_fields, template.purpose, codes)
+        if error:
+            return {"formQuestions": error}
+        template.form_questions = questions
+    elif "asksRecipient" in data:
+        others = [q for q in template.form_questions or [] if q.get("kind") not in ("recipient", "extras")]
+        template.form_questions = (RECIPIENT_QUESTION + others) if data["asksRecipient"] else others
+    template.asks_recipient = bool(template.question("recipient"))
+    return None
 
 
 def _template_errors(template):
     """Error body when either page uses tags the template cannot fill, otherwise None."""
+    clash = field_names(template.custom_fields) & set(question_names(template.form_questions))
+    if clash:
+        return {"customFields": f"{{{{{sorted(clash)[0]}}}}} is both a student question and an office blank. Rename one."}
     for field, wording in (("content", template.content), ("contentMs", template.content_ms)):
-        invalid = _placeholder_errors(wording, template.custom_fields, template.purpose)
+        invalid = _placeholder_errors(wording, known_fields(template), template.purpose)
         if invalid:
             problem = invalid.pop("content")
             return {**invalid, field: problem}
     both = f"{template.content}\n{template.content_ms}"
+    if template.form_questions and template.purpose != LetterPurpose.REQUEST:
+        return {"formQuestions": "Only letters students ask for have a student form. Remove its questions first."}
     if template.asks_recipient and template.purpose != LetterPurpose.REQUEST:
         return {"asksRecipient": "Only letters students ask for can ask who the letter is for."}
-    if not template.asks_recipient and any(tag in both for tag in RECIPIENT_TAGS):
-        return {"asksRecipient": "This letter uses who it is for or semesters left. Turn on \"Students say who it is for\"."}
+    if not template.asks_recipient and "{{RECIPIENT}}" in both:
+        return {"asksRecipient": "This letter shows who it is for. Add \"Who is the letter for?\" to the student form."}
     if template.asks_recipient and "{{RECIPIENT}}" not in (template.content or ""):
         return {"asksRecipient": "Students say who this letter is for, but the letter does not show it. Add Recipient from Student info."}
     if template.asks_recipient and (template.content_ms or "").strip() and "{{RECIPIENT}}" not in template.content_ms:
@@ -174,7 +199,7 @@ def templates_list(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
     template = LetterTemplate(modified_by=_actor(request), **serializer.to_model_kwargs())
-    invalid = _template_errors(template)
+    invalid = _apply_questions(template, serializer.validated_data) or _template_errors(template)
     if invalid:
         return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
     clash = _active_clash(template) or _save(template)
@@ -239,9 +264,10 @@ def templates_detail(request, pk):
     for field, value in serializer.to_model_kwargs().items():
         setattr(template, field, value)
 
-    invalid = _require_content(template)
+    invalid = _apply_questions(template, serializer.validated_data) or _require_content(template)
     if not invalid and (
-        set(serializer.validated_data) & {"content", "contentMs", "customFields", "purpose", "asksRecipient", "validMonths"}
+        set(serializer.validated_data)
+        & {"content", "contentMs", "customFields", "purpose", "asksRecipient", "validMonths", "formQuestions"}
         or template.status == LetterTemplate.Status.ACTIVE
     ):
         invalid = _template_errors(template)

@@ -16,7 +16,7 @@ from accounts.models import StudentRegistry
 from .confirmation import add_months, malay_date, malay_values, semesters_left
 from .management.commands.seed_letters import TEMPLATES
 from .models import GeneratedLetter, LetterTemplate
-from .recipients import clean_request_details, recipient_block
+from .recipients import recipient_block
 from .test_letter_requests import REQUESTS, LetterRequestTestCase, make_student
 
 MAYBANK = {
@@ -68,8 +68,9 @@ class AskingTests(ConfirmationLetterTestCase):
         options = self.client.get(f"{REQUESTS}recipient-options/").data
         purposes = {row["code"]: row for row in options["purposes"]}
         self.assertEqual(list(purposes), ["BANKING", "GOVERNMENT", "MOBILITY", "NGO", "SPONSORSHIP", "TRANSPORTATION"])
-        self.assertIn("Malayan Banking Berhad (Maybank)", purposes["BANKING"]["organisations"])
-        self.assertIn("Keretapi Tanah Melayu Berhad (KTMB)", purposes["TRANSPORTATION"]["organisations"])
+        names = lambda code: [row["name"] for row in purposes[code]["organisations"]]
+        self.assertIn("Malayan Banking Berhad (Maybank)", names("BANKING"))
+        self.assertIn("Keretapi Tanah Melayu Berhad (KTMB)", names("TRANSPORTATION"))
         self.assertEqual([row["code"] for row in options["optionalDetails"]], ["MIN_PERIOD", "MAX_PERIOD", "CURRENT_SEMESTER"])
 
     def test_the_student_must_say_who_the_letter_is_for(self):
@@ -77,7 +78,9 @@ class AskingTests(ConfirmationLetterTestCase):
         missing = self.ask_for(user, None)
         self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
         blank = self.ask_for(user, {"purpose": "SHOPPING", "organisation": " "})
-        self.assertEqual(set(blank.data), {"purpose", "organisation"})
+        self.assertEqual(set(blank.data), {"purpose"})
+        no_name = self.ask_for(user, {"purpose": "BANKING", "organisation": " "})
+        self.assertEqual(set(no_name.data), {"organisation"})
         odd = self.ask_for(user, {**MAYBANK, "include": ["EVERYTHING"]})
         self.assertIn("include", odd.data)
         self.assertFalse(GeneratedLetter.objects.filter(student__user=user).exists())
@@ -109,6 +112,7 @@ class AskingTests(ConfirmationLetterTestCase):
             name="Bank Letter",
             status=LetterTemplate.Status.ACTIVE,
             asks_recipient=True,
+            form_questions=[{"kind": "recipient", "purposes": [], "askAddress": True}, {"kind": "extras"}],
             content="{{RECIPIENT}}\n\n{{STUDENT_NAME}} ({{STUDENT_ID}}) is registered.",
         )
         response = self.client.post(
@@ -119,7 +123,10 @@ class AskingTests(ConfirmationLetterTestCase):
 
     def test_the_lists_cover_the_maya_examples(self):
         self.client.force_authenticate(self.student("SCL007"))
-        options = {row["code"]: row["organisations"] for row in self.client.get(f"{REQUESTS}recipient-options/").data["purposes"]}
+        options = {
+            row["code"]: [entry["name"] for entry in row["organisations"]]
+            for row in self.client.get(f"{REQUESTS}recipient-options/").data["purposes"]
+        }
         for name in ("Keretapi Tanah Melayu Berhad (KTMB)", "AirAsia Berhad", "AirAsia X Berhad", "Malaysia Airlines Berhad"):
             self.assertIn(name, options["TRANSPORTATION"])
         self.assertIn("Bahagian Kemasukan Pelajar IPTA, Kementerian Pendidikan Tinggi Malaysia", options["GOVERNMENT"])
@@ -264,7 +271,7 @@ class TemplateRulesTests(ConfirmationLetterTestCase):
 
     def test_appointment_letters_cannot_ask_who_they_are_for(self):
         refused = self.create(content="Dear {{STUDENT_NAME}}", purpose="PANEL_APPOINTMENT", asksRecipient=True)
-        self.assertIn("asksRecipient", refused.data)
+        self.assertIn("formQuestions", refused.data)
         recipient = self.create(content="{{RECIPIENT}}", purpose="PANEL_APPOINTMENT")
         self.assertIn("works only in student request letters", recipient.data["content"])
 
@@ -314,6 +321,6 @@ class ValueTests(SimpleTestCase):
         self.assertEqual(add_months(date(2026, 11, 30), 3), date(2027, 2, 28))
 
     def test_the_recipient_block_skips_blank_lines(self):
-        details, errors = clean_request_details({"purpose": "banking", "organisation": "CIMB Bank Berhad", "city": "Kuala Lumpur"})
-        self.assertIsNone(errors)
+        details = {"organisation": "CIMB Bank Berhad", "organisationMs": "", "addressLine1": "", "city": "Kuala Lumpur"}
         self.assertEqual(recipient_block(details), "CIMB BANK BERHAD\nKUALA LUMPUR")
+        self.assertEqual(recipient_block({**details, "organisationMs": "Bank CIMB"}, malay=True), "BANK CIMB\nKUALA LUMPUR")

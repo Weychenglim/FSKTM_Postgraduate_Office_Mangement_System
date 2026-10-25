@@ -249,17 +249,25 @@ def missing_labels(content, values):
     return [ALL_PLACEHOLDERS[name][0] for name in used if not _value(values, name)]
 
 
-def letter_fields(content, values, custom_fields=()):
+def letter_fields(content, values, custom_fields=(), student=None):
     """Every value a letter needs, in the order its tags first appear.
 
     Record fields that have a value are shown as they are. A record field the
     student's record leaves blank, and every office-filled field, is ``needed``:
-    the office types it in before approving.
+    the office types it in before approving. ``student`` maps the tags of the
+    letter's questions to ``{"label", "value"}``, what the student answered.
     """
     own = {field["name"]: field for field in custom_fields or []}
+    student = student or {}
     fields = []
     for name in used_names(content):
         if name in ISSUED_WITH_LETTER:
+            continue
+        if name in student:
+            answer = student[name]
+            fields.append(
+                {"name": name, "label": answer["label"], "hint": "The student's answer", "source": "student", "value": answer["value"], "needed": False}
+            )
             continue
         if name in ALL_PLACEHOLDERS:
             label, source = ALL_PLACEHOLDERS[name]
