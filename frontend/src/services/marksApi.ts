@@ -245,6 +245,11 @@ export async function getEvaluationTasks(): Promise<EvaluationTask[]> {
   return tasks.map(withLegacyRubricFields);
 }
 
+export async function getSubmittedEvaluations(): Promise<EvaluationTask[]> {
+  const tasks = await request<EvaluationTask[]>('/marks/my-submitted-evaluations/');
+  return tasks.map(withLegacyRubricFields);
+}
+
 const legacyScoreFields: Record<string, {
   score: keyof EvaluationTask;
   feedback: keyof EvaluationTask;

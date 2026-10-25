@@ -27,5 +27,5 @@ assert.deepEqual(filterMarkTasks(tasks, 'retained', current.semester, 'SUBMITTED
 assert.deepEqual(filterMarkTasks(tasks, '', 'Missing semester', 'All Statuses'), []);
 assert.match(source, /getMarkTaskSemesters\(tasks\)/);
 assert.match(source, /semesterOptions\.map/);
-assert.match(source, /filterMarkTasks\(tasks,/);
+assert.match(source, /filterMarkTasks\(roleTasks,/);
 console.log('Lecturer Marks current/historical semester options and combined filters passed');

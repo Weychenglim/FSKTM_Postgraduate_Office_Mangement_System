@@ -10,6 +10,7 @@ import { CalendarClock, Lock, ClipboardCheck, MessageSquare } from 'lucide-react
 import { RecordPage } from './RecordPage';
 import type { EvaluationTask } from '../types';
 import { formatDeadlineText } from '../utils/workflowAgeing';
+import { formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
 import {
   PortalCard,
   StatusBadge,
@@ -47,6 +48,7 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
         backLabel={backLabel}
         onBack={onBack}
         pageKey={`marks-submitted:${task.id}`}
+        metadata={<p className="card-description">Marked as <strong className="font-semibold text-slate-800">{task.evaluatorRoleLabel || (task.evaluatorRole === 'SUPERVISOR' ? 'Supervisor' : task.evaluatorRole === 'BACKUP' ? 'Backup evaluator' : 'Panel member')}</strong></p>}
         actions={<StatusBadge tone="success" icon={Lock}>Submitted</StatusBadge>}
       >
 
@@ -73,8 +75,10 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
               </div>
               <div>
                 <dt className="card-label">Submitted</dt>
-                <dd className="card-value mt-1 text-slate-700">{task.submittedDate || 'Submitted'}</dd>
+                <dd className="card-value mt-1 text-slate-700">{task.submittedAt ? formatMalaysiaDateTime(task.submittedAt) : task.submittedDate || 'Date unavailable'}</dd>
               </div>
+              {task.periodName ? <div><dt className="card-label">Evaluation period</dt><dd className="card-value mt-1">{task.periodName}</dd></div> : null}
+              {task.rubricName ? <div><dt className="card-label">Rubric</dt><dd className="card-value mt-1">{task.rubricName}{task.rubricVersion ? ` · Version ${task.rubricVersion}` : ''}</dd></div> : null}
             </dl>
           </PortalCard>
 

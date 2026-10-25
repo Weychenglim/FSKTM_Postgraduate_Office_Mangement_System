@@ -11,7 +11,7 @@ import { promisify } from 'node:util';
 
 test('Marks overview navigation, truthful states and responsive page hierarchy', { timeout: 240000 }, async () => {
   const frontend = fileURLToPath(new URL('../', import.meta.url));
-  const output = join(frontend, '../output/marks-visual-polish-20261024');
+  const output = process.env.MARKS_OUTPUT || join(frontend, '../output/marks-visual-polish-20261024');
   await mkdir(output, { recursive: true });
   const directory = await mkdtemp(join(tmpdir(), 'marks-visual-'));
   const bundle = join(directory, 'fixture.js');
@@ -28,7 +28,7 @@ test('Marks overview navigation, truthful states and responsive page hierarchy',
   });
   try {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-    const pages = (process.env.MARKS_PAGES || 'overview-empty,overview-active,overview-error,monitoring,periods-empty,periods,periods-published,periods-archived,periods-archived-only,periods-context,periods-new,rubrics-empty,rubrics-create,rubrics,rubrics-locked,assignment-empty,assignment-closed,assignment,records,records-empty,records-error,records-legacy,records-paged,records-monitoring-empty,lecturer,lecturer-empty,lecturer-error,history,history-empty,entry,entry-readonly,entry-draft-only,submitted,office-detail,completion').split(',');
+    const pages = (process.env.MARKS_PAGES || 'overview-empty,overview-active,overview-error,monitoring,periods-empty,periods,periods-published,periods-archived,periods-archived-only,periods-context,periods-new,rubrics-empty,rubrics-create,rubrics,rubrics-locked,assignment-empty,assignment-closed,assignment,records,records-empty,records-error,records-legacy,records-paged,records-monitoring-empty,lecturer,lecturer-empty,lecturer-error,lecturer-mixed,lecturer-panel-only,lecturer-backup-only,history,history-empty,history-retained,history-error,entry,entry-readonly,entry-draft-only,submitted,office-detail,completion').split(',');
     for (const page of pages) for (const width of [1440, 390, 320]) {
       const screenshot = process.env.MARKS_SCREENSHOTS === '0' ? [] : [`--screenshot=${join(output, `${page}-${width}.png`)}`];
       const { stdout } = await promisify(execFile)('C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--disable-gpu', '--disable-background-networking', '--disable-component-update', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${join(directory, `${page}-${width}`)}`, `--window-size=${Math.max(550, width + 40)},1950`, '--force-device-scale-factor=1', '--dump-dom', '--virtual-time-budget=10000', ...screenshot, `http://127.0.0.1:${server.address().port}/?page=${page}&width=${width}`], { windowsHide: true, timeout: 35000, maxBuffer: 3 * 1024 * 1024 });

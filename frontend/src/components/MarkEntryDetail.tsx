@@ -61,6 +61,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<FormFeedbackState | null>(null);
+  const [draftSaved, setDraftSaved] = useState(false);
   const savingRef = useRef(false);
   const initial = useRef(JSON.stringify({ values, comments }));
   const dirty = JSON.stringify({ values, comments }) !== initial.current;
@@ -72,6 +73,10 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
     try {
       const outcome = await (submit ? onSubmit(buildTask('SUBMITTED')) : onSave(buildTask('DRAFT SAVED')));
       if (submit) setSubmitted(true);
+      else {
+        initial.current = JSON.stringify({ values, comments });
+        setDraftSaved(true);
+      }
       return outcome;
     }
     catch (error) {
@@ -132,6 +137,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
         backLabel={backLabel}
         onBack={onBack}
         pageKey={`marks-entry:${task.id}`} dirty={!isReadOnly && dirty} busy={saving}
+        metadata={<p className="card-description">Marking as <strong className="font-semibold text-slate-800">{evaluatorRoleLabel(task)}</strong></p>}
         actions={(
           <StatusBadge tone={submitted ? 'success' : isReadOnly ? 'neutral' : 'info'}>
             {submitted ? 'Submitted' : isReadOnly ? 'Read only' : evaluatorRoleLabel(task)}
@@ -266,6 +272,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
             {!isReadOnly ? (
               <div className="space-y-2">
                 <FormFeedback id="mark-draft-save-feedback" title="Draft wasn’t saved" feedback={saveFeedback}/>
+                {dirty || draftSaved ? <p role="status" className="card-description">{dirty ? 'Unsaved changes' : 'Draft saved'}</p> : null}
                 <PortalButton
                   fullWidth
                   icon={Save}

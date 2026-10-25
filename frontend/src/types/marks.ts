@@ -319,6 +319,12 @@ export interface EvaluationTask extends DeadlineMetadata {
   presentationFeedback?: string;
   comments?: string;
   submittedDate?: string;
+  submittedAt?: string | null;
+  taskLifecycleStatus?: 'ACTIVE' | 'PAUSED' | 'RETIRED';
+  periodId?: number;
+  periodName?: string;
+  rubricName?: string;
+  rubricVersion?: number;
   totalMark?: string | null;
   components?: EvaluationTaskComponent[];
 }
