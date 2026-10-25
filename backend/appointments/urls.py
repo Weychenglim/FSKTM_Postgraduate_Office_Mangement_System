@@ -21,6 +21,7 @@ urlpatterns = [
     ),
     path("co-supervisor/appointments/<int:pk>/end/", co_supervision_views.end_view),
     path("supervisor/", views.supervisor_records_view),
+    path("supervisor/my-appointments/history/", co_supervision_views.own_appointment_history_view),
     path("supervisor/workload/", views.supervisor_workload_view),
     path(
         "supervisor/my-workload/",

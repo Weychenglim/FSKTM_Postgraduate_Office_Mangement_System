@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {buildCapacityBulkPreview} from './capacityBulk';
+import type {CapacityWorkspaceLecturer} from '../services/capacityWorkspaceApi';
+const row={lecturerId:1,lecturerName:'Lecturer One',staffNo:'L1',participantLifecycle:'ACTIVE',supervisorLimit:null,panelLimit:null,supervisor:{activeLoad:5,reservedLoad:0},panel:{activeLoad:2,reservedLoad:1}} as CapacityWorkspaceLecturer;
+let preview=buildCapacityBulkPreview([row],{supervisor:'5',panel:'8'},'MISSING_ONLY');
+assert.deepEqual(preview.entries,[{lecturerId:1,supervisorLimit:5,panelLimit:8}]);assert.equal(preview.errors.length,0);
+preview=buildCapacityBulkPreview([{...row,supervisorLimit:0,panelLimit:10}],{supervisor:'6',panel:'8'},'MISSING_ONLY');
+assert.equal(preview.entries.length,0,'Zero and saved values must not be overwritten');
+preview=buildCapacityBulkPreview([{...row,supervisorLimit:5,panelLimit:10}],{supervisor:'7',panel:''},'REPLACE');
+assert.deepEqual(preview.entries,[{lecturerId:1,supervisorLimit:7}],'Empty field leaves other role unchanged');
+preview=buildCapacityBulkPreview([{...row,panel:null}],{supervisor:'5',panel:'8'},'REPLACE');assert.deepEqual(preview.entries,[{lecturerId:1,supervisorLimit:5}],'Skip roles not held');
+preview=buildCapacityBulkPreview([row],{supervisor:'1',panel:'2'},'REPLACE');assert.equal(preview.errors.length,0);assert.equal(preview.changes[0].warnings.length,2,'Primary/supporting and reserved Panel load warn without blocking draft save');
+preview=buildCapacityBulkPreview([row],{supervisor:'5',panel:''},'MISSING_ONLY');assert.ok(preview.errors.some(message=>message.includes('Panel')),'New entry still requires all held-role limits');
+for(const value of ['-1','1.5','2147483648','bad'])assert.ok(buildCapacityBulkPreview([row],{supervisor:value,panel:'8'},'REPLACE').errors.length);
+assert.ok(buildCapacityBulkPreview([row],{supervisor:'',panel:''},'REPLACE').errors.length);
+assert.equal(buildCapacityBulkPreview([{...row,canConfigure:false}],{supervisor:'5',panel:'8'},'REPLACE').entries.length,0);
+assert.ok(buildCapacityBulkPreview([{...row,panel:null,supervisorLimit:5,panelLimit:8}],{supervisor:'7',panel:''},'REPLACE').errors.some(message=>message.includes('Edit limits')),'Flag retained limits for roles no longer held before preview');
+console.log('Bulk capacity preview: missing-only, zero, role scope, unchanged fields, minimums and validation pass');

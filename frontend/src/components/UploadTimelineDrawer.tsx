@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Download, UploadCloud } from 'lucide-react';
 import { RecordPage } from './RecordPage';
-import { PortalButton, PortalToast } from './PortalPrimitives';
+import { PortalButton } from './PortalPrimitives';
+import { AlertMessage } from './AlertMessage';
 import { TimelineEntry, TimelineUploadPreview } from '../types';
 import { downloadTimelineTemplate, previewTimelineFile, saveBlob, timelineEntryToLegacy, uploadTimelineFile } from '../services';
 import { validateTimelineUploadFile } from '../utils/timelineUploadValidation';
@@ -12,9 +13,13 @@ interface UploadTimelineDrawerProps {
   onImportSuccess?: (events: TimelineEntry[], importedCount?: number) => void;
   semesterId: number;
   semesterLabel: string;
+  embedded?: boolean;
+  onCancel?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
-export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOpen, onClose, onImportSuccess, semesterId, semesterLabel }) => {
+export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOpen, onClose, onImportSuccess, semesterId, semesterLabel, embedded = false, onCancel, onDirtyChange, onBusyChange }) => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<TimelineUploadPreview | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
@@ -90,16 +95,13 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOp
     }
   };
 
+  useEffect(() => { onDirtyChange?.(!!file); }, [file, onDirtyChange]);
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   if (!isOpen) return null;
-  return <RecordPage title="Import Timeline" backLabel="Back to Timeline Management" onBack={onClose} pageKey="timeline-import" dirty={!!file} busy={busy}>{requestBack =>
-    <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
-      <PortalToast message={message} />
-      <div><span className="form-label">Target semester</span><p className="card-value">{semesterLabel}</p></div>
-      <div className="rounded-xl border border-sky-100 bg-sky-50 p-4 space-y-2">
-        <p className="card-description">Preview checks the workbook without changing the timeline. Confirm replaces this semester’s current timeline with the reviewed rows.</p>
-        <p className="card-description">Template rows are informational. Existing operational periods must be selected explicitly with Activity Code and Period ID columns; linked dates are managed by the owning module.</p>
-        <PortalButton variant="ghost" icon={Download} onClick={download} disabled={busy}>Download Template</PortalButton>
-      </div>
+  const renderImport = (requestBack: () => void) =>
+    <section className={embedded ? "space-y-5" : "space-y-5 rounded-2xl border border-slate-200 bg-white p-5"}>
+
+      <AlertMessage type="warning" title="Import replaces this semester’s timeline" message="Preview the file and review its events before confirming. Previewing makes no changes." />
       <div className="rounded-xl border-2 border-dashed border-slate-300 p-6 text-center space-y-3"
         onDragOver={event => event.preventDefault()}
         onDrop={event => { event.preventDefault(); chooseFile(event.dataTransfer.files[0] || null); }}>
@@ -110,6 +112,11 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOp
         <PortalButton variant="secondary" onClick={() => input.current?.click()} disabled={busy}>Browse File</PortalButton>
         {file && <PortalButton variant="ghost" disabled={busy} onClick={() => { chooseFile(null); if (input.current) input.current.value = ''; }}>Clear Selected File</PortalButton>}
       </div>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><span className="card-description">Need the required format?</span><PortalButton variant="ghost" size="sm" icon={Download} onClick={download} disabled={busy}>Download template</PortalButton></div>
+      <details className="text-sm text-slate-600">
+        <summary className="cursor-pointer font-semibold">Importing linked submission or evaluation periods?</summary>
+        <p className="mt-2 leading-relaxed">Select existing periods using the Activity Code and Period ID columns in the template. Manage their linked dates through submission windows or marks configuration.</p>
+      </details>
       {preview && <div className="space-y-4" aria-label="Import preview">
         <p className="card-value">{preview.importedCount} entries ready for confirmation. No changes have been saved.</p>
         {preview.warnings.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
@@ -119,11 +126,13 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOp
         <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Level</th><th>Event</th><th>Start</th><th>End</th><th>Link</th></tr></thead>
           <tbody>{preview.rows.map(row => <tr key={`${row.level}-${row.step}`} className="border-t border-slate-100"><td>{row.level}</td><td>{row.title}</td><td>{row.deadlineStart}</td><td>{row.deadlineEnd}</td><td>{row.marksPeriodId ? `Marks period ${row.marksPeriodId}` : row.operationalPeriodId ? `Operational period ${row.operationalPeriodId}` : 'Informational'}</td></tr>)}</tbody></table></div>
       </div>}
-      <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+      {message && <AlertMessage type="error" title="Timeline import needs attention" message={message} />}
+      <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-4">
         <PortalButton variant="secondary" disabled={busy} onClick={requestBack}>Cancel</PortalButton>
-        <PortalButton variant="primary" disabled={!file || busy} isLoading={busy && !preview} onClick={handlePreview}>Preview</PortalButton>
+        <PortalButton variant="primary" disabled={!file || busy} isLoading={busy && !preview} onClick={handlePreview}>Preview import</PortalButton>
         {preview && <PortalButton variant="success" disabled={busy || (preview.requiresAcknowledgement && !acknowledged)} isLoading={busy} onClick={handleConfirm}>Confirm Import</PortalButton>}
       </div>
     </section>
-  }</RecordPage>;
+  ;
+  return embedded ? renderImport(onCancel ?? onClose) : <RecordPage title="Import Timeline" subtitle={semesterLabel} backLabel="Back to Timeline Management" onBack={onClose} pageKey="timeline-import" dirty={!!file} busy={busy}>{renderImport}</RecordPage>;
 };

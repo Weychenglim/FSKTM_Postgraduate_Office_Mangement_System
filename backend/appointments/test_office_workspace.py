@@ -32,6 +32,21 @@ class OfficeWorkspaceTests(APITestCase):
         data = self.get('requests',view='history').data
         self.assertIn(f'primary-{staff.pk}',{row['key'] for row in data['results']})
         self.assertEqual(data['total'],2) # fixture approved primary plus staff cancellation
+
+    def test_dashboard_pending_supervisors_includes_both_roles_before_paging(self):
+        self.application_for(1, status='PENDING_COORDINATOR')
+        primary = self.application_for(2, status='SUBMITTED_TO_SUPERVISOR')
+        supporting = self.nomination(status='SUBMITTED_TO_CO_SUPERVISOR')
+        expected = {f'primary-{primary.pk}', f'supporting-{supporting.pk}'}
+        for number in range(3, 13):
+            row = self.application_for(number, status='SUBMITTED_TO_SUPERVISOR')
+            expected.add(f'primary-{row.pk}')
+        data = self.get('requests', monitor='supervisor-pending', page=2, size=10).data
+        self.assertEqual(data['total'], 12)
+        self.assertEqual(len(data['results']), 2)
+        rows = self.get('requests', monitor='supervisor-pending', size=25).data['results']
+        self.assertEqual({row['key'] for row in rows}, expected)
+        self.assertTrue(all(not row['canDecide'] for row in rows))
     def test_office_pages_before_serialization_and_can_search_students_in_groups(self):
         for number in range(1,14): self.application_for(number)
         data = self.get('requests',page=2,size=10).data

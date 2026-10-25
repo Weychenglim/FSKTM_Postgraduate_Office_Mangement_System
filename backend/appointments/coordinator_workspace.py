@@ -173,6 +173,10 @@ def requests_page(actor, params):
     if opts["view"] not in ("requests", "history"):
         raise ValidationError({"view": "Use requests or history."})
     primary, supporting = request_bases(actor)
+    if actor.role == User.Role.OFFICE_ADMIN and params.get("monitor") == "supervisor-pending":
+        # Match the dashboard count across both supervision roles before paging/export.
+        primary = primary.filter(status="SUBMITTED_TO_SUPERVISOR")
+        supporting = supporting.filter(status="SUBMITTED_TO_CO_SUPERVISOR")
     review = primary.filter(decision_q("primary", actor)).count() + supporting.filter(decision_q("supporting", actor)).count()
     primary = primary.exclude(status__in=PENDING_PRIMARY) if opts["view"] == "history" else primary.filter(status__in=PENDING_PRIMARY)
     supporting = supporting.exclude(status__in=CoSupervisorNomination.PENDING_STATUSES) if opts["view"] == "history" else supporting.filter(status__in=CoSupervisorNomination.PENDING_STATUSES)
@@ -198,9 +202,15 @@ def appointment_bases(actor):
                  for model in (SupervisorAppointment, CoSupervisorAppointment))
 
 
-def appointments_page(actor, params):
+def appointments_page(actor, params, *, own=False):
     opts = options(params)
-    bases = appointment_bases(actor)
+    if own:
+        if actor.role != User.Role.LECTURER or not actor.is_active:
+            raise co_supervision.CoSupervisionForbidden("Only lecturers can view their own appointment history.")
+        bases = tuple(model.objects.filter(supervisor=actor, status="ENDED")
+                      for model in (SupervisorAppointment, CoSupervisorAppointment))
+    else:
+        bases = appointment_bases(actor)
     facets = facet_values([(bases[0], "student__programme", "application__academic_semester__label"),
                           (bases[1], "student__programme", "nomination__academic_semester__label")])
     sources = []

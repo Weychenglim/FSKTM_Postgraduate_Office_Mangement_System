@@ -18,8 +18,13 @@ const cases: [string, React.ReactNode][] = [
 ];
 for (const [name, component] of cases) {
   const html = renderToStaticMarkup(component);
+  if (name === 'Timeline editing') {
+    assert.match(html, /<dialog/);
+    assert.doesNotMatch(html, /data-record-page|class="back-link/);
+    continue;
+  }
   assert.equal((html.match(/<h1\b/g) ?? []).length, 1, `${name} is a full page`);
   assert.match(html, /class="back-link/, `${name} has the shared return link`);
   assert.doesNotMatch(html, /fixed inset|role="dialog"|<dialog/, `${name} is not a substantial overlay`);
 }
-console.log('Panel records/forms and Timeline forms use dedicated record pages');
+console.log('Record page forms and the timeline edit modal use their intended surfaces');

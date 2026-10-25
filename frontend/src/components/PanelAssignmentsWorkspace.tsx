@@ -7,7 +7,7 @@ import {PortalSelect} from './PortalSelect';
 import {RecordPage} from './RecordPage';
 import {EmptyState} from './StateViews';
 import {useListState} from './ListState';
-import {WorkspacePagination, WorkspaceSectionHeader, workspacePageSize} from './RequestWorkspacePrimitives';
+import {AppointmentViewSwitch, WorkspacePagination, WorkspaceSectionHeader, workspacePageSize} from './RequestWorkspacePrimitives';
 import {useExcelExport} from '../utils/useExcelExport';
 import {formatRequestDisplayDate} from './ApprovalProcess';
 import {panelRecordedDate, panelStatusLabel, panelStatusTone, type PanelPresentation} from '../utils/panelPresentation';
@@ -50,12 +50,10 @@ function AssignmentList({scope, role, records, lecturer, initial = {}, onLecture
   ]);
   const changeView = (value: PanelAssignmentView) => {setView(value); filters.setStatus(''); filters.setFrom(''); filters.setTo(''); filters.setPage(1);};
   return <div className="space-y-5">
-    <section aria-label="Panel assignments" className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section aria-label="Panel assignments" className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white shadow-sm">
       <WorkspaceSectionHeader title={lecturer ? 'Panel students' : grouped ? 'Panel lecturers' : 'Panel assignments'}
-        description={`${view === 'current' ? 'Browse confirmed active Panel assignments' : 'Browse ended and completed Panel assignments'} ${role === 'coordinator' ? 'in your managed programmes' : 'across programmes'}. Counts reflect the selected filters.`}/>
-      <CoordinatorFiltersBar filters={{...filters, status: effectiveStatus, reset: () => {filters.reset(); setView('current');}}} facets={facets} includeEndDate={false} showStatus={view === 'past'} statusFieldLabel="Appointment status" includeStatusAndDates statusLabel={panelStatusLabel} dateLabel="Started"
-        extraFilters={<label className="form-label min-w-0">Appointments<PortalSelect aria-label="Appointments" className="form-control form-control-sm mt-1" value={view}
-          onChange={event => changeView(event.target.value === 'past' ? 'past' : 'current')}><option value="current">Current assignments</option><option value="past">Past assignments</option></PortalSelect></label>}
+        description={`${view === 'current' ? 'Browse confirmed active Panel assignments' : 'Browse ended and completed Panel assignments'} ${role === 'coordinator' ? 'in your managed programmes' : 'across programmes'}. Counts reflect the selected filters.`} actions={<AppointmentViewSwitch view={view} onChange={changeView} currentLabel="Current" pastLabel="Past"/>}/>
+      <CoordinatorFiltersBar filters={{...filters, status: effectiveStatus, reset: filters.reset}} facets={facets} includeEndDate={false} showStatus={view === 'past'} statusFieldLabel="Appointment status" includeStatusAndDates statusLabel={panelStatusLabel} dateLabel="Started"
         searchLabel="Find a student or Panel lecturer" searchPlaceholder="Student, matric number, lecturer or staff number"
         sortOptions={grouped ? [['name', 'Lecturer name'], ['students', 'Most students'], ['newest', 'Newest assignment']] : [['name', 'Student name'], ['newest', 'Newest assignment']]}
         actions={<PortalButton variant="primary" size="sm" icon={Download} disabled={!matching.length || excel.busy} isLoading={excel.busy}

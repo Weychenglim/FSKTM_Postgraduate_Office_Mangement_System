@@ -1,14 +1,16 @@
+import { MarksHeading } from './MarksPrimitives';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import React from 'react';
-import { CalendarClock, Lock } from 'lucide-react';
+import { CalendarClock, Lock, ClipboardCheck, MessageSquare } from 'lucide-react';
 
 import { RecordPage } from './RecordPage';
 import type { EvaluationTask } from '../types';
 import { formatDeadlineText } from '../utils/workflowAgeing';
+import { formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
 import {
   PortalCard,
   StatusBadge,
@@ -39,12 +41,14 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
     : Number(task.totalMark).toFixed(2);
 
   return (
+    <div className="marks-workspace">
       <RecordPage
         title="Submitted Mark Detail"
-        subtitle="Review the persisted rubric scores and evaluator feedback for this locked submission."
+        subtitle="Review submitted scores and evaluator feedback."
         backLabel={backLabel}
         onBack={onBack}
         pageKey={`marks-submitted:${task.id}`}
+        metadata={<p className="card-description">Marked as <strong className="font-semibold text-slate-800">{task.evaluatorRoleLabel || (task.evaluatorRole === 'SUPERVISOR' ? 'Supervisor' : task.evaluatorRole === 'BACKUP' ? 'Backup evaluator' : 'Panel member')}</strong></p>}
         actions={<StatusBadge tone="success" icon={Lock}>Submitted</StatusBadge>}
       >
 
@@ -71,23 +75,26 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
               </div>
               <div>
                 <dt className="card-label">Submitted</dt>
-                <dd className="card-value mt-1 text-slate-700">{task.submittedDate || 'Submitted'}</dd>
+                <dd className="card-value mt-1 text-slate-700">{task.submittedAt ? formatMalaysiaDateTime(task.submittedAt) : task.submittedDate || 'Date unavailable'}</dd>
               </div>
+              {task.periodName ? <div><dt className="card-label">Evaluation period</dt><dd className="card-value mt-1">{task.periodName}</dd></div> : null}
+              {task.rubricName ? <div><dt className="card-label">Rubric</dt><dd className="card-value mt-1">{task.rubricName}{task.rubricVersion ? ` · Version ${task.rubricVersion}` : ''}</dd></div> : null}
             </dl>
           </PortalCard>
 
           <PortalCard padding="none" className="overflow-hidden rounded-lg">
             <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
-              <h2 className="section-label text-slate-600">Rubric scores</h2>
+              <MarksHeading icon={ClipboardCheck}>Rubric scores</MarksHeading>
             </div>
-            <div className="overflow-x-auto">
+            <div role="region" aria-label="Submitted rubric scores" tabIndex={0} className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue-600">
               <table className="data-table min-w-[680px]">
+                <caption className="sr-only">Submitted marks and feedback by rubric component</caption>
                 <thead>
                   <tr className="data-thead">
-                    <th className="data-th">Component</th>
-                    <th className="data-th text-center">Maximum</th>
-                    <th className="data-th text-center">Awarded</th>
-                    <th className="data-th">Feedback</th>
+                    <th scope="col" className="data-th">Component</th>
+                    <th scope="col" className="data-th text-center">Maximum</th>
+                    <th scope="col" className="data-th text-center">Awarded</th>
+                    <th scope="col" className="data-th">Feedback</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -113,7 +120,7 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
           </PortalCard>
 
           <PortalCard padding="lg" className="rounded-lg">
-            <h2 className="section-label text-slate-600">Overall comments</h2>
+            <MarksHeading icon={MessageSquare}>Overall comments</MarksHeading>
             <p className="card-description mt-3 whitespace-pre-wrap leading-relaxed text-slate-700">
               {task.comments || 'No overall comments were entered.'}
             </p>
@@ -143,5 +150,6 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
         </aside>
       </div>
     </RecordPage>
+    </div>
   );
 };

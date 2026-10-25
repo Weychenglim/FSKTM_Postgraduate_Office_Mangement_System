@@ -41,8 +41,7 @@ const memory = new Map<string, unknown>([
   ['OfficeWorkflowReports:draftFilters',{semester:'all',startDate:'2026-10-01'}],
 ]);
 const reportView = (role:'Office Staff/Admin'|'Lecturer') => renderToStaticMarkup(<ListState.Provider value={memory}><reports.WorkflowReports currentUserRole={role} onBack={()=>{}} onNavigateToRoute={()=>{}} /></ListState.Provider>);
-assert.match(reportView('Office Staff/Admin'),/value="2026-10-01"/,'Returning Office report restores unsubmitted filter input');
-assert.match(reportView('Office Staff/Admin'),/Showing: All semesters; 2026-09-01/,'Returned results retain applied export scope');
-assert.match(reportView('Office Staff/Admin'),/Filter changes have not been applied/);
+assert.match(reportView('Office Staff/Admin'),/value="2026-09-01"/,'Returning Office report restores the latest filter selection');
+assert.doesNotMatch(reportView('Office Staff/Admin'),/Apply filters|Filter changes have not been applied/);
 assert.doesNotMatch(reportView('Lecturer'),/2026-09-01|2026-10-01/,'Other roles do not read Office report state');
 console.log('Office report bounds, capacity scope, return filters, reconciliation labels and owning destinations pass');

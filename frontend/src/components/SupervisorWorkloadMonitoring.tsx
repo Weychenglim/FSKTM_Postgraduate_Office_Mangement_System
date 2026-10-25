@@ -15,6 +15,7 @@ import { CoordinatorDataTable } from './CoordinatorBrowsePrimitives';
 import { WorkspacePagination, WorkspaceSectionHeader, workspacePageSize } from './RequestWorkspacePrimitives';
 import { appointmentDetailTypography as typography } from './AppointmentPrimitives';
 import { RequestDetailCard, RequestSection } from './RequestDetailPrimitives';
+import { WorkloadMonitoringSummary } from './WorkloadMonitoringSummary';
 
 interface SupervisorWorkloadMonitoringProps {
   onBack: () => void;
@@ -154,6 +155,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
 
   return <RecordPage title="Supervisor Workload Monitoring" subtitle="Current effective semester capacity and active primary and supporting appointments." backLabel={backLabel} onBack={onBack} actions={actions}>
     <PortalToast message={toastMessage} />
+    {!loading && !error ? <WorkloadMonitoringSummary kind="supervisor" records={browse.filtered} /> : null}
     <section aria-label="Supervisor workload workspace" className="office-workload-records min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
       {excel.error?<p role="alert" className="card-description text-rose-700">{excel.error}</p>:null}
       <WorkspaceSectionHeader title="Supervisor workload records" description="Filters update immediately. Counts and exports cover all matching lecturers across pages." actions={<PortalButton onClick={()=>void handleExportExcel()} disabled={loading || !!error || excel.busy} isLoading={excel.busy} variant="primary" size="sm" icon={Download}>Export Excel</PortalButton>} />

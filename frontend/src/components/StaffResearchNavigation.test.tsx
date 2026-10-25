@@ -7,18 +7,20 @@ import {SupervisorWorkspaceNavigation} from './SupervisorWorkspaceNavigation';
 import {CoordinatorResearchFilters} from './ResearchAmendments';
 import {getResearchAmendmentsPage,coordinatorTransferQuery} from '../services/researchAmendmentsApi';
 
+const currentLinkText = (html: string) => (html.match(/<a\b[^>]*aria-current="page"[^>]*>([\s\S]*?)<\/a>/)?.[1] ?? '').replace(/<[^>]*>/g, '').trim();
+
 const route='/supervisor-appointments/research-changes';
 const render=(role:'Programme Coordinator'|'Office Staff/Admin',view:'list'|'detail'='list')=>renderToStaticMarkup(
   <MemoryRouter initialEntries={[route+'?type=RESEARCH&status=PENDING_COORDINATOR']}><StaffResearchWorkspace role={role} routeView={view}/></MemoryRouter>);
 const coordinator=render('Programme Coordinator');
-assert.match(coordinator, /aria-current="page"[^>]*>Programme transfers/);
+assert.equal(currentLinkText(coordinator), 'Programme transfers');
 assert.match(coordinator, /Loading programme transfers/);
 assert.doesNotMatch(coordinator, /Title change|Abstract change|Research changes/);
 assert.match(render('Office Staff/Admin'), /Research records|Research profiles/);
 assert.match(render('Office Staff/Admin','detail'), /Back to Research records/);
 for(const role of ['Student','Lecturer'] as const) {
   const nav=renderToStaticMarkup(<MemoryRouter initialEntries={[route]}><SupervisorWorkspaceNavigation role={role}/></MemoryRouter>);
-  assert.match(nav,/aria-current="page"[^>]*>Research changes/);
+  assert.equal(currentLinkText(nav),'Research changes');
 }
 const filters=renderToStaticMarkup(<CoordinatorResearchFilters query={{type:'TRANSFER'}} transferOnly pagination={{total:0,page:1,pageSize:10,pageCount:1,reviewCount:0,facets:{programmes:[],semesters:[],statuses:['PENDING_SUPERVISOR','PENDING_COORDINATOR','PENDING_SOURCE_COORDINATOR','PENDING_DESTINATION_COORDINATOR']}}} onFilter={()=>{}}/>);
 assert.doesNotMatch(filters,/Title change|Abstract change|Request type/);

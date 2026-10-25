@@ -64,7 +64,7 @@ export function CoordinatorAppointmentRequestList({ queue, history, nominations,
   if (view === 'history') visible.reverse();
   const size = workspacePageSize(requestedSize), pageCount = Math.max(1, Math.ceil(visible.length / size));
   const currentPage = Math.max(1, Math.min(page, pageCount));
-  return <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
+  return <section className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white">
     <WorkspaceSectionHeader title="Appointment requests" description="Review primary and supporting requests in your managed programmes, or view their final outcomes."
       actions={<RequestViewSwitch view={view} reviewCount={all.filter(row => row.canDecide).length} onChange={onView} />} />
     <RequestFilters search={search} onSearch={onSearch} type={type} onType={onType} status={status} onStatus={onStatus} statuses={[...new Set(partition.map(row => row.status))]} />

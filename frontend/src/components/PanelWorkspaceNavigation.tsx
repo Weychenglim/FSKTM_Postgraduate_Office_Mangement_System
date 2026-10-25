@@ -1,4 +1,5 @@
 import React from 'react';
+import { ClipboardList, LayoutDashboard, UsersRound, ContactRound } from 'lucide-react';
 export type PanelWorkspaceRole='office'|'coordinator'|'lecturer';
 export type PanelWorkspaceSection='attention'|'requests'|'supervisees'|'appointments';
 /** App reserves `student` for explicitly starting a nomination. Details must not trigger it. */
@@ -18,5 +19,6 @@ export function panelWorkspaceSection(role:PanelWorkspaceRole,value?:string|null
   return panelWorkspaceTabs(role).find(v=>v.id===value)?.id??(role==='lecturer'&&legacy==='submitted'?'supervisees':role==='office'?'attention':'requests');
 }
 export function PanelWorkspaceNavigation({role,section,onChange}:{role:PanelWorkspaceRole;section:PanelWorkspaceSection;onChange:(section:PanelWorkspaceSection)=>void}) {
-  return <nav aria-label="Panel workspace" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">{panelWorkspaceTabs(role).map(tab=><button type="button" key={tab.id} aria-current={section===tab.id?'page':undefined} onClick={()=>onChange(tab.id)} className={`card-value rounded-lg px-4 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${section===tab.id?'bg-brand-navy text-white':'text-slate-600 hover:bg-white'}`}>{tab.label}</button>)}</nav>;
+  const icons = { attention: LayoutDashboard, requests: ClipboardList, supervisees: UsersRound, appointments: ContactRound };
+  return <nav aria-label="Panel workspace" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">{panelWorkspaceTabs(role).map(tab=>{const Icon=icons[tab.id];return <button type="button" key={tab.id} aria-current={section===tab.id?'page':undefined} onClick={()=>onChange(tab.id)} className={`card-value inline-flex items-center gap-2 rounded-lg px-4 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${section===tab.id?'bg-brand-navy text-white':'text-slate-600 hover:bg-white'}`}><Icon aria-hidden="true" focusable="false" className="h-4 w-4 shrink-0" strokeWidth={1.75}/>{tab.label}</button>;})}</nav>;
 }

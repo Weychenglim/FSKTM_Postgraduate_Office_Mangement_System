@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from accounts.models import Lecturer, Panel, Supervisor
 
+from .capacity import capacity_workload_counts
 from .models import (
     AcademicSemester,
     LecturerAvailabilityWindow,
@@ -580,7 +581,66 @@ def update_capacity_entry(
         ) from exc
 
 
-def _capacity_plan_readiness_errors(plan, *, entries=None, lecturers=None):
+def update_capacity_entries_bulk(plan, *, actor, entries, mode, expected_fingerprint):
+    """Save explicit role patches as one draft revision, never a partial batch."""
+    expected_fingerprint = _validate_expected_fingerprint(expected_fingerprint)
+    ids = [row["lecturerId"] for row in entries]
+    if not entries or len(ids) != len(set(ids)) or mode not in {"MISSING_ONLY", "REPLACE"}:
+        raise ValidationError({"entries": "Provide unique lecturers and a valid update mode."})
+    try:
+        with transaction.atomic():
+            current_plan, semester = _locked_current_plan(plan)
+            _require_writable_semester(semester)
+            if current_plan.lifecycle_status != SemesterCapacityPlan.Lifecycle.DRAFT:
+                raise CapacityLifecycleConflict("Bulk changes can only be saved to Draft plans.")
+            locked_entries = _lock_capacity_entries_for_plans({current_plan.pk})
+            _assert_expected_fingerprint(current_plan, locked_entries, expected_fingerprint)
+            lecturers = {row.pk: row for row in _current_eligible_lecturers(lock=True)}
+            if set(ids) - lecturers.keys():
+                raise CapacityLifecycleConflict("A selected lecturer is no longer eligible. Reload and review the selection.")
+            saved = {row.lecturer_id: row for row in locked_entries}
+            changes = []
+            for patch in sorted(entries, key=lambda row: row["lecturerId"]):
+                lecturer = lecturers[patch["lecturerId"]]
+                entry = saved.get(lecturer.pk)
+                before = _entry_snapshot(entry) if entry else None
+                if entry is None:
+                    entry = LecturerCapacityEntry(plan=current_plan, lecturer=lecturer, updated_by=actor)
+                changed = False
+                for field, attribute, held in [
+                    ("supervisorLimit", "supervisor_limit", _has_supervisor_role(lecturer)),
+                    ("panelLimit", "panel_limit", _has_panel_role(lecturer)),
+                ]:
+                    if field not in patch:
+                        continue
+                    if not held:
+                        raise CapacityLifecycleConflict(f"{lecturer.staff_no}: lecturer no longer holds the requested role. Reload and review.")
+                    value = patch[field]
+                    if (mode == "REPLACE" or getattr(entry, attribute) is None) and getattr(entry, attribute) != value:
+                        setattr(entry, attribute, value)
+                        changed = True
+                if not changed:
+                    continue
+                entry.updated_by = actor
+                try:
+                    entry.full_clean()
+                except ValidationError as exc:
+                    raise ValidationError({"entries": [f"{lecturer.staff_no}: {message}" for message in exc.messages]}) from exc
+                changes.append((entry, lecturer, before))
+            for entry, lecturer, before in changes:
+                entry.save()
+                _audit(semester=semester, plan=current_plan, lecturer=lecturer, actor=actor,
+                       action=LecturerCapacityAudit.Action.ENTRY_UPDATE,
+                       reason=f"Draft capacity limits saved in bulk ({mode}).",
+                       before={"entry": before}, after={"entry": _entry_snapshot(entry)})
+            return current_plan
+    except IntegrityError as exc:
+        raise CapacityPlanConflict("Capacity plan changed concurrently; reload and retry.") from exc
+
+
+def _capacity_plan_readiness_errors(
+    plan, *, entries=None, lecturers=None, workload_context=None,
+):
     if entries is None:
         entries = list(
             LecturerCapacityEntry.objects.filter(plan_id=plan.pk)
@@ -625,6 +685,31 @@ def _capacity_plan_readiness_errors(plan, *, entries=None, lecturers=None):
             errors.append(
                 f"{entry.lecturer.staff_no}: entry Lecturer is not currently eligible."
             )
+    # Published versions are immutable history. Only a new publication must
+    # meet today's commitments; existing over-capacity policies remain readable.
+    if plan.lifecycle_status == SemesterCapacityPlan.Lifecycle.DRAFT and entries:
+        if workload_context is None:
+            workload_context = capacity_workload_counts(
+                entry.lecturer.user_id for entry in entries
+            )
+        for entry in entries:
+            user_id = entry.lecturer.user_id
+            supervisor_load = workload_context["supervisorLoad"].get(user_id, 0)
+            panel_active = workload_context["panelLoad"].get(user_id, 0)
+            panel_reserved = workload_context["panelReservations"].get(user_id, 0)
+            for role, limit, load in (
+                ("Supervisor", entry.supervisor_limit, supervisor_load),
+                ("Panel", entry.panel_limit, panel_active + panel_reserved),
+            ):
+                if limit is not None and limit < load:
+                    detail = (
+                        f" ({panel_active} active + {panel_reserved} reserved)"
+                        if role == "Panel" else ""
+                    )
+                    errors.append(
+                        f"{entry.lecturer.staff_no}: {role} limit {limit} is below "
+                        f"committed workload {load}{detail} (minimum {load})."
+                    )
     return errors
 
 
@@ -651,12 +736,15 @@ def capacity_eligible_lecturers():
     return _current_eligible_lecturers()
 
 
-def capacity_plan_readiness_errors(plan, *, entries, lecturers=None):
+def capacity_plan_readiness_errors(
+    plan, *, entries, lecturers=None, workload_context=None,
+):
     """Derive readiness from caller-loaded entries for read-only API payloads."""
     return _capacity_plan_readiness_errors(
         plan,
         entries=entries,
         lecturers=lecturers,
+        workload_context=workload_context,
     )
 
 

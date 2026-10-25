@@ -122,3 +122,12 @@ export interface CapacityHistoryQuery {
   limit?: number;
   offset?: number;
 }
+
+export type CapacityBulkMode = 'MISSING_ONLY' | 'REPLACE';
+export interface CapacityBulkPatch { lecturerId: number; supervisorLimit?: number; panelLimit?: number }
+export interface CapacityBulkCommand {
+  entries: CapacityBulkPatch[];
+  mode: CapacityBulkMode;
+  expectedVersion: number;
+  expectedFingerprint: string;
+}

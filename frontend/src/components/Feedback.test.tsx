@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {AlertMessage} from './AlertMessage';
+import {ErrorState} from './StateViews';
+import {ModuleFeedbackScope,isOwnedFeedbackPath} from './ModuleFeedbackScope';
+
+const info=renderToStaticMarkup(<AlertMessage type="info" title="Submission access" message="Publish the period before it can accept marks." actions={<button>Review settings</button>}/>);
+assert.match(info,/Submission access/);
+assert.match(info,/Review settings/);
+assert.match(info,/role="status"/);
+assert.doesNotMatch(info,/text-rose|alert-circle/,'Information must not look like an error');
+const warning=renderToStaticMarkup(<AlertMessage type="warning" title="Review required" message="Limits are missing."><details><summary>2 issues</summary>Details</details></AlertMessage>);
+assert.match(warning,/Review required/);assert.match(warning,/2 issues/);assert.match(warning,/text-amber/);
+const failedRead=renderToStaticMarkup(<ErrorState compact title="Couldn’t load history" message="Connection unavailable." onRetry={()=>{}}/>);
+assert.match(failedRead,/Couldn’t load history/);assert.match(failedRead,/Retry/);assert.doesNotMatch(failedRead,/py-16/);
+const legacyRead=renderToStaticMarkup(<ErrorState message="Unavailable"/>);
+assert.match(legacyRead,/py-16/,'Other module defaults must stay compatible');
+const scoped=renderToStaticMarkup(<ModuleFeedbackScope pathname="/panel-appointments/records/5"><ErrorState message="Unavailable"/></ModuleFeedbackScope>);
+assert.doesNotMatch(scoped,/py-16/);
+assert.equal(isOwnedFeedbackPath('/marks/config'),true);
+assert.equal(isOwnedFeedbackPath('/dashboard/workflow-reconciliation'),true);
+assert.equal(isOwnedFeedbackPath('/dashboard/participant-lifecycle'),false);
+assert.equal(isOwnedFeedbackPath('/registry'),false);
+console.log('Shared notice semantics and compact read feedback passed');

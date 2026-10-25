@@ -1,3 +1,7 @@
+import { WorkspaceFilterCard } from './RequestWorkspacePrimitives';
+import { MarksHeading } from './MarksPrimitives';
+import { Link } from 'react-router';
+import { APP_ROUTES } from '../constants/routes';
 import { PortalSelect } from './PortalSelect';
 import { DecisionDialog } from './DecisionDialog';
 import { completeDecision } from '../utils/decisionSubmission';
@@ -16,17 +20,14 @@ import {
   Calendar,
   Check,
   CheckCircle2,
-  Eye,
-  Filter,
+  ClipboardList,
+  ChevronDown,
   ShieldAlert,
-  Sliders,
-  Users,
   X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalToast, PortalButton, PortalCard } from './PortalPrimitives';
+import { PageHeader, PortalToast, PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
-import { SummaryCard } from './SummaryCard';
 import {
   EvaluationPeriodOption,
   EvaluationPreviewStatus,
@@ -125,10 +126,11 @@ const deriveTotals = (
   };
 };
 
-export function MarksTaskDeadlineEntryPoint({tasks,onChanged,onManageTimeline}: {
-  tasks:EvaluationPreviewTask[];onChanged:()=>Promise<void>;onManageTimeline?:()=>void;
+export function MarksTaskDeadlineEntryPoint({tasks,onChanged,onManageTimeline,compact=false}: {
+  tasks:EvaluationPreviewTask[];onChanged:()=>Promise<void>;onManageTimeline?:()=>void;compact?:boolean;
 }) {
   if(!onManageTimeline)return <MarksCompletionWindows tasks={tasks} onChanged={onChanged}/>;
+  if(compact)return <PortalButton size="sm" icon={Calendar} onClick={onManageTimeline} aria-label="Manage deadlines in Periods & deadlines">Manage deadlines</PortalButton>;
   return <PortalCard className="space-y-3"><h2 className="section-label">Deadlines and extra time</h2><p className="card-description">Manage common deadlines, selected task completion windows and their history in Periods &amp; deadlines.</p><PortalButton onClick={onManageTimeline}>Manage deadlines in Periods &amp; deadlines</PortalButton></PortalCard>;
 }
 
@@ -312,7 +314,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
   };
 
   return (
-    <div id="eval-assignment-workspace" className="space-y-8 animate-fade-in relative text-left">
+    <div id="eval-assignment-workspace" className="marks-workspace space-y-6 relative text-left">
       <PortalToast message={toastMessage} />
       <DecisionDialog isOpen={confirmBackup} kind="confirmation" decisionKey={`${backupForm.studentId}:${backupForm.evaluatorId}`}
         title="Assign this backup evaluator?" context={<p>{selectedBackupStudent?.studentName} · {backupForm.studentId} · {selectedBackupLecturer?.fullName} · {selectedBackupPeriod?.name}</p>}
@@ -323,9 +325,10 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
       <PageHeader
         title="Evaluation Task Assignment"
-        subtitle="Generate and monitor supervisor, panel, and backup mark-entry tasks for active evaluation periods."
-        backLabel="Back to Marks & Evaluation Management"
+        subtitle="Create assignments and review evaluation tasks."
+        backLabel="Back to Marks overview"
         onBack={onBack}
+        actions={onManageTimeline ? <MarksTaskDeadlineEntryPoint compact tasks={filteredTasks} onChanged={() => loadWorkspace(true)} onManageTimeline={() => onManageTimeline(selectedPeriod)} /> : undefined}
         subtitleClassName="leading-relaxed"
       />
 
@@ -335,289 +338,135 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
         <ErrorState message={error} onRetry={loadWorkspace} />
       ) : (
         <>
-          <MarksTaskDeadlineEntryPoint onManageTimeline={onManageTimeline?()=>onManageTimeline(selectedPeriod):undefined} tasks={filteredTasks} onChanged={async () => {
-            const [taskRows, periodRows] = await Promise.all([getEvaluationPreviewTasks(), getEvaluationPeriods()]);
-            setTasks(taskRows);
-            setPeriods(periodRows);
-          }} />
-          <div id="summary-cards-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <SummaryCard
-              title="Evaluation Period"
-              badgeText={selectedPeriod ? formatPeriodStatus(selectedPeriod.effectiveStatus) : 'Not selected'}
-              badgeType={selectedPeriod?.effectiveStatus === 'OPEN' ? 'active' : 'generated'}
-              subtext={selectedPeriod ? `${selectedPeriod.name} · ${selectedPeriod.semester} · ${formatPeriodTargeting(selectedPeriod)}` : 'No period selected'}
-              icon={Calendar}
-              onClick={() => {}}
-            />
-            <SummaryCard
-              title="Supervisor Tasks"
-              badgeText={String(totals.supervisor)}
-              badgeType="ready"
-              subtext="Supervisor mark-entry assignments"
-              icon={Users}
-              onClick={() => setRoleFilter('SUPERVISOR')}
-            />
-            <SummaryCard
-              title="Panel Tasks"
-              badgeText={String(totals.panel)}
-              badgeType="active"
-              subtext="Panel member mark-entry assignments"
-              icon={Sliders}
-              onClick={() => setRoleFilter('PANEL')}
-            />
-            <SummaryCard
-              title="Backup Tasks"
-              badgeText={String(totals.backup)}
-              badgeType={totals.backup > 0 ? 'ratio' : 'ready'}
-              subtext="Exception/manual override assignments"
-              icon={ShieldAlert}
-              onClick={() => setRoleFilter('BACKUP')}
-            />
-          </div>
-
-          <div id="assignment-controls" className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6">
-            <div className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 shadow-3xs">
-              <div className="flex items-center justify-between pb-5 border-b border-slate-100 gap-4 flex-wrap">
-                <div>
-                  <h3 className="section-label">Generate Missing Tasks</h3>
-                  <p className="card-description mt-1">
-                    Creates only missing supervisor and panel tasks. Existing and submitted marks are preserved.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pt-5">
-                <label className="form-label block">
-                  <span className="form-label block">Evaluation Period</span>
-                  <PortalSelect
-                    className="form-control form-control-md"
-                    value={selectedPeriodId}
-                    onChange={(event) => {
+          <PortalCard id="assignment-period-card" className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <MarksHeading icon={Calendar}>Evaluation period</MarksHeading>
+              {selectedPeriod ? <StatusBadge className="marks-state" tone={selectedPeriodAllowsGeneration ? 'info' : 'neutral'}>{formatPeriodStatus(selectedPeriod.effectiveStatus)}</StatusBadge> : null}
+            </div>
+            <div id="assignment-controls" className="space-y-3">
+              <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <label className="sr-only" htmlFor="assignment-period">Select evaluation period</label>
+                  <PortalSelect id="assignment-period" aria-label="Evaluation period" className="form-control form-control-md w-full" value={selectedPeriodId}
+                    onChange={event => {
                       setSelectedPeriodId(event.target.value);
-                      setBackupForm((current) => ({ ...current, periodId: event.target.value }));
-                    }}
-                  >
+                      setBackupForm(current => ({ ...current, periodId: event.target.value }));
+                    }}>
                     <option value="">Select period</option>
-                    {periods.map((period) => (
-                      <option key={period.id} value={period.id}>
-                        {period.name} · {period.semester} · {formatPeriodTargeting(period)}
-                      </option>
-                    ))}
+                    {periods.map(period => <option key={period.id} value={period.id}>{period.name} · {period.semester} · {formatPeriodTargeting(period)}</option>)}
                   </PortalSelect>
-                </label>
-
-                <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-xs">
-                  <span className="card-label block mb-2">
-                    Selected Period
-                  </span>
-                  <p className="card-value">{selectedPeriod?.rubricName || 'No rubric selected'}</p>
-                  {selectedPeriod ? <p className="card-description mt-1">{formatPeriodTargeting(selectedPeriod)}</p> : null}
-                  <p className="card-description mt-1">
-                    {formatDate(selectedPeriod?.opensAt || null)} → {formatDate(selectedPeriod?.closesAt || null)}
-                  </p>
                 </div>
+                <PortalButton className="min-h-11 shrink-0" variant="primary" icon={Check} disabled={!selectedPeriodAllowsGeneration || generating} isLoading={generating} aria-describedby="generation-help" onClick={handleGenerateTasks}>
+                  {generating ? 'Generating…' : 'Generate missing tasks'}
+                </PortalButton>
               </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
-                {[
-                  ['Total', totals.total],
-                  ['Submitted', totals.submitted],
-                  ['Incomplete', totals.incomplete],
-                  ['Overdue', totals.overdue],
-                ].map(([label, value]) => (
-                  <div key={String(label)} className="rounded-xl border border-slate-200 bg-white p-3">
-                    <span className="card-label">{label}</span>
-                    <span className="card-metric block mt-1">{value}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 mt-6">
-                <button
-                  type="button"
-                  disabled={!selectedPeriodAllowsGeneration || generating}
-                  onClick={handleGenerateTasks}
-                  className="px-5 py-3 bg-brand-navy hover:bg-slate-900 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2.5 transition"
-                >
-                  <Check className="w-4 h-4" />
-                  {generating ? 'Generating…' : 'Generate Missing Tasks'}
-                </button>
-                <button
-                  type="button"
-                  onClick={openBackupDrawer}
-                  className="px-5 py-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2.5 transition-all shadow-xs"
-                >
-                  <AlertCircle className="w-4.5 h-4.5 text-amber-500" />
-                  Assign Backup Evaluator
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-3xs">
-              <h3 className="section-label">Readiness Checks</h3>
-              <ul className="space-y-4 pt-5">
-                {[
-                  ['Evaluation period selected', Boolean(selectedPeriodId)],
-                  ['Period published and not ended', selectedPeriodAllowsGeneration],
-                  ['Rubric configured', Boolean(selectedPeriod?.rubricName)],
-                  ['Eligible students available', studentsForPeriod.length > 0],
-                ].map(([label, passed]) => (
-                  <li key={String(label)} className="flex items-center justify-between text-xs">
-                    <span className="card-description">{label}</span>
-                    <span className={`inline-flex items-center gap-1.5 font-extrabold text-[10px] uppercase ${passed ? 'text-blue-600' : 'text-amber-600'}`}>
-                      {passed ? 'Passed' : 'Check'}
-                      {passed ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <div id="evaluation-preview-card" className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-5 border-b border-slate-100 mb-5">
-              <div>
-                <h3 className="section-heading">Generated Evaluation Tasks</h3>
-                <p className="card-description mt-1">
-                  Filter official supervisor/panel tasks and backup exception assignments.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <label className="form-label block">
-                  <span className="form-label block">Role</span>
-                  <PortalSelect
-                    className="form-control form-control-sm min-w-[150px]"
-                    value={roleFilter}
-                    onChange={(event) => setRoleFilter(event.target.value as typeof ALL_ROLES | EvaluationTaskRole)}
-                  >
-                    <option value={ALL_ROLES}>All roles</option>
-                    <option value="SUPERVISOR">Supervisor</option>
-                    <option value="PANEL">Panel</option>
-                    <option value="BACKUP">Backup</option>
-                  </PortalSelect>
-                </label>
-                <label className="form-label block">
-                  <span className="form-label block">Status</span>
-                  <PortalSelect
-                    className="form-control form-control-sm min-w-[150px]"
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value as typeof ALL_STATUSES | EvaluationPreviewStatus)}
-                  >
-                    <option value={ALL_STATUSES}>All statuses</option>
-                    <option value="NOT_STARTED">Not Started</option>
-                    <option value="DRAFT">Draft</option>
-                    <option value="SUBMITTED">Submitted</option>
-                  </PortalSelect>
-                </label>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="data-table min-w-[900px]">
-                <thead>
-                  <tr className="data-thead">
-                    <th className="data-th">Student ID</th>
-                    <th className="data-th">Student Name</th>
-                    <th className="data-th">Research Title</th>
-                    <th className="data-th">Evaluator</th>
-                    <th className="data-th">Role</th>
-                    <th className="data-th">Semester</th>
-                    <th className="data-th text-center">Status</th>
-                    <th className="data-th text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 divide-dashed font-sans">
-                  {filteredTasks.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-xs font-semibold">
-                        <Filter className="w-6 h-6 text-slate-300 mx-auto mb-3" />
-                        <p className="card-description">No evaluation tasks match the selected filters.</p>
-                      </td>
-                    </tr>
-                  ) : filteredTasks.map((task) => (
-                    <tr key={task.taskId ?? task.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="data-td-strong font-mono">{task.studentId}</td>
-                      <td className="data-td">{task.studentName}</td>
-                      <td className="data-td max-w-[240px] truncate" title={task.researchTitle}>{task.researchTitle}</td>
-                      <td className="data-td">{task.panelMember}</td>
-                      <td className="data-td">
-                        <span className={`inline-flex px-3 py-1 rounded-full text-[9px] font-extrabold tracking-wider uppercase border ${
-                          task.evaluatorRole === 'BACKUP'
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : 'bg-slate-50 text-slate-600 border-slate-200'
-                        }`}>
-                          {roleLabel(task.evaluatorRole, task.evaluatorRoleLabel)}
+              <p id="generation-help" className="card-description">{periods.length === 0 ? <>No evaluation periods configured. <Link to={APP_ROUTES.marksConfig} className="inline-flex min-h-11 items-center rounded font-semibold text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">Configure evaluation period</Link></> : !selectedPeriod ? 'Select a period to generate tasks; the list currently covers all loaded periods.' : !selectedPeriodAllowsGeneration ? 'Generation requires a published period that is scheduled or open.' : 'Creates missing Supervisor and Panel tasks. Existing assignments and marks are preserved.'}</p>
+              <details className="border-t border-slate-100 pt-3">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded text-sm font-semibold text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 [&::-webkit-details-marker]:hidden">
+                  <span>Period details and readiness</span>
+                  <span className="inline-flex shrink-0 items-center gap-2 text-xs font-medium">{[Boolean(selectedPeriodId), selectedPeriodAllowsGeneration, Boolean(selectedPeriod?.rubricName), studentsForPeriod.length > 0].filter(Boolean).length}/4 checks<ChevronDown aria-hidden="true" className="h-4 w-4" /></span>
+                </summary>
+                <div className="grid min-w-0 gap-5 pt-3 lg:grid-cols-2">
+                  {selectedPeriod ? <dl className="min-w-0 space-y-3">
+                    <div><dt className="card-label">Marking rubric</dt><dd className="card-description mt-1 break-words">{selectedPeriod.rubricName || 'Not configured'}</dd></div>
+                    <div><dt className="card-label">Entry window</dt><dd className="card-description mt-1">{formatDate(selectedPeriod.opensAt || null)} – {formatDate(selectedPeriod.closesAt || null)}</dd></div>
+                    <div><dt className="card-label">Evaluation scope</dt><dd className="card-description mt-1 break-words">{formatPeriodTargeting(selectedPeriod)}</dd></div>
+                  </dl> : <p className="card-description">Select a period to view its rubric, dates and evaluation scope.</p>}
+                  <section aria-label="Generation readiness" className="min-w-0">
+                    <h3 className="text-sm font-semibold text-brand-navy">Readiness checks</h3>
+                    <ul className="mt-2 divide-y divide-slate-100">
+                      {[
+                        ['Evaluation period selected', Boolean(selectedPeriodId)],
+                        ['Period published and not ended', selectedPeriodAllowsGeneration],
+                        ['Rubric configured', Boolean(selectedPeriod?.rubricName)],
+                        ['Eligible students available', studentsForPeriod.length > 0],
+                      ].map(([label, passed]) => <li key={String(label)} className="flex items-start justify-between gap-3 py-2">
+                        <span className="card-description min-w-0">{label}</span>
+                        <span className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold ${passed ? 'text-emerald-700' : selectedPeriod ? 'text-amber-800' : 'text-slate-500'}`}>
+                          {passed ? <CheckCircle2 aria-hidden="true" className="h-4 w-4" /> : <AlertCircle aria-hidden="true" className="h-4 w-4" />}
+                          {passed ? 'Ready' : selectedPeriod ? 'Review' : 'Not ready'}
                         </span>
-                      </td>
-                      <td className="data-td">{task.semester}</td>
-                      <td className="data-td text-center">
-                        <span className="inline-flex px-3 py-1 rounded-full bg-blue-50 text-[9px] font-extrabold tracking-wider text-blue-600 uppercase border border-blue-100">
-                          {statusLabel(task.status)}
-                        </span>
-                      </td>
-                      <td className="data-td text-right">
-                        <button
-                          onClick={() => setSelectedTask(task)}
-                          className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
-                        >
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                      </li>)}
+                    </ul>
+                  </section>
+                </div>
+              </details>
+            </div>
+          </PortalCard>
+
+          <PortalCard id="evaluation-preview-card" className="space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <MarksHeading icon={ClipboardList}>Evaluation tasks</MarksHeading>
+                <p className="card-description mt-2">{selectedPeriod ? 'Selected period' : 'All loaded periods'}</p>
+              </div>
+              <PortalButton icon={ShieldAlert} onClick={openBackupDrawer}>Assign backup evaluator</PortalButton>
+            </div>
+            <WorkspaceFilterCard onReset={() => { setRoleFilter(ALL_ROLES); setStatusFilter(ALL_STATUSES); }}
+              fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
+              <label className="form-label min-w-0">Evaluator role
+                <PortalSelect aria-label="Evaluator role" className="form-control form-control-sm mt-1" value={roleFilter}
+                  onChange={event => setRoleFilter(event.target.value as typeof ALL_ROLES | EvaluationTaskRole)}>
+                  <option value={ALL_ROLES}>All roles ({totals.total})</option>
+                  <option value="SUPERVISOR">Supervisor ({totals.supervisor})</option>
+                  <option value="PANEL">Panel ({totals.panel})</option>
+                  <option value="BACKUP">Backup ({totals.backup})</option>
+                </PortalSelect>
+              </label>
+              <label className="form-label min-w-0">Task status
+                <PortalSelect aria-label="Task status" className="form-control form-control-sm mt-1" value={statusFilter} onChange={event => setStatusFilter(event.target.value as typeof ALL_STATUSES | EvaluationPreviewStatus)}>
+                  <option value={ALL_STATUSES}>All statuses</option><option value="NOT_STARTED">Not started</option><option value="DRAFT">Draft</option><option value="SUBMITTED">Submitted</option>
+                </PortalSelect>
+              </label>
+            </WorkspaceFilterCard>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <dl aria-label="Submission counts" className="flex flex-wrap gap-x-5 gap-y-2">
+                {[
+                  ['Submitted', totals.submitted], ['Incomplete', totals.incomplete], ['Overdue', totals.overdue],
+                ].map(([label, value]) => <div key={String(label)} className="flex items-baseline gap-1.5"><dt className="card-description">{label}</dt><dd className="text-sm font-semibold tabular-nums text-brand-navy">{value}</dd></div>)}
+              </dl>
+              <p role="status" className="card-description">{filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'} shown</p>
+            </div>
+            {filteredTasks.length === 0 ? <div className="rounded-xl bg-slate-50 px-4 py-6">
+              <h3 className="text-sm font-semibold text-brand-navy">{tasks.some(task => taskMatchesPeriod(task, selectedPeriodId)) ? 'No tasks match these filters' : 'No evaluation tasks yet'}</h3>
+              <p className="card-description mt-2 max-w-prose">{tasks.some(task => taskMatchesPeriod(task, selectedPeriodId)) ? 'Change the role or status, or clear the filters to see all tasks in this period scope.' : !selectedPeriod ? 'Configure and select an evaluation period, then generate its assignments above.' : 'Generate missing tasks above when the period is ready. Existing submissions will be preserved.'}</p>
+            </div> : <div role="region" aria-label="Evaluation task results" tabIndex={0} className="overflow-x-auto rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+              <table className="data-table min-w-[760px]">
+                <caption className="sr-only">Evaluation assignments for the current period scope and filters</caption>
+                <thead><tr className="data-thead">
+                  <th scope="col" className="data-th">Student</th><th scope="col" className="data-th">Research title</th><th scope="col" className="data-th">Evaluator</th><th scope="col" className="data-th">Semester</th><th scope="col" className="data-th">Status</th><th scope="col" className="data-th text-right">Action</th>
+                </tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredTasks.map(task => <tr key={task.taskId ?? task.id} className="hover:bg-slate-50/50">
+                    <td className="data-td"><p className="font-semibold text-brand-navy">{task.studentName}</p><p className="card-caption mt-1">{task.studentId}</p></td>
+                    <td className="data-td max-w-[240px]"><p className="line-clamp-2" title={task.researchTitle}>{task.researchTitle}</p></td>
+                    <td className="data-td"><p>{task.panelMember}</p><p className={`mt-1 text-xs ${task.evaluatorRole === 'BACKUP' ? 'text-amber-800' : 'text-slate-500'}`}>{roleLabel(task.evaluatorRole, task.evaluatorRoleLabel)}</p></td>
+                    <td className="data-td">{task.semester}</td>
+                    <td className="data-td"><StatusBadge className="marks-state whitespace-nowrap" tone={task.status === 'SUBMITTED' ? 'success' : task.status === 'OVERDUE' ? 'danger' : 'neutral'}>{statusLabel(task.status)}</StatusBadge></td>
+                    <td className="data-td text-right"><button type="button" onClick={() => setSelectedTask(task)} aria-label={`View task for ${task.studentName}, ${roleLabel(task.evaluatorRole, task.evaluatorRoleLabel)}`} className="min-h-11 rounded-lg px-2 text-sm font-semibold text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">View</button></td>
+                  </tr>)}
                 </tbody>
               </table>
-            </div>
-          </div>
+            </div>}
+            {!onManageTimeline ? <MarksTaskDeadlineEntryPoint tasks={filteredTasks} onChanged={async () => {
+              const [taskRows, periodRows] = await Promise.all([getEvaluationPreviewTasks(), getEvaluationPeriods()]);
+              setTasks(taskRows); setPeriods(periodRows);
+            }} /> : null}
 
-          <div id="task-actions-wrapper" className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 bg-slate-50 border border-slate-100 p-5 rounded-2xl">
-            <div className="flex flex-wrap items-center gap-4">
-              <button
-                onClick={() => setRoleFilter(ALL_ROLES)}
-                className="px-5 py-3.5 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 hover:border-blue-300 rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2.5 transition-all shadow-xs"
-              >
-                <Eye className="w-4.5 h-4.5 text-blue-500" />
-                View All Tasks
-              </button>
+          <details id="recent-assignment-activity-panel" className="border-t border-slate-100">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 py-3 focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-blue-600 [&::-webkit-details-marker]:hidden">
+              <span className="text-sm font-semibold text-slate-600">Activity this session</span>
+              <span className="inline-flex items-center gap-2 text-xs text-slate-500">{activities.length} {activities.length === 1 ? 'action' : 'actions'}<ChevronDown aria-hidden="true" className="h-4 w-4" /></span>
+            </summary>
+            <div className="pt-2">
+              <p className="card-description">Assignment actions taken in this session appear here.</p>
+              {activities.length ? <div className="mt-4 overflow-x-auto"><table className="data-table min-w-[650px]">
+                <thead><tr className="data-thead"><th scope="col" className="data-th">Date</th><th scope="col" className="data-th">Action</th><th scope="col" className="data-th">Details</th><th scope="col" className="data-th">Performed by</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">{activities.map(act => <tr key={act.id}><td className="data-td">{act.date}</td><td className="data-td">{act.action}</td><td className="data-td">{act.details}</td><td className="data-td">{act.performedBy}</td></tr>)}</tbody>
+              </table></div> : null}
             </div>
-            <p className="card-value max-w-[360px] text-left lg:text-right">
-              Backup assignments are exception records and do not modify official supervisor or panel appointments.
-            </p>
-          </div>
-
-          <div id="recent-assignment-activity-panel" className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden text-left shadow-3xs">
-            <div className="p-6 pb-4 border-b border-slate-100">
-              <h3 className="section-label">Recent Assignment Activity</h3>
-            </div>
-            {activities.length === 0 ? (
-              <div className="card-description p-8">
-                Assignment actions taken in this session will appear here.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="data-table min-w-[650px]">
-                  <thead>
-                    <tr className="data-thead bg-slate-50/50">
-                      <th className="data-th">Date</th>
-                      <th className="data-th">Action</th>
-                      <th className="data-th">Details</th>
-                      <th className="data-th">Performed By</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-sans">
-                    {activities.map((act) => (
-                      <tr key={act.id} className="hover:bg-slate-50/20 transition-colors">
-                        <td className="data-td">{act.date}</td>
-                        <td className="data-td">{act.action}</td>
-                        <td className="data-td">{act.details}</td>
-                        <td className="data-td">{act.performedBy}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          </details>
+          </PortalCard>
         </>
       )}
 
@@ -781,7 +630,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                   <div>
                     <span className="card-label block mb-1">Assigned Evaluator</span>
                     <span className="card-value block">{selectedTask.panelMember}</span>
-                    <span className="inline-flex mt-2 px-2.5 py-1 rounded-full bg-slate-50 text-[9px] font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200">
+                    <span className="inline-flex mt-2 px-2.5 py-1 rounded-full bg-slate-50 text-xs font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200">
                       {roleLabel(selectedTask.evaluatorRole, selectedTask.evaluatorRoleLabel)}
                     </span>
                   </div>
@@ -792,7 +641,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     </div>
                     <div>
                       <span className="card-label block mb-1">Status</span>
-                      <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-extrabold tracking-wide uppercase rounded">
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-extrabold tracking-wide uppercase rounded">
                         {statusLabel(selectedTask.status)}
                       </span>
                     </div>

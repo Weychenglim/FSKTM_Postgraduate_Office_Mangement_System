@@ -9,6 +9,7 @@ from rest_framework.response import Response
 
 from accounts.models import Lecturer
 
+from .capacity_browse import capacity_browse_filters
 from .capacity import CapacityConflict
 from .capacity_services import (
     CapacityLifecycleConflict,
@@ -20,6 +21,7 @@ from .capacity_services import (
     discard_capacity_plan,
     publish_capacity_plan,
     update_capacity_entry,
+    update_capacity_entries_bulk,
 )
 from .models import (
     AcademicSemester,
@@ -34,6 +36,7 @@ from .serializers import (
     AcademicSemesterWriteSerializer,
     AvailabilityWriteSerializer,
     CapacityEntryWriteSerializer,
+    CapacityBulkWriteSerializer,
     CapacityLimitOffsetSerializer,
     CapacityPlanCommandSerializer,
     CapacityPlanDiscardSerializer,
@@ -58,6 +61,7 @@ from .services import (
     create_semester,
     extend_semester,
     update_draft_semester,
+    semester_activation_readiness,
 )
 
 
@@ -149,8 +153,9 @@ def _paginate_capacity_queryset(request, queryset):
     }
 
 
-def _capacity_page_response(data, pagination):
-    response = Response(data)
+def _capacity_page_response(data, pagination, request=None):
+    envelope = request is not None and request.query_params.get("pageResult", "").lower() in ("true", "1", "yes", "y", "t", "on")
+    response = Response({"rows": data, **pagination} if envelope else data)
     response["X-Total-Count"] = str(pagination["total"])
     response["X-Limit"] = str(pagination["limit"])
     response["X-Offset"] = str(pagination["offset"])
@@ -349,10 +354,11 @@ def semester_capacity_plans_view(request, pk):
                 ),
             )
         )
+        plans = capacity_browse_filters(request, plans, "plans")
         plans, pagination = _paginate_capacity_queryset(request, plans)
         return _capacity_page_response(
             capacity_plan_payloads(plans),
-            pagination,
+            pagination, request,
         )
 
     serializer = CapacityPlanCreateSerializer(data=request.data)
@@ -393,6 +399,29 @@ def _update_capacity_plan_entry(*, request, plan, lecturer, serializer):
             panel_limit=data["panelLimit"],
             expected_fingerprint=data["expectedFingerprint"],
         )
+    except (CapacityLifecycleConflict, CapacityConflict) as exc:
+        return _capacity_conflict_response(exc)
+    except IntegrityError:
+        return _concurrent_capacity_response()
+    except DjangoValidationError as exc:
+        return _capacity_validation_response(exc)
+    return Response(capacity_plan_payload(_current_capacity_plan(plan.pk)))
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated, IsOfficeStaffAdmin])
+def capacity_plan_bulk_entries_view(request, pk):
+    denied = _office_denied(request.user)
+    if denied:
+        return denied
+    plan = get_object_or_404(_capacity_plan_queryset(), pk=pk)
+    serializer = CapacityBulkWriteSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    try:
+        _require_expected_version(plan, data["expectedVersion"])
+        update_capacity_entries_bulk(plan, actor=request.user, entries=data["entries"],
+                                     mode=data["mode"], expected_fingerprint=data["expectedFingerprint"])
     except (CapacityLifecycleConflict, CapacityConflict) as exc:
         return _capacity_conflict_response(exc)
     except IntegrityError:
@@ -542,10 +571,11 @@ def semester_availability_view(request, pk):
                 "pk",
             )
         )
+        windows = capacity_browse_filters(request, windows, "availability")
         windows, pagination = _paginate_capacity_queryset(request, windows)
         return _capacity_page_response(
             [availability_payload(window) for window in windows],
-            pagination,
+            pagination, request,
         )
 
     serializer = AvailabilityWriteSerializer(data=request.data)
@@ -619,10 +649,11 @@ def semester_capacity_audits_view(request, pk):
         .select_related("actor")
         .order_by("-created_at", "-pk")
     )
+    audits = capacity_browse_filters(request, audits, "audits")
     audits, pagination = _paginate_capacity_queryset(request, audits)
     return _capacity_page_response(
         [capacity_audit_payload(audit) for audit in audits],
-        pagination,
+        pagination, request,
     )
 
 @api_view(["GET"])
@@ -645,3 +676,15 @@ def semester_handover_preview_view(request, pk):
     from marks.closure_preview import semester_closure_preview
     target = get_object_or_404(AcademicSemester, pk=pk)
     return Response(semester_closure_preview(None, target_semester=target))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, IsOfficeStaffAdmin])
+def semester_activation_readiness_view(request, pk):
+    semester = get_object_or_404(AcademicSemester, pk=pk)
+    try:
+        response = Response(semester_activation_readiness(semester))
+        response["Cache-Control"] = "no-store"
+        return response
+    except SemesterConflict as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)

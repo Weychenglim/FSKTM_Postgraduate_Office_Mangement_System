@@ -6,8 +6,10 @@ import {SupervisorWorkspaceNavigation} from './SupervisorWorkspaceNavigation';
 import {officeSupervisorApi} from '../services/staffSupervisorWorkspaceApi';
 import {APP_ROUTES} from '../constants/routes';
 
+const currentLinkText = (html: string) => (html.match(/<a\b[^>]*aria-current="page"[^>]*>([\s\S]*?)<\/a>/)?.[1] ?? '').replace(/<[^>]*>/g, '').trim();
+
 const nav=renderToStaticMarkup(<MemoryRouter initialEntries={['/supervisor-appointments']}><SupervisorWorkspaceNavigation role="Office Staff/Admin"/></MemoryRouter>);
-assert.match(nav,/aria-current="page"[^>]*>Needs attention/);
+assert.equal(currentLinkText(nav),'Needs attention');
 assert.match(nav,/href="\/supervisor-appointments\/requests"/);
 assert.doesNotMatch(nav,/Research changes|Programme transfers/);
 assert.equal(APP_ROUTES.supervisorAppointmentRequests,'/supervisor-appointments/requests');

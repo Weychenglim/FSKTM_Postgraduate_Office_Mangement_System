@@ -1,3 +1,4 @@
+import {DashboardHeader} from './DashboardHeader';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Award, BarChart3, ChevronRight, Clock3, ShieldAlert } from 'lucide-react';
 import { getCoordinatorPanelWorkspace, getDashboardSummary } from '../services';
@@ -7,7 +8,7 @@ import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { ErrorState, LoadingState } from './StateViews';
-import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { ActiveSemesterContext } from './ActiveSemesterContext';
 import { CoordinatorDelegations } from './CoordinatorDelegations';
 import { coordinatorProgrammeNames } from '../utils/coordinatorDelegations';
@@ -122,23 +123,17 @@ export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({
   return (
     <div id="coordinator-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
       <PortalToast message={toastMessage} />
-      <PageHeader
-        title="Programme Coordinator Dashboard"
-        subtitle={hasProgramme
-          ? `Monitor semester actions and final approvals for ${programmeLabel}.`
-          : 'Monitor semester actions and programme approval responsibilities.'}
-        actions={(
-          <PortalButton
-            variant="secondary"
-            icon={BarChart3}
-            onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
-          >
-            View Workflow Reports
-          </PortalButton>
-        )}
+      <DashboardHeader context={<ActiveSemesterContext />}
+          actions={(
+            <PortalButton
+              variant="secondary"
+              icon={BarChart3}
+              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
+            >
+              View Workflow Reports
+            </PortalButton>
+          )}
       />
-
-      <ActiveSemesterContext />
 
       {!loading && !error && <CoordinatorDelegations regularProgramme={workspace?.programme} effectiveProgrammes={programmes} onRefreshScope={loadWorkspace} />}
 

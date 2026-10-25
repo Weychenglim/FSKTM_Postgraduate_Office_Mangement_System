@@ -10,24 +10,16 @@ import { AuthLayout } from './components/AuthLayout';
 import { LoginCard } from './components/LoginCard';
 import { ForgotPasswordFlow } from './components/ForgotPasswordFlow';
 import { AppLayout } from './components/AppLayout';
-import { SummaryCard } from './components/SummaryCard';
-import { ChecklistCard, ChecklistItem } from './components/ChecklistCard';
-import { MarkSubmissionMonitoring } from './components/MarkSubmissionMonitoring';
-import { AlertListCard } from './components/AlertListCard';
-import { QuickActionsCard } from './components/QuickActionsCard';
+import { MarksOverview } from './components/MarksOverview';
 import { PortalToast } from './components/PortalPrimitives';
 import { OfficeDashboardLayout, isOfficeDashboardPresentation } from './components/OfficeDashboardLayout';
+import {ModuleFeedbackScope} from './components/ModuleFeedbackScope';
+import {OfficeMonitoringProvider} from './components/OfficeMonitoringContext';
 import { officeWorkloadNavigationState, officeMarksDeadlineRoute } from './utils/officeDashboard';
-import { 
-  Calendar, 
-  Sliders, 
-  CheckCircle,
-  Database,
-  Briefcase,
-} from 'lucide-react';
+import { Briefcase } from 'lucide-react';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { ForcedPasswordChange } from './components/ForcedPasswordChange';
-import type { DashboardSummary, DemoUser, EvaluationPeriodOption, NotificationItem, RubricVersion } from './types';
+import type { DemoUser, NotificationItem } from './types';
 import { SIDEBAR_ITEMS } from './constants/navigation';
 import { supervisorResearchLabel } from './utils/supervisorWorkspace';
 import {
@@ -68,17 +60,12 @@ import {
   SESSION_EXPIRED_EVENT,
   clearAuthToken,
 } from './services/apiClient';
-import { getEvaluationPeriods, getRubricVersions } from './services/marksApi';
-import { getDashboardSummary } from './services/timelineApi';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { defaultLandingPageForUser } from './utils/landingPage';
 import { returnPathAfterSignIn, type SignInReturnState } from './utils/signInReturn';
 import { MarkRecordStatusTab } from './utils/markRecords';
 import { recordBackSteps, recordReturn, recordSourceLabel, studentSupervisorRequestReturn } from './utils/recordNavigation';
-import {
-  buildMarksSetupChecklist,
-  formatPeriodStatus,
-} from './utils/marksProductionManagement';
+
 
 const lazyNamed = (
   exportName: string,
@@ -139,17 +126,6 @@ const ModuleLoadingFallback = () => (
     Loading workspace...
   </div>
 );
-
-const formatPeriodDate = (value?: string | null) => {
-  if (!value) return '';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '';
-  return parsed.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-};
 
 export default function App() {
   const location = useLocation();
@@ -222,9 +198,6 @@ export default function App() {
   }, []);
 
   const [marksRecordStatusTab, setMarksRecordStatusTab] = useState<MarkRecordStatusTab>('All Records');
-  const [marksDashboardSummary, setMarksDashboardSummary] = useState<DashboardSummary | null>(null);
-  const [evaluationPeriods, setEvaluationPeriods] = useState<EvaluationPeriodOption[]>([]);
-  const [rubricVersions, setRubricVersions] = useState<RubricVersion[]>([]);
 
   // Trigger states for modals in the main dashboard workspace
   const [activePortalModal, setActivePortalModal] = useState<'help' | null>(null);
@@ -381,77 +354,9 @@ export default function App() {
       Boolean(panelAssignmentStudentId)
     );
 
-  useEffect(() => {
-    if (currentUser?.role !== 'Office Staff/Admin' || currentUser.mustChangePassword) {
-      setMarksDashboardSummary(null);
-      setEvaluationPeriods([]);
-      setRubricVersions([]);
-      return;
-    }
-
-    let cancelled = false;
-    Promise.all([getDashboardSummary(), getEvaluationPeriods(), getRubricVersions()])
-      .then(([dashboardSummary, periods, rubrics]) => {
-        if (cancelled) return;
-        setMarksDashboardSummary(dashboardSummary);
-        setEvaluationPeriods(periods);
-        setRubricVersions(rubrics);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setMarksDashboardSummary(null);
-        setEvaluationPeriods([]);
-        setRubricVersions([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentUser?.role, currentUser?.mustChangePassword]);
-
   const openMarkRecords = (statusTab: MarkRecordStatusTab = 'All Records') => {
     setMarksRecordStatusTab(statusTab);
     navigate(APP_ROUTES.marksRecords);
-  };
-
-  const activeEvaluationPeriod = (
-    evaluationPeriods.find((period) => period.effectiveStatus === 'OPEN')
-    || evaluationPeriods.find((period) => period.effectiveStatus === 'SCHEDULED')
-    || evaluationPeriods[0]
-  );
-  const activeRubric = (
-    rubricVersions.find((rubric) => rubric.id === activeEvaluationPeriod?.rubricId)
-    || rubricVersions.find((rubric) => rubric.isActive)
-  );
-  const activePeriodDates = activeEvaluationPeriod
-    ? [formatPeriodDate(activeEvaluationPeriod.opensAt), formatPeriodDate(activeEvaluationPeriod.closesAt)]
-        .filter(Boolean)
-        .join(' - ')
-    : 'No active period configured';
-  const taskTotals = activeEvaluationPeriod?.taskTotals;
-  const totalMarkTasks = taskTotals?.total ?? (
-    (marksDashboardSummary?.submittedMarkEntries ?? 0)
-    + (marksDashboardSummary?.incompleteMarkEntries ?? 0)
-  );
-  const submittedMarkTasks = taskTotals?.submitted ?? marksDashboardSummary?.submittedMarkEntries ?? 0;
-  const incompleteMarkTasks = taskTotals?.incomplete ?? marksDashboardSummary?.incompleteMarkEntries ?? 0;
-
-  const checklistTasks: ChecklistItem[] = buildMarksSetupChecklist(
-    evaluationPeriods,
-    rubricVersions,
-  );
-
-  // Handler when clicking checklist steps
-  const handleChecklistAction = (item: ChecklistItem) => {
-    if (item.id === 'period') {
-      navigate(APP_ROUTES.marksConfig);
-    } else if (item.id === 'rubric') {
-      navigate(APP_ROUTES.marksRubrics);
-    } else if (item.id === 'tasks') {
-      navigate(APP_ROUTES.marksTasks);
-    } else {
-      navigate(APP_ROUTES.marksRecords);
-    }
   };
 
   const handleSuccessfulLogin = (user: DemoUser) => {
@@ -612,6 +517,8 @@ export default function App() {
         >
           <React.Suspense fallback={<ModuleLoadingFallback />}>
             <OfficeDashboardLayout enabled={isOfficeDashboardPresentation(pathname, currentUser.role)}>
+            <ModuleFeedbackScope pathname={pathname}>
+            <OfficeMonitoringProvider enabled={currentUser.role === 'Office Staff/Admin'}>
             {activeSidebarItem === SIDEBAR_ITEMS.MARKS_ENTRY ? (
               isLecturerWorkspace ? (
                 <LecturerMarksEntry
@@ -645,96 +552,7 @@ export default function App() {
                   recordId={markRecordId}
                 />
               ) : (
-                /* Main Dashboard Marks Entry View workspace */
-                <div id="marks-entry-workspace" className="space-y-8 animate-fade-in">
-                  
-                  {/* Header Title section */}
-                  <div id="page-metadata-block" className="text-left">
-                    <h1 id="main-view-title" className="page-title">
-                      Marks & Evaluation Management
-                    </h1>
-                    <p id="main-view-subtitle" className="page-subtitle">
-                      Configure mark entry setup, generate evaluation tasks, and monitor submission progress.
-                    </p>
-                  </div>
-
-                  {/* 4 Summary Cards Grid */}
-                  <div id="summary-cards-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                    <SummaryCard
-                      title="Mark Entry Period"
-                      badgeText={activeEvaluationPeriod ? formatPeriodStatus(activeEvaluationPeriod.effectiveStatus) : 'Not configured'}
-                      badgeType={activeEvaluationPeriod?.isOpen ? 'active' : 'ready'}
-                      subtext={activePeriodDates}
-                      icon={Calendar}
-                      onClick={() => navigate(APP_ROUTES.marksConfig)}
-                    />
-                    <SummaryCard
-                      title="Rubric Components"
-                      badgeText={activeRubric?.isReady ? 'Ready' : 'Needs work'}
-                      badgeType={activeRubric?.isReady ? 'ready' : 'generated'}
-                      subtext={activeRubric
-                        ? `${activeRubric.components.filter((component) => component.isActive ?? component.status === 'ACTIVE').length} components, ${activeRubric.componentTotal} / ${activeRubric.targetMark} marks`
-                        : 'No active rubric configured'}
-                      icon={Sliders}
-                      onClick={() => navigate(APP_ROUTES.marksRubrics)}
-                    />
-                    <SummaryCard
-                      title="Evaluation Tasks"
-                      badgeText={`${totalMarkTasks} Tasks`}
-                      badgeType="generated"
-                      subtext={`${taskTotals?.supervisor ?? marksDashboardSummary?.supervisorMarkTasks ?? 0} supervisor, ${taskTotals?.panel ?? marksDashboardSummary?.panelMarkTasks ?? 0} panel, ${taskTotals?.backup ?? marksDashboardSummary?.backupMarkTasks ?? 0} backup`}
-                      icon={CheckCircle}
-                      onClick={() => navigate(APP_ROUTES.marksTasks)}
-                    />
-                    <SummaryCard
-                      title="Submitted Marks"
-                      badgeText={`${submittedMarkTasks} / ${totalMarkTasks}`}
-                      badgeType="ratio"
-                      subtext={`${incompleteMarkTasks} submissions pending`}
-                      icon={Database}
-                      onClick={() => openMarkRecords('Submitted')}
-                    />
-                  </div>
-
-                  {/* Core layout grid (Left column: 65%, Right column: 35%) */}
-                  <div id="core-layout-grid" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                    
-                    {/* Left column content: Setup checklists and Progress Monitoring */}
-                    <div id="left-column-layout" className="lg:col-span-8 space-y-8">
-                      
-                      {/* Setup Checklist */}
-                      <ChecklistCard 
-                        items={checklistTasks} 
-                        onItemAction={handleChecklistAction} 
-                      />
-
-                      {/* Submission Monitoring */}
-                      <MarkSubmissionMonitoring onViewRecords={openMarkRecords} />
-                    </div>
-
-                    {/* Right column content: Urgent alerts list, Quick Actions, Database sync */}
-                    <div id="right-column-layout" className="lg:col-span-4 space-y-8">
-                      
-                      {/* Attention Needed items */}
-                      <AlertListCard
-                        periods={evaluationPeriods}
-                        rubrics={rubricVersions}
-                        onViewRecords={openMarkRecords}
-                        onManageRubrics={() => navigate(APP_ROUTES.marksRubrics)}
-                      />
-
-                      {/* Quick Actions buttons with Database state indicators */}
-                      <QuickActionsCard
-                        onConfigurePeriod={() => navigate(APP_ROUTES.marksConfig)}
-                        onManageRubrics={() => navigate(APP_ROUTES.marksRubrics)}
-                        onGenerateTasks={() => navigate(APP_ROUTES.marksTasks)}
-                        onViewRecords={() => openMarkRecords('All Records')}
-                      />
-                    </div>
-
-                  </div>
-
-                </div>
+                <MarksOverview onViewRecords={openMarkRecords} />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.PANEL_APPOINTMENTS ? (
               isStudentWorkspace && isPanelNestedRoute ? (
@@ -1126,7 +944,7 @@ export default function App() {
                 </button>
               </div>
             )}
-            </OfficeDashboardLayout>
+            </OfficeMonitoringProvider></ModuleFeedbackScope></OfficeDashboardLayout>
           </React.Suspense>
         </AppLayout>
       </NotificationsProvider>

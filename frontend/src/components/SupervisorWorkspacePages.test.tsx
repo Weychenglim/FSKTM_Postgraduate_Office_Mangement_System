@@ -33,7 +33,9 @@ assert.deepEqual(workspace.partitionSupervisorApplications(records).completed.ma
 console.log('Supervisor workspace deep links, active sections and pending/history partition pass');
 
 const nav = renderToStaticMarkup(<MemoryRouter initialEntries={['/supervisor-appointments/research-changes/42']}><SupervisorWorkspaceNavigation role="Lecturer" /></MemoryRouter>);
-assert.match(nav, /aria-current="page"[^>]*>Research changes/);
+// Decorative icons may precede the visible link label.
+const selectedLink = nav.match(/<a\b[^>]*aria-current="page"[^>]*>([\s\S]*?)<\/a>/)?.[1];
+assert.equal(selectedLink?.replace(/<[^>]*>/g, ""), "Research changes");
 assert.match(nav, /My supervisees/);
 assert.match(nav, /Appointment requests/);
 assert.doesNotMatch(nav, /Applications|My supervisors/);

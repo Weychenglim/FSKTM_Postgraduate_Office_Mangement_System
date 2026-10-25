@@ -1,5 +1,6 @@
 import { PortalSelect } from './PortalSelect';
 import { RecordPage } from './RecordPage';
+import { AlertMessage } from './AlertMessage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -32,6 +33,9 @@ interface AddTimelineEntryDrawerProps {
   onSave: (newEntry: Omit<TimelineEntry, 'id'>) => void;
   timelineLabel: string;
   busy?: boolean;
+  error?: string | null;
+  embedded?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
@@ -40,6 +44,9 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
   onSave,
   timelineLabel,
   busy = false,
+  error,
+  embedded = false,
+  onDirtyChange,
 }) => {
   const [eventName, setEventName] = useState('');
   const [category, setCategory] = useState<TimelineEntry['category']>('Research Project (P1)');
@@ -76,7 +83,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!eventName.trim() || targetRole.length === 0) return;
+    if (busy || !eventName.trim() || targetRole.length === 0) return;
 
     onSave({
       event: eventName,
@@ -96,25 +103,17 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
     }
   };
 
+  const dirty = !!eventName || !!startDate || !!endDate || !!description || category !== 'Research Project (P1)' || targetRole.join() !== 'STUDENT';
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   if (!isOpen) return null;
-  return <RecordPage title="Add Timeline Entry" backLabel="Back to Timeline Management" onBack={onClose} pageKey="timeline-add" dirty={!!eventName || !!startDate || !!endDate || !!description || category !== 'Research Project (P1)' || targetRole.join() !== 'STUDENT'} busy={busy}>{requestBack => <form
+  const renderForm = (requestBack: () => void) => <form
               onSubmit={handleSubmit}
-              className="space-y-5 rounded-2xl border border-slate-200 bg-white"
+              className="space-y-5"
             >
               <div 
                 id="add-drawer-body" 
-                className="drawer-body"
+                className="space-y-5"
               >
-                {/* Context Indicator Alert banner */}
-                <div className="bg-[#f8fafc] border border-slate-200 rounded-2xl p-4 space-y-1">
-                  <span className="card-label block">
-                    Postgraduate Milestone Info
-                  </span>
-                  <p className="card-description">
-                    Create a new milestone for <strong className="card-value text-indigo-650">{timelineLabel}</strong>. Confirm the start and end dates before saving.
-                  </p>
-                </div>
-
                 {/* Field 1: Event title */}
                 <div className="space-y-1.5">
                   <label className="form-label block">
@@ -149,7 +148,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                 </div>
 
                 {/* Field 3: Date Inputs grid */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="form-label block">
                       Start Date
@@ -252,9 +251,10 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
               </div>
 
               {/* Action Buttons Footer section */}
+              {error && <div className="px-5"><AlertMessage type="error" title="Unable to add timeline entry" message={error} /></div>}
               <div 
                 id="add-drawer-footer"
-                className="drawer-footer"
+                className="flex justify-end gap-3 border-t border-slate-200 pt-4"
               >
                 <PortalButton
                   type="button"
@@ -267,13 +267,15 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                 
                 <PortalButton
                   type="submit"
-                  disabled={!eventName.trim() || targetRole.length === 0}
+                  disabled={busy || !eventName.trim() || targetRole.length === 0}
+                  isLoading={busy}
                   variant="primary"
                   size="md"
                   icon={Plus}
                 >
-                  Add Entry
+                  Create event
                 </PortalButton>
               </div>
-            </form>}</RecordPage>;
+            </form>;
+  return embedded ? renderForm(onClose) : <RecordPage title="Add Timeline Entry" backLabel="Back to Timeline Management" onBack={onClose} pageKey="timeline-add" dirty={dirty} busy={busy}>{renderForm}</RecordPage>;
 };

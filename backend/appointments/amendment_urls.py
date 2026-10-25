@@ -4,6 +4,7 @@ from . import amendment_views as views
 urlpatterns = [
     path('', views.collection),
     path('options/', views.options),
+    path('profiles/', views.profiles),
     path('corrections/', views.corrections),
     path('<int:pk>/', views.detail),
     path('<int:pk>/decision/', views.decision),

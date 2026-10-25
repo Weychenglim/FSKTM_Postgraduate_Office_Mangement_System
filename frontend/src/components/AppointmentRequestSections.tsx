@@ -1,4 +1,5 @@
 import React from 'react';
+import { ClipboardList, BookOpen } from 'lucide-react';
 import { PortalCard } from './PortalPrimitives';
 import { RequestSection } from './RequestDetailPrimitives';
 import { appointmentDetailTypography as text } from './AppointmentPrimitives';
@@ -16,7 +17,7 @@ export function RequestSummaryCard({ studentName, studentId, programme, semester
   participants: RequestSummaryFact[]; contextAction?: React.ReactNode; children?: React.ReactNode;
 }) {
   return <div data-request-summary><PortalCard padding="lg">
-    <RequestSection title={title} headingClassName={text.heading} actions={contextAction}>
+    <RequestSection title={title} icon={ClipboardList} headingClassName={text.heading} actions={contextAction}>
       <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
         <RequestSummaryField label="Student" value={studentName} name />
         <RequestSummaryField label="Matric number" value={studentId} />
@@ -34,7 +35,7 @@ export function ResearchDetailsCard({ title, area, abstract, source, courseCodes
 }) {
   const description = source === 'submitted' ? 'Research submitted with this request' : source === 'profile' ? 'Current saved student research profile' : undefined;
   return <div data-research-details><PortalCard padding="lg">
-    <RequestSection title="Research details" description={description} headingClassName={text.heading}>
+    <RequestSection title="Research details" icon={BookOpen} description={description} headingClassName={text.heading}>
       <dl className="space-y-5">
         <RequestSummaryField label="Research title" value={title} name />
         <RequestSummaryField label="Research area" value={area} />

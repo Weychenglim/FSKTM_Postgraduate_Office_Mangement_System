@@ -1,3 +1,4 @@
+import {DashboardHeader} from './DashboardHeader';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -7,7 +8,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Award, BarChart3, CheckSquare, ChevronRight, UsersRound } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
-import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { getDashboardSummary, getOwnPanelWorkload, getOwnSupervisorWorkload } from '../services';
 import { DashboardSummary, DashboardTask, PanelWorkloadSummary, SupervisorWorkloadSummary } from '../types';
 import { APP_ROUTES, sidebarItemForPath } from '../constants/routes';
@@ -156,18 +157,16 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
     <div id="lecturer-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
       <PortalToast message={toastMessage} />
 
-      <PageHeader
-        title="Lecturer Dashboard"
-        subtitle="Track your semester timeline, supervisee records, panel appointments, and upcoming academic actions."
-        actions={(
-          <PortalButton
-            variant="secondary"
-            icon={BarChart3}
-            onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
-          >
-            View Workflow Reports
-          </PortalButton>
-        )}
+      <DashboardHeader context={<ActiveSemesterContext />}
+          actions={(
+            <PortalButton
+              variant="secondary"
+              icon={BarChart3}
+              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
+            >
+              View Workflow Reports
+            </PortalButton>
+          )}
       />
 
       {lifecycleStatus === 'RETIRING' && (
@@ -180,7 +179,6 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
         </div>
       )}
 
-      <ActiveSemesterContext />
 
       <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="section-heading">Your capacity and availability</h2><PortalButton size="sm" onClick={()=>onNavigateToRoute?.(APP_ROUTES.dashboardMyAvailability)}>Manage availability</PortalButton></div>

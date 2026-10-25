@@ -6,9 +6,11 @@ import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { WorkspaceRecordTable } from './RequestWorkspacePrimitives';
 import { ResearchAmendmentRouteContent } from './ResearchAmendments';
 
+const currentLinkText = (html: string) => (html.match(/<a\b[^>]*aria-current="page"[^>]*>([\s\S]*?)<\/a>/)?.[1] ?? '').replace(/<[^>]*>/g, '').trim();
+
 for (const role of ['Office Staff/Admin', 'Programme Coordinator'] as const) {
   const html = renderToStaticMarkup(<MemoryRouter initialEntries={['/supervisor-appointments/supervisees']}><SupervisorWorkspaceNavigation role={role} /></MemoryRouter>);
-  assert.match(html, /aria-current="page"[^>]*>Supervisory teams/);
+  assert.equal(currentLinkText(html), 'Supervisory teams');
   assert.match(html, /Appointment requests/);
   assert.doesNotMatch(html, /Research changes/);
   if (role === 'Programme Coordinator') assert.match(html, /Programme transfers/);

@@ -110,17 +110,16 @@ export function buildMarksSetupChecklist(
   periods: SetupPeriod[],
   rubrics: SetupRubric[],
 ): MarksSetupChecklistItem[] {
-  const hasPeriod = periods.some(
-    (period) => period.lifecycleStatus !== 'ARCHIVED',
-  );
+  const currentPeriods = periods.filter(period => period.lifecycleStatus !== 'ARCHIVED');
+  const hasPeriod = currentPeriods.length > 0;
   const hasReadyRubric = rubrics.some(
     (rubric) => rubric.isActive && rubric.isReady,
   );
-  const totalTasks = periods.reduce(
+  const totalTasks = currentPeriods.reduce(
     (total, period) => total + period.taskTotals.total,
     0,
   );
-  const submittedTasks = periods.reduce(
+  const submittedTasks = currentPeriods.reduce(
     (total, period) => total + period.taskTotals.submitted,
     0,
   );

@@ -44,3 +44,11 @@ export interface ActiveAcademicSemesterResponse {
   available: boolean;
   semester: AcademicSemester | null;
 }
+
+export interface SemesterActivationReadiness {
+  semesterId: number;
+  checkedOn: string;
+  canActivate: boolean;
+  currentSemester: {id: number; label: string; endsOn: string} | null;
+  checks: {key: 'draft' | 'dates' | 'current' | 'capacity'; label: string; ready: boolean; message: string; issueCount?: number}[];
+}

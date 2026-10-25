@@ -4,8 +4,9 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, CheckCircle2, Clock, Hourglass, Search } from 'lucide-react';
+import { ChartNoAxesCombined, CheckCircle2, ChevronDown, Clock, Hourglass, Search } from 'lucide-react';
 import { PortalButton, PortalCard, ProgressBar, StatusBadge, StatusDot } from './PortalPrimitives';
+import { MarksHeading } from './MarksPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
 import { getMarkRecords } from '../services';
 import { MarkRecord } from '../types';
@@ -68,23 +69,21 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
   ];
 
   return (
-    <PortalCard id="monitoring-card" padding="lg">
+    <PortalCard id="monitoring-card" padding="lg" className="min-w-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-1">
         <div>
-          <h3 className="section-heading">
-            Mark Submission Monitoring
-          </h3>
-          <p className="card-description mt-1">
-            Live completion status of active evaluation tasks across evaluation periods.
-          </p>
+          <MarksHeading icon={ChartNoAxesCombined}>Submission monitoring</MarksHeading>
+          {summary.total > 0 ? <p className="card-description mt-1">Active tasks across evaluation periods.</p> : null}
         </div>
-        <StatusBadge tone="brand" icon={Activity}>Live Data</StatusBadge>
+        {onViewRecords ? <PortalButton icon={Search} onClick={() => onViewRecords()}>View mark records</PortalButton> : null}
       </div>
 
       {loading ? (
         <LoadingState message="Loading mark submission monitoring…" />
       ) : error ? (
         <ErrorState message={error} onRetry={loadRecords} />
+      ) : summary.total === 0 ? (
+        <div className="mt-5 border-t border-slate-100 pt-5"><p className="text-sm font-semibold text-brand-navy">No active evaluation tasks</p><p className="card-description mt-2">Generate evaluation tasks to start tracking submissions.</p></div>
       ) : (
         <>
           <div id="semester-progress-hero" className="p-5 bg-slate-50/80 border border-slate-100 rounded-2xl my-6">
@@ -113,6 +112,7 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
               return (
                 <button
                   key={card.label}
+                  aria-pressed={selected}
                   type="button"
                   onClick={() => {
                     setSelectedStatusGroup(card.label);
@@ -124,14 +124,14 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
                       : 'bg-slate-50/50 hover:bg-slate-50 border-slate-100'
                   }`}
                 >
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
+                  <span className="card-label block">
                     {card.label}
                   </span>
-                  <span className={`card-metric block my-1 ${card.label === 'Overdue' ? 'text-rose-600' : 'text-slate-800'}`}>
+                  <span className={`card-metric block my-1 ${card.label === 'Overdue' && card.count > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
                     {card.count}
                   </span>
-                  <StatusBadge tone={statusTone[card.label]} className="rounded-md px-2 py-0.5 text-[9px]">
-                    {card.badge}
+                  <StatusBadge tone={card.count === 0 ? 'neutral' : statusTone[card.label]} className="rounded-md px-2 py-0.5">
+                    {card.count === 0 ? card.label === 'Overdue' ? 'None overdue' : 'No records' : card.badge}
                   </StatusBadge>
                 </button>
               );
@@ -158,8 +158,8 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
                 <p className="card-description py-2">No records match this status.</p>
               ) : (
                 selectedRecords.map((record) => (
-                  <div key={record.id} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center text-xs">
-                    <div>
+                  <div key={record.id} className="bg-white p-3 rounded-xl border border-slate-100 flex flex-wrap gap-3 justify-between items-center text-xs">
+                    <div className="min-w-0 flex-1 basis-40">
                       <span className="card-description block">{record.panelMember}</span>
                       <span className="card-description block mt-0.5">
                         Student: {record.studentName} · {record.evaluatorRoleLabel || record.evaluatorRole || 'Evaluator'}
@@ -167,7 +167,7 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
                     </div>
                     <StatusBadge
                       tone={record.status === 'Submitted' ? 'success' : record.status === 'Draft' ? 'info' : record.status === 'Overdue' ? 'danger' : 'neutral'}
-                      className="text-[9px]"
+                      className="marks-state shrink-0"
                     >
                       {record.status === 'Draft' ? 'Draft Saved' : record.status}
                     </StatusBadge>
@@ -177,14 +177,14 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
             </div>
           </div>
 
-          <div id="split-monitoring-columns" className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-100">
+          <details className="border-t border-slate-100">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded text-sm font-semibold text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 [&::-webkit-details-marker]:hidden">Follow-up and recent activity<ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0" /></summary>
+          <div id="split-monitoring-columns" className="grid grid-cols-1 gap-6 pt-4 md:grid-cols-2">
             <div id="column-followup" className="flex flex-col text-left">
-              <span className="card-label mb-4 block">
-                Needs Follow-up
-              </span>
+              <h3 className="text-sm font-semibold text-brand-navy mb-4">Needs follow-up</h3>
               <ul className="space-y-3.5 text-xs text-slate-600 font-medium">
                 <li className="flex items-center gap-3">
-                  <StatusDot tone="danger" />
+                  <StatusDot tone={summary.overdue > 0 ? 'danger' : 'neutral'} />
                   <span className="card-description"><strong className="card-value">{summary.overdue} overdue</strong> mark entries</span>
                 </li>
                 <li className="flex items-center gap-3">
@@ -205,9 +205,7 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
             </div>
 
             <div id="column-recent-activity" className="flex flex-col text-left">
-              <span className="card-label mb-4 block">
-                Recent Activity
-              </span>
+              <h3 className="text-sm font-semibold text-brand-navy mb-4">Recent activity</h3>
               <div className="space-y-4">
                 {activeRecords.slice(0, 3).map((record) => (
                   <div key={`activity-${record.id}`} className="flex gap-3.5">
@@ -231,6 +229,7 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
               </div>
             </div>
           </div>
+          </details>
         </>
       )}
     </PortalCard>

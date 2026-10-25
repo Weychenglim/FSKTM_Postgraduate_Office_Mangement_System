@@ -1,4 +1,6 @@
 """Submitted Marks editing belongs to authorized, audited portal operations."""
+from .test_write_helpers import submission_payload
+
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -22,7 +24,7 @@ class MarksPortalCorrectionTests(APITestCase):
         ))
         self.client.force_authenticate(self.lecturer)
         self.assertEqual(self.client.put(f'/api/marks/tasks/{self.task.pk}/draft/', self.score_payload(), format='json').status_code, 200)
-        self.assertEqual(self.client.post(f'/api/marks/tasks/{self.task.pk}/submit/').status_code, 200)
+        self.assertEqual(self.client.post(f'/api/marks/tasks/{self.task.pk}/submit/', submission_payload(self.task), format='json').status_code, 200)
         self.entry = MarkEntry.objects.get(task=self.task)
         self.record_id = f'MRK-{self.task.pk:05d}'
         self.url = f'/api/marks/records/{self.record_id}/'
@@ -121,7 +123,7 @@ class MarksPortalCorrectionTests(APITestCase):
         self.assertFalse(self.detail()['officeActions']['canCorrect'])
         self.client.force_authenticate(self.lecturer)
         self.assertEqual(self.client.put(f'/api/marks/tasks/{self.task.pk}/draft/', self.score_payload(problem='36'), format='json').status_code, 200)
-        self.assertEqual(self.client.post(f'/api/marks/tasks/{self.task.pk}/submit/').status_code, 200)
+        self.assertEqual(self.client.post(f'/api/marks/tasks/{self.task.pk}/submit/', submission_payload(self.task), format='json').status_code, 200)
         self.entry.refresh_from_db(); self.assertEqual(self.entry.total_mark, Decimal('86'))
 
     def test_stale_or_forged_versions_cannot_overwrite_newer_correction(self):

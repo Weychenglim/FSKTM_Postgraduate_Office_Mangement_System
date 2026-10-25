@@ -12,6 +12,8 @@
 import React from 'react';
 import { AlertTriangle, Inbox, Loader2, LucideIcon, RotateCw } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
+import { AlertMessage } from './AlertMessage';
+import {CompactReadFeedback} from './ModuleFeedbackScope';
 
 const joinClasses = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
@@ -99,13 +101,22 @@ interface ErrorStateProps {
   message?: string;
   onRetry?: () => void;
   className?: string;
+  compact?: boolean;
+  title?: string;
 }
 
 export const ErrorState: React.FC<ErrorStateProps> = ({
   message = 'Something went wrong while loading this data.',
   onRetry,
   className = '',
-}) => (
+  compact,
+  title = 'Couldn’t load data',
+}) => {
+  const scopedCompact=React.useContext(CompactReadFeedback);
+  return (
+  (compact??scopedCompact) ? <AlertMessage type="error" title={title} message={message} className={className}
+    actions={onRetry?<PortalButton variant="secondary" size="sm" icon={RotateCw} onClick={onRetry}>Retry</PortalButton>:undefined}/>
+  :
   <div
     role="alert"
     className={joinClasses('flex flex-col items-center justify-center gap-3 py-16 text-center', className)}
@@ -114,7 +125,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
       <AlertTriangle className="w-6 h-6 text-rose-500" />
     </div>
     <div className="space-y-1">
-      <h3 className="section-label text-slate-700">Couldn’t load data</h3>
+      <h3 className="section-label text-slate-700">{title}</h3>
       <p className="card-description max-w-sm">{message}</p>
     </div>
     {onRetry && (
@@ -123,4 +134,4 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
       </PortalButton>
     )}
   </div>
-);
+);};

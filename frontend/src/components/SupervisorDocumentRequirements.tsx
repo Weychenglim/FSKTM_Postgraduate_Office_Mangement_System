@@ -134,8 +134,7 @@ export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack,backLab
         backLabel={backLabel}
         onBack={onBack}
         actions={(
-          <PortalButton onClick={openCreate} variant="primary" size="sm">
-            <Plus className="h-4 w-4" />
+          <PortalButton onClick={openCreate} variant="primary" size="sm" icon={Plus} className="shrink-0 whitespace-nowrap">
             Add requirement
           </PortalButton>
         )}

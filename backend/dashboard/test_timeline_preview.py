@@ -123,7 +123,7 @@ class TimelinePreviewSafetyTests(APITestCase):
         response = self.client.get('/api/dashboard/timeline/active/')
         self.assertEqual(response.data['levels'][0]['entries'][0]['deadlineEnd'], period.closes_at.astimezone(timezone.get_current_timezone()).date().isoformat())
         response = self.client.patch(f'/api/dashboard/timeline/entries/{entry.pk}/',
-            {'deadlineEnd': (period.closes_at + timezone.timedelta(days=1)).date().isoformat()}, format='json')
+            {'deadlineEnd': (timezone.localdate(period.closes_at) + timezone.timedelta(days=1)).isoformat()}, format='json')
         self.assertEqual(response.status_code, 400)
         period.refresh_from_db()
         self.assertEqual(entry.operational_period_id, period.pk)
@@ -164,7 +164,7 @@ class TimelinePreviewSafetyTests(APITestCase):
         timeline = SemesterTimeline.objects.get(is_active=True)
         period = self.period(marks=True)
         payload = creation.TimelineCreationContractTests.payload(self, self.academic_semester.pk)
-        payload['deadlineStart'], payload['deadlineEnd'] = [value.isoformat() for value in (period.opens_at.date(), period.closes_at.date())]
+        payload['deadlineStart'], payload['deadlineEnd'] = [timezone.localdate(value).isoformat() for value in (period.opens_at, period.closes_at)]
         payload['marksPeriodId'] = period.pk
         response = self.client.post('/api/dashboard/timeline/entries/', payload, format='json')
         self.assertEqual(response.status_code, 201, response.data)

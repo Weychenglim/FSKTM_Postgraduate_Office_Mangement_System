@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import type { SemesterCapacityPlan } from '../types';
 import { PortalButton } from './PortalPrimitives';
+import type { CapacityPlanningBaseline } from '../services/capacityWorkspaceApi';
+import { capacityPlanningBaseline } from '../utils/capacityWorkspace';
 import { PortalSelect } from './PortalSelect';
 
 interface Props {
+  baseline?: CapacityPlanningBaseline;
   drafts: SemesterCapacityPlan[];
   published: SemesterCapacityPlan | null;
   previous: SemesterCapacityPlan | null;
@@ -16,8 +19,8 @@ interface Props {
   onCreate: (source: SemesterCapacityPlan | null) => void;
 }
 
-export function CapacityPreparationForm({ drafts, published, previous, checkingPrevious, disabled, busy, onCheckPrevious, onContinue, onCurrent, onCreate }: Props) {
-  const [mode, setMode] = useState<'continue' | 'new'>(drafts.length ? 'continue' : 'new');
+export function CapacityPreparationForm({ baseline, drafts, published, previous, checkingPrevious, disabled, busy, onCheckPrevious, onContinue, onCurrent, onCreate }: Props) {
+  const [mode, setMode] = useState<'continue' | 'new'>('new');
   const [draftId, setDraftId] = useState(drafts[0]?.id ?? null);
   const [source, setSource] = useState(published ? 'current' : 'blank');
   const draft = drafts.find(row => row.id === draftId) ?? drafts[0];
@@ -30,6 +33,7 @@ export function CapacityPreparationForm({ drafts, published, previous, checkingP
     else onCreate(source === 'previous' ? previous : null);
   }}>
     <p className="capacity-preparation-intro">Choose a draft to continue, or select a starting point for a new one. Published limits stay in force until you publish a replacement.</p>
+    {baseline && <details className="capacity-planning-reference"><summary>Planning reference · {capacityPlanningBaseline(baseline)}{baseline.studentsPerLecturer !== null ? ' students per lecturer' : ''}</summary><p className="mt-3 text-slate-600">{baseline.activeStudents} active students ÷ {baseline.eligibleLecturers} eligible lecturers across the portal. Reference average only; set Supervisor and Panel limits separately.</p></details>}
     <fieldset disabled={disabled} className="capacity-preparation-fields">
       <legend className="section-heading">What would you like to do?</legend>
       <div className="capacity-preparation-modes">

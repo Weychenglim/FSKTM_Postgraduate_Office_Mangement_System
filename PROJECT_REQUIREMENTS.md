@@ -1,10 +1,242 @@
 # Project Requirements
 
+## Acting delegation acceptance boundary (25 October 2026)
+
+Verify reasoned Office grant/revocation, programme-bound effective authority, regular-programme retention, stale decision denial, mounted queue refresh, personal history and dependent report/export/dossier privacy with isolated synthetic records. Verify scheduled, inclusive-end-date and expired states with an isolated test clock; retain grant history and completed academic work. Distinguish production-component/HTTP evidence, parsed XLSX content and backend retirement/concurrency/migration regressions from full-shell/login, compound lifecycle and external policy acceptance. This work introduces no academic policy, cross-account identity rule or technical-admin permission change.
+
+## Research and transfer acceptance boundary (25 October 2026)
+
+Acceptance must distinguish primary-Supervisor final decisions on Student research changes from separate source/destination Coordinator decisions on Office programme transfers. Verify reason validation, cancellation/rejection, successful UI approval, stale-decision recovery, one-pending-request conflicts, per-stage team acknowledgement, unauthorized access, retained history and consistent programme/revision outcomes with isolated synthetic records. Compare original applications, primary/supporting/Panel membership, submitted/draft Marks and completion windows before/after. Preserve remaining compound lifecycle/report/export/reconciliation and faculty-policy boundaries; this acceptance work adds no academic approval, Registry ownership change or runtime workflow.
+
+## Supporting supervision acceptance boundary (25 October 2026)
+
+Verify supporting nomination, candidate/Coordinator rejection, reasoned cancellation, approval, replacement and closure through existing role-scoped screens and real authenticated HTTP using isolated synthetic records. Check Student redaction, private-application/Marks denial, incumbent retention, former-member history/access revocation and exact preservation of primary/Panel/research/submitted Marks. Distinguish component-level browser evidence from full-shell/login, concurrency, remaining compound lifecycle/report/export/dossier/reconciliation cases and external faculty-policy/template decisions. This acceptance work introduces no new workflow or academic policy.
+
+## Lecturer draft and submission reliability (25 October 2026)
+
+Public lecturer draft and submission writes require the version of the record that was reviewed. Reject stale writes without changing newer scores, feedback or comments. A submission carries the full reviewed rubric payload and a task-scoped UUID; save and lock atomically. Repeating an identical committed attempt returns its result without a second write, including after the evaluation period closes. Reusing a reference for different input, or replaying after an Office correction/reopening, requires reviewing the latest record. Ownership, task lifecycle, eligibility, deadlines and required-component checks remain authoritative. Failed requests retain local entries; replacing them with saved values requires explicit loading. No automatic submission retries or browser persistence of academic draft data.
+
+Marks acceptance verification must cover Office rubric/period setup, one lecturer's separate Supervisor/Panel assignments, revised draft persistence, submission locking, own read-only history and matching Office results using isolated test data. Submission-day labels in Office records also use Malaysia time consistently with lecturer views.
+
+Lecturer marking responsibility navigation uses compact numeric badges for nonzero pending-task counts (or submitted counts in history), omits zero-count text, and preserves descriptive counts for assistive technology.
+
+## Lecturer marking bug-review clarifications (25 October 2026)
+
+Saving or submitting must persist the latest rubric-component scores and feedback, including cleared scores and feedback, without restoring older compatibility values. Explicitly reviewing the latest record after a conflict replaces stale form values and resets the unsaved-change baseline. Submission dates must use Malaysia time consistently from both the task queue and submission history. These clarify existing marking correctness requirements; no new workflow or permissions are introduced.
+
+## Lecturer submission history retention (25 October 2026)
+
+Lecturers can read their own currently submitted evaluations independently of the active assignment list, including paused/retired assignments and closed/archived evaluation periods. History reads must never generate tasks, grant editing access or expose another evaluator's marks. Retain role separation, identify evaluation periods, sort actual submission timestamps newest first and apply inclusive submission-date filters in Malaysia time. History has independent loading/error/retry states, automatic search/semester/date filters, role-specific empty states and readable phone rows. View submission is read-only. Existing save, submit, correction and reopening authority is unchanged; reopened draft entries reappear only after resubmission.
+
+## Lecturer marking responsibilities (25 October 2026)
+
+Lecturer Marks Entry separates My supervisees and My panel students using the existing portal workspace navigation style. Keep both choices visible and show unfinished task counts; expose Backup marking only when assigned. On first load prefer an assigned responsibility and retain explicit selections through filtering, record navigation and submission history. Summary cards cover the selected role and semester before search/status filtering. Count evaluation tasks, including separate periods for one student, rather than presenting them as student counts. Integrate automatic search/semester/status filters and Clear filters inside the task card. Group identity and research/semester metadata, use Start marking / Continue marking / View submission actions, and omit empty table scaffolding. On phones stack task rows so marking actions remain visible without horizontal scrolling. Distinguish a failed history read from an empty history. Keep the marking responsibility visible in editable, read-only and submitted records. Successful draft saves stay in the editor, acknowledge saving and reset unsaved-change tracking; subsequent edits restore the unsaved state. Preserve backend assignment, scoring, eligibility and submission authority.
+
+## Evaluation period browsing and editing (24 October 2026)
+
+An empty period workspace uses the shared neutral white card with a calendar icon, a short explanation and one New period action within the card. Omit the redundant list heading and duplicate header action when there are no rows. Keep archive controls available for an archived-only list and preserve creation restrictions for read-only semesters.
+
+Start Mark Entry Periods with a single period list and visible Draft, Published (with current date status), Closed and Archived lifecycle badges. Show the configuration editor only after New period, a period selection or an exact incoming period link. Back to period list returns to browsing without saving. New period resets the draft, scrolls/focuses Period name and preserves configured defaults and existing eligibility guards. Show Include archived periods only when archived records are available within the selected semester scope; inclusion adds historical rows to the same list and never reopens marks entry. Distinguish an entirely empty list from a list containing only hidden archives. Retain read-only archives, existing query semantics, context isolation and save/publication safeguards.
+
+## Marks usability and necessary guidance (24 October 2026)
+
+Keep Marks guidance brief and relevant to the current state. Remove repeated setup instructions from empty summary cards and routine explanatory copy; retain period/monitoring scope, meaningful empty/error recovery, publish/lock consequences, backup exceptions and extra-time rules. Show a direct rubric setup link when no ready rubric is available and a local explanation when an editable task cannot be submitted. Lecturer tasks and submitted history reuse the portal filter panel with visible labels, immediate filtering and Clear filters, preserving remembered visible selections. Secondary monitoring follow-up/activity stays available in a collapsed disclosure. Show accurate result counts rather than inert pagination; only expose student navigation with a supplied destination. Rubric component and mark-feedback fields have persistent associated labels; wide tables remain readable and keyboard-scrollable. Preserve scoring, eligibility, role authority, audit and confirmation behaviour.
+
+## Mark records workspace refinement (24 October 2026)
+
+Present Mark Entry Records as one compact workspace consistent with evaluation task assignment. Reuse the shared WorkspaceFilterCard from appointment modules: a light-grey panel, visible labels, aligned field grid and standard Clear filters footer. Combine status counts into one Status dropdown instead of five summary cards or duplicate status controls. Keep search, programme, semester and evaluator filters visible in the same panel. Every field filters immediately and resets pagination; show only the standard Clear filters action, without Apply or filter-success notifications. Shared filter labels and values must inherit the portal typography instead of larger Marks-specific form overrides. Preserve authenticated-shell list memory, incoming status filters, dashboard monitoring scope, record/student navigation and existing status/lifecycle rules. Count all loaded records within the current monitoring scope before search filters, including paused/retired assignments, and explain that scope. Group record ID with student identity and submission date with status without removing information. Distinguish an empty registry from unmatched filters; omit empty table scaffolding and pagination. Keep table scrolling local and pagination bounded as records grow.
+
+## Marks workspace hierarchy and visual consistency (24 October 2026)
+
+Evaluation task assignment uses two main cards: combined period selection/generation, then task management. Replace separate summary cards and role-filter pills with a labelled Evaluator role dropdown containing All/Supervisor/Panel/Backup counts. Place it beside Task status in the same shared WorkspaceFilterCard used by other modules, with standard Clear filters placement. Period metadata and informative readiness remain available in a collapsed disclosure; show essential generation guidance without expanding it. Keep submission counts, status filtering, filter reset and secondary backup assignment together with results. Clear filters resets role/status while retaining the period. Distinguish unconfigured periods, no generated assignments and filtered empty results. Provide central deadline management as a header shortcut, retain local completion-window access when that shortcut is unavailable, and embed collapsed session activity within task management. Preserve all existing task/backup generation eligibility, targeting, confirmation, scoring and record access.
+
+An empty rubric library shows one full-width setup card with a direct “Create rubric family” action. Do not show an empty family sidebar or ask users to select a nonexistent rubric. The first-family form uses the full work surface and receives keyboard focus; populated libraries retain the existing family/version list and editor.
+
+The Marks-specific attention panel is labelled “Evaluation checks”, distinct from the dashboard's cross-module “Needs attention”. Explain that summary cards describe one named period while setup readiness and evaluation checks cover non-archived periods and active rubrics. Exclude archived task totals from setup/monitoring readiness. When no non-archived period exists, provide a clear first step and direct link to period configuration.
+
+Office Marks uses a task-based overview without a new module tab bar: compact period, rubric and task summaries; three grouped evaluation setup destinations; actionable attention items; and separate submission monitoring with record access. Keep the current Inter font and portal card/icon conventions. Use readable section/form labels, semantic headings, usable mobile fields and consistent return links across Office configuration, rubrics, assignment and records, and Lecturer entry/history/details. Retain all existing routes and role access.
+
+Keep missing setup, no tasks, filtered empty results and read failures distinct. Do not show a completion percentage when there are no tasks or invent urgency for zero overdue tasks. An overview metadata failure must not hide working setup destinations, records or independently loaded monitoring; display unknown setup statuses and a retry action. Preserve existing data scopes, readiness rules, generation checks, score validation, draft retention, submission locking and correction/audit safeguards.
+
+## Current and past appointment navigation (2026-10-23)
+
+Office and Lecturer supervision/Panel assignment lists expose the same compact Current / Past switch beside the section heading, with Current as the initial view. Current means active appointment status, regardless of its originating semester. Past means an ended appointment (or a completed Panel assignment); request decision history remains separate. Preserve role-specific grouping, existing record access, filters and exports. Clearing filters must retain the selected appointment view.
+
+Lecturers can browse their own ended primary and supporting supervision appointments together, with search, role/programme/semester/end-date filters and pagination. Show student identity, their former role, start/end dates and recorded outcome, and offer a read-only appointment summary. Historical appointment ownership must not grant access to the student's current supervisory team or live research profile. Keep keyboard focus on the selected switch when changing views and retain list context on returning from a record. Returning from a past supervision record must restore focus to its originating row, and browser Forward must reopen the appointment just viewed. While changed filters or pagination are loading, hide results belonging to the previous query.
+
+## Automatic Supervisor application draft continuation (2026-10-23)
+
+Opening the student Supervisor appointment application automatically restores the owner-account saved draft once its initial read and any required student-particulars load settle. Keep the form disabled during initialization so delayed responses cannot overwrite new writing. Restore saved text and choices without an automatic save or submission, and keep the restored snapshot clean for navigation. Return to the first incomplete earlier writing step, or the saved step capped at Supervisor and documents; saved Review progress must recheck current availability and files. Files and declaration are never restored. After an initial load failure, editing may continue and later retries must not overwrite the current form; manual Resume retains dirty-replacement confirmation. Keep explicit Save draft, confirmed Discard, existing validation/permissions/intake/capacity rules, and a brief restoration notice. This supersedes the earlier requirement to explicitly resume every time the form opens.
+
+## Capacity editor action hierarchy (2026-10-23)
+
+Compare versions and Set limits in bulk use the shared primary button variant, matching Review and publish with a dark background and white text.
+
+Present an editable capacity draft as one work surface. Keep its version title and Compare versions in the header without a duplicate Draft badge. Place selection scope and Set limits in bulk together directly above the lecturer roster. Use a compact Select lecturers menu for the current page, all matching lecturers and clearing selection; show selected count only when selection exists. Place publication readiness and Review and publish after the roster and pagination. Preserve shared fonts, controls, individual editing, cross-page selection, filters, modal safeguards and all existing publication rules. Adapt the toolbar and publication footer to narrow screens without overflow.
+
+## Bulk capacity draft editing (2026-10-23)
+
+Office can select eligible lecturers across roster pages, select the current page or all matching lecturers, and set common Supervisor/Panel limits through a bulk modal. Filters/semester/version changes clear selection; paging preserves it. The default fills missing limits only, preserving zero and existing values. Replacement is explicit; blank inputs leave that role unchanged and roles not held are skipped. Preview exact old/new values and affected count before one transactional save. New entries still require all held-role limits. Drafts may fall below committed workload with warnings, but publication minimums remain enforced. Preserve individual edits, copying plans, published policies, availability, audit history, dirty/busy protection and stale-review safeguards. Batches are limited to 1000 lecturers.
+
+
+## Shared workflow report filters (2026-10-23)
+
+Workflow reports use the shared filter card, label/control sizes and Clear filters action. Valid date, semester and Office-only programme selections refresh reports automatically without Apply filters. Clear restores the active semester and removes date/programme restrictions. Preserve role scope, selected filters on return, inline invalid-range validation, retry and report/export consistency. Downloads require a successfully loaded report for the selected valid filters; superseded responses cannot replace the latest results.
+
+
+## Capacity publication modal (2026-10-23)
+
+Review and publish opens a shared confirmation modal over the draft editor. Show semester/version identity, a brief publication consequence, required reason and explicit review consent. Preserve editor context on cancellation, warn before discarding entered text or navigating away, block duplicate submissions and busy closure, and require a fresh review after a stale-record conflict. Preserve server-side workload minimums, authorization and concurrency validation.
+
+
+## Capacity row wording (2026-10-23)
+
+Capacity rows describe missing configuration as "Capacity limits not set." rather than exposing internal entry terminology.
+
+
+## Capacity editor information hierarchy (2026-10-23)
+
+Version actions belong in the selected version card header, alongside its title and lifecycle status. Do not allocate a separate page row to Compare versions. Draft readiness starts with a collapsed issue count and retains specific blockers and recovery actions on expansion. The limit editor shows draft identity, inputs, published values and publication minimums; show workload warnings only when a proposed value violates its minimum. Remove repeated policy tutorials and generic reminders from these views. Preserve publication rules, reasons, safeguards, history and availability behavior.
+
+
+## Capacity publication workload minimum (2026-10-23)
+
+Office may save planning drafts with lower limits, but a new publication must not set any role limit below live committed workload. Supervisor commitments are active primary plus active supporting appointments across semesters. Panel commitments are active appointments plus nominations in Submitted to Panel or Pending Coordinator, across semesters. Pending Supervisor requests do not reserve capacity under this change. Equality is valid; zero is publishable only with no commitments for that role. Recheck workload after taking the existing publication locks and reject conflicts before supersession or audit changes. Show per-role minimums, row blockers and clear publication errors. Older published versions remain immutable/readable and existing appointments are preserved. Temporary unavailability independently blocks new assignments during its dates; it does not change limits, end appointments or pause evaluations. This supersedes the earlier rule permitting publication below current workload.
+
+
+## Searchable research profile directory (2026-10-23)
+
+Staff research profile browsing uses a paginated student directory instead of an unbounded student dropdown. Office, Programme Coordinator and Lecturer users can search by student name, matric number or research title, filter by programme, sort by student name or most recently updated profile, and select 10/25/50 rows per page. Each row identifies the student, programme and research title with an explicit View profile action. Opening a profile shows the selected student's identity and retains the current profile, saved history and permitted correction/transfer actions. Back to students restores the directory filters and page. Existing role-based profile visibility and the Student's own profile experience are preserved. Only students with saved profiles within the actor's scope appear; empty and failed reads provide clear recovery actions.
+
+## Panel appointment header grouping (2026-10-23)
+
+My Panel students keeps its title and current/past appointment explanation together above the filters. The view switch sits beside that complete header on desktop and wraps on smaller screens. Current/past explanatory content is preserved, with no changes to card padding or appointment filtering.
+
+## Office appointment table hierarchy (2026-10-23)
+
+Office Supervisor and Panel attention tables distinguish reviewer identity from request state. Current reviewer cells show the actual reviewer name prominently with a plain role beneath, or the role alone when no matching reviewer name is available. Supervisor/Panel candidates must never be shown as the Coordinator reviewer. Time at this stage retains calendar-day wording. Application/nomination status columns use uniform sentence-case dot-and-text indicators for both no ongoing request (grey) and pending review (amber), without pills or duplicate progress text. Existing card spacing is preserved.
+
+## Appointment status and horizontal spacing refinement (2026-10-23)
+
+Office Supervisor Appointments > Without supervisor shows one application status per student: the specific review-stage badge when an application is pending, otherwise No ongoing application. Remove the redundant Application in progress line from table rows. Staff appointment cards use 20px horizontal padding at all sizes, preserving 28px vertical padding and 24px section gaps from 640px. Filter padding and mobile spacing are unchanged.
+
+## Appointment workspace spacing (2026-10-23)
+
+Supervisor and Panel Appointments staff collection cards use consistent, more spacious desktop layouts for Lecturer (including Supervisor/Panel responsibilities), Programme Coordinator and Office Staff/Admin. Requests/history, supervisory teams, Panel assignments/supervisee lists and Office attention tables use 28px outer padding, 24px section spacing and 20px filter padding from the small breakpoint (640px). Mobile retains 20px outer padding, 20px section spacing and 12px filter padding. Other modules and student layouts retain their existing spacing.
+
+## Acceptance modal placement (2026-10-23)
+
+Eligible reconciliation warnings show a secondary Accept as intentional button in the lower action row of Recommended next step, right-aligned on desktop and fitted to mobile. The source-record action stays beside the correction guidance. Acceptance explanation, affected record, reason, acknowledgement and final confirmation appear only in the shared modal. Cancelling retains the draft for reopening; leaving the issue still invokes the existing unsaved-changes guard. Eligibility, audits and repair behavior remain unchanged.
+
+## Reconciliation exceptions and meaningful capacity checks (2026-10-23)
+
+An approved semester capacity limit differing from an old lecturer-profile limit is expected policy variation and must not create a reconciliation issue. Required-policy, role-alignment, publication-conflict and availability checks remain. Office can accept an intentional exception only for review-only warning records: unmatched semester links on inactive timelines or rejected/cancelled Supervisor/Panel requests, and capacity role-alignment warnings. Current timelines, ongoing requests, evaluation periods, blocking issues, missing required plans and verified repairs cannot be dismissed.
+
+Acceptance requires a reason, acknowledgement and confirmation. It records the reviewer, time and exact evidence without changing academic data or labelling the record repaired. Open issues and Accepted warnings have separate shared collection views; open counts in dashboard/reports exclude currently accepted warnings. Changed evidence, participant identity, record status or eligibility returns the warning to Open issues, while immutable review history remains. Repairs continue to correct underlying data and disappear when their detector condition no longer holds.
+
+## Compact reconciliation list and check explanations (2026-10-23)
+
+The reconciliation list uses short labels for missing capacity plans, missing semester links and old/current capacity differences. Rows retain lecturer/semester/version context, distinct record references and actual differing limits; repeated explanations, programme names and redundant module labels move to the existing review detail. The expanded check help uses the available width and concise text while preserving when checks run, warning/blocking meaning, published-policy authority and explicit repair confirmation. A plain-language guide explains each detector's trigger and purpose, including when a warning may represent an intentional or unfinished state.
+
+## Reconciliation review safeguards (2026-10-23)
+
+Before confirming a repair, Office sees the exact target semester, the source capacity policy semester/version for a copy, and any selected managed programme. Semester matching uses Malaysia calendar dates for submissions and evaluation period ranges. Semester assignment and capacity-copy repairs must reject changed evidence after acquiring their affected row locks. Workflow/coordinator issues retain their module identity rather than being labelled Lecturer capacity. Rechecking an out-of-range result page keeps loading visible until the replacement page arrives; filter changes immediately invalidate prior requests. Marks source actions open evaluation period configuration or task assignments according to the affected record type.
+
+## Workflow reconciliation clarity (2026-10-23)
+
+Reconciliation explains why saved records are flagged, the workflow impact and the available next step. Capacity issues identify the lecturer/staff number, academic semester and policy version. Published semester limits are authoritative; differences from older lecturer profile limits are valid policy variation and do not create reconciliation issues. Missing semester links show the recorded label/date signals and matching-semester count; a repair is offered only when the existing server checks verify it.
+
+The list uses shared summary cards, immediate filters, responsive tables and pagination. Summary totals cover all modules; filters narrow the list. Blocking issues take priority before pagination, followed by verified repairs. Recheck records explicitly reruns checks and displays a server check timestamp. Evidence is visible before secondary record references. Repair history is requested for the selected record on expansion. Existing Office-only access, reasons, confirmation, live validation, fingerprints and immutable audits remain mandatory. A committed repair cannot be repeated if subsequent refresh fails.
+
+## Lecturer capacity navigation and policy summary (2026-10-23)
+
+Lecturer capacity keeps its workload overview without tabs. Capacity versions, Lecturer availability and Capacity activity log are separate internal views with one collection and pagination control each. The selected semester and overview roster filters/page are retained when returning. Availability opens to current and scheduled restrictions, supports immediate lecturer/name/staff-number, role and status filters, and is read-only for Office. A lecturer-details shortcut scopes the destination to that lecturer before pagination and offers a visible clear action. Reasons and cancellation information appear in a details modal.
+
+The policy card separates Published limits from draft work, including older drafts. One draft offers Continue editing; multiple drafts require explicit selection through Review drafts. Published-only policies offer Prepare revision; initial setup offers Prepare limits. Starting another draft remains available from Capacity versions. Closed semesters retain read-only access. Planning averages and their calculation move to preparation as optional reference details; actual readiness warnings remain visible. Availability ownership, assignment eligibility, publication requirements, draft concurrency checks and discard retention are unchanged.
+
+## Office monitoring destinations (2026-10-23)
+
+Each Office dashboard Monitoring link opens the records behind its count: pending primary/supporting Supervisor review requests, Panel recommendations awaiting Coordinator approval, active incomplete evaluation tasks, active Backup evaluator assignments (including submitted tasks), or Panel lecturers at/above their configured capacity. Explicit monitoring links start with fresh local filters, identify the active scope, and allow clearing that scope. Ordinary workspace filters remain remembered. Native link URLs support opening in a new tab, and workload navigation retains Dashboard return context.
+
+## Workload monitoring summaries (2026-10-23)
+
+Panel and Supervisor Workload Monitoring show four summary cards above their records: lecturers in view (including missing published capacity), active Supervisor appointments or occupied Panel seats, available lecturers, and lecturers at/over capacity. Summaries follow all current filters across result pages and remain within the authorised API scope. Panel occupied seats include active appointments plus pending reservations; pending Supervisor requests do not reserve capacity. Loading/error states do not display numerical summaries as valid results.
+
+## Consistent dashboard headers (2026-10-23)
+
+All four role dashboards use the same Dashboard title, the same concise description and the same semester metadata layout. Role-specific navigation/actions and workflow content remain distinct. Semester name/status/dates form one compact row on desktop and wrap cleanly on mobile.
+
+## Dashboard semester header context (2026-10-23)
+
+Dashboard semester information appears directly below the dashboard heading without a separate card, background, border, icon or repeated label. The semester name is 14px semibold with the lifecycle badge beside it; authoritative dates appear beneath in muted 13px text. The status can wrap on narrow screens.
+
+## Dashboard semester summary layout (2026-10-23)
+
+Dashboard semester summaries use a shared padded card with a clear label, larger semester name, separate readable date line and top-right lifecycle badge. The compact icon/text strip is replaced consistently for all roles.
+
+## Dashboard semester dates (2026-10-23)
+
+Dashboards for every role display the academic semester label, authoritative start/end dates and lifecycle badge in the semester summary. Dates remain independent of timeline upload availability. The timeline heading omits file upload metadata and duplicated session text.
+
+## Timeline edit modal (2026-10-22)
+
+Edit event opens in the shared modal, matching Add events. The selected semester appears in its header. Cancel, close, Escape and backdrop dismissal protect unsaved edits; saving failures retain input. Audited deadline extension remains accessible from the editor and requires clean edits.
+
+## Timeline event creation and import (2026-10-22)
+
+The import workflow identifies its target semester in both standalone and embedded presentations before the user previews or confirms replacement.
+
+Calendar and Entries expose one Add events action beside their content heading. It opens a shared dialog with Create one event and Import from Excel methods; History has no creation action. Switching methods retains entered details and the selected file. Closing unsaved work requires confirmation. Import explains that confirmation replaces the semester timeline, and keeps template download beside upload and existing preview/acknowledgement safeguards.
+
+## Timeline action simplification (2026-10-22)
+
+Timeline rows expose Edit event and a quiet text-labelled Delete action. Audited deadline extension is available inside the event editor, with its purpose explained beside the action. Unsaved editor changes must be saved before opening the extension flow; cancellation preserves the editor.
+
+## Timeline action consistency (2026-10-22)
+
+Timeline row actions use the shared outlined buttons, with explicit Delete text and confirmation. Actions align to the left of their column with room to wrap. Timeline template/import tools use the same Tools dropdown as Supervisor Appointments.
+
+## Timeline workspace consistency (2026-10-22)
+
+The semester timeline uses the established workspace tabs, an unboxed semester selector with separate status and dates, shared responsive entry/history tables and immediate search/category/status/audience filters with Clear filters. Semester session text appears once. Both lists support shared pagination.
+
+## Semester list simplification (2026-10-22)
+
+The Academic Semesters list shows Semester, Starts on, Ends on, Status and Action. Timeline version, evaluation-period and evaluation-task counts are omitted from this overview; lifecycle readiness and closure reviews remain in their relevant workflows.
+
+## Application step scroll correction (2026-10-22)
+
+Continue must only advance the wizard; entering Review must not validate its declaration or submit the application.
+
+Supervisor application step navigation must position the new step heading below the fixed header, including Continue from Supervisor and documents to Review and submit; keep keyboard focus on that heading.
+
+## Requirement button alignment (2026-10-22)
+
+The Supervisor document requirements Add requirement action keeps its icon and label on one line.
+
+## Evaluation-period empty layout correction (2026-10-22)
+
+When there are no evaluation periods, show a compact explanatory notice above a full-width draft editor. Keep related fields aligned, readable and responsive. Preserve creation, targeting, recipient review, publication and deadline rules.
+
+## Five-module feedback consistency (2026-10-22)
+
+Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks and Workflow/Approval Tracking, including shared semester/capacity/submission-window dependencies, use consistent contextual feedback. Field validation belongs below the associated control; form/action failures belong inside the affected form/dialog; read failures replace only the affected section with a retry of that read. Business restrictions explain the missing requirement beside the action. Helpful information stays beside the relevant setting; successful writes produce one success outcome. Preserve entered values after failure, distinguish saved changes from a failed refresh, and never invite a duplicate write to recover a failed read. Keep long details expandable and messages readable on narrow screens. No changes to academic rules, permissions, existing confirmation requirements or teammate-owned workflows.
+
+## Semester activation clarity (2026-10-21)
+
+Draft semester details and activation readiness are separate sections. Readiness must use server checks for Draft status, Malaysia activation dates, completion of the current active semester's inclusive end date and a complete Published lecturer capacity plan. Direct activation must recheck these rules under locks. A future semester can be prepared but cannot activate early. The final shared review modal identifies the incoming/outgoing semester, explains closure consequences, requires a reason and retains the signed unfinished-Marks acknowledgement. Empty evaluation summaries should not render zero-filled tables. Capacity navigation belongs to its readiness row; unsaved details block activation/navigation until saved.
+
+## Academic Semester presentation polish (2026-10-21)
+
+Semester Overview/History navigation follows the sentence-case Supervisor workspace treatment. The End semester action uses the shared red danger styling; omit the redundant Lifecycle actions heading. Semester creation/editing and transition forms place labels above controls with clear spacing and darker, heavier entered/selected text. Existing lifecycle permissions, confirmation requirements and deadline rules remain unchanged.
+
 ## Supervisor application draft controls polish (2026-10-21)
 
 Confirm successful draft saves through the existing dismissible success toast, without adding a save-confirmation paragraph to the form. Keep the sticky intake/Save draft toolbar borderless. In Draft details, distinguish the labelled last-saved timestamp from help text and use full-width primary Resume and destructive Discard buttons. Preserve explicit resume/discard safeguards and inline failure guidance.
 
 ## Supervisor application layout refinement (2026-10-21)
+
+When resuming a draft, restore completion indicators and return navigation for valid earlier details/research-writing steps. Do not infer completion from the saved step number alone; incomplete answers remain uncompleted, and current supervisor availability/uploads require checking again.
 
 Keep four sequential steps and the existing academic rules. Place Save draft at the top right in a compact sticky toolbar; move draft help, saved timestamp and resume/discard actions into an accessible disclosure. Show current draft state accurately without suggesting that an unresumed server draft is already applied. Use connected numbered desktop steps with completion ticks and return navigation to completed earlier steps; use compact current-step progress on mobile.
 
@@ -14,7 +246,7 @@ Within Research intent, use five expanded cards: Project details (optional proje
 
 All new student Supervisor applications, across all programmes and courses, require structured Research Intent: Introduction, Statement of aim, Research questions, Research objectives, Significance of the research, Methodology, Expected outcomes, Skills needed and Timeline. Reuse authoritative student particulars and shared research title, area, short abstract and proposed Supervisor; never ask students to enter them again in a second document form. Keep proposal uploads as a separate existing requirement.
 
-Use four sequential steps: Your details; Research intent; Supervisor and documents; Review and submit. Validate each step, show the actual written content before the declaration and preserve entered content after failures. Support explicit account-based save/resume of incomplete text and selections; drafts have no workflow status, capacity reservation or declaration. Clearly state that files must be selected again after resuming. Submission requires all nine nonempty text sections (10,000 characters each maximum), enforced by the server. Authorised exact request readers see the submitted snapshot; historical applications remain readable with an explicit missing-intent explanation. Existing approval, Office replacement, intake, capacity and private upload rules remain intact.
+Use four sequential steps: Your details; Research intent; Supervisor and documents; Review and submit. Validate each step, show the actual written content before the declaration and preserve entered content after failures. Support explicit account-based saving and automatic restoration of incomplete text and selections when opening the application; drafts have no workflow status, capacity reservation or declaration. Clearly state that files must be selected again after resuming. Submission requires all nine nonempty text sections (10,000 characters each maximum), enforced by the server. Authorised exact request readers see the submitted snapshot; historical applications remain readable with an explicit missing-intent explanation. Existing approval, Office replacement, intake, capacity and private upload rules remain intact.
 
 ## Submission form structure correction (2026-10-21)
 
@@ -1119,13 +1351,13 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - A semester cannot activate until one complete capacity plan is published for every lifecycle-Active Lecturer who holds a Supervisor or Panel role.
 - Published plans are immutable. Active-semester changes require a new Draft version and atomic publication/supersession with a mandatory reason and immutable audit.
 - Office may record separate Supervisor and Panel unavailability windows within semester dates. Existing appointments remain active; new submissions and final activation must respect effective availability.
-- Reducing capacity below current workload preserves existing appointments, exposes `OVER_CAPACITY`, and blocks new assignments until load falls below the limit.
+- Publishing capacity below committed workload is rejected. Draft planning values may be lower; existing appointments and published history remain unchanged. Older policies may still expose `OVER_CAPACITY` until corrected through a new version.
 - The shared read-only resolver must apply deterministic `INELIGIBLE`, `NOT_CONFIGURED`, `TEMPORARILY_UNAVAILABLE`, `OVER_CAPACITY`, `FULL`, and `AVAILABLE` precedence. Supervisor load counts active appointments globally; Panel load separately counts global active appointments and submitted/pending reservation recommendations. Zero is a valid limit, and resolution never changes existing workflow or appointment state.
 - Candidate queries and final mutation endpoints must use this same authoritative capacity resolver. Students receive only public selectability and, when the final state is `TEMPORARILY_UNAVAILABLE`, the applicable availability end date. Every other state returns a null public availability date, and internal availability reasons must not appear in resolutions or conflict messages.
 - New semesters may copy only the latest strictly prior semester's Published plan, ordered by semester end date and stable ID, into Draft for Office review. Same-semester, overlapping, future-to-past, and arbitrarily older copies are conflicts. Legacy global limits seed only documented migration baselines and are not authoritative for new semester-bound workflows.
 - Capacity plan services create blank Drafts, copy only currently eligible source entries from the allowed prior Published plan, and clone a current Published or Superseded same-semester source into the next version. Every copied or cloned plan records that source through `supersedes`, including cross-semester copies, and exposes the source ID in snapshots and COPY audits. Newly eligible Lecturers and newly acquired roles remain explicit publication blockers instead of receiving guessed limits; ineligible historical source entries and availability windows are not copied. Creation, cloning, entry editing, publication, and new availability restrictions are limited to Draft or Active target semesters; Closed and Archived capacity history is read-only, while historical cancellation remains permitted.
 - Draft entry editing and publication require the caller's current capacity-plan content fingerprint. The fingerprint is derived from canonical plan identity/lifecycle data and ordered entry identities, role limits, and update timestamps. Malformed fingerprints are validation errors; stale fingerprints are lifecycle conflicts detected after row locking and before mutation or audit. API write commands accept exact camelCase `expectedFingerprint` and `expectedVersion` fields; this adds no database column or migration.
-- Publication requires a non-blank reason and complete role-aligned coverage for every lifecycle-Active Lecturer with a Supervisor or Panel profile. After locking the semester and all same-semester plans, publication locks all entries for those plans in deterministic plan/Lecturer/entry order before fingerprint/readiness validation and supersession; cross-semester entries are excluded. It atomically supersedes any current Published plan, publishes the target Draft, and rolls back every lifecycle and audit change if validation or persistence fails. Zero limits and reductions below current load are valid and never alter appointments or workflows.
+- Publication requires a non-blank reason and complete role-aligned coverage for every lifecycle-Active Lecturer with a Supervisor or Panel profile. After locking the semester and all same-semester plans, publication locks all entries for those plans in deterministic plan/Lecturer/entry order before fingerprint/readiness validation and supersession; cross-semester entries are excluded. It atomically supersedes any current Published plan, publishes the target Draft, and rolls back every lifecycle and audit change if validation or persistence fails. Zero limits require no commitments for that role. Reductions below live committed workload cannot be published and never alter appointments or workflows.
 - Availability services require a Draft or Active target semester, a lifecycle-Active Lecturer with the requested role, ordered semester-contained dates, a non-blank reason, and no overlapping active same-role window. Supervisor and Panel windows remain independent. Cancellation is append-only, requires its own reason, preserves the original dates/reason, rejects stale or repeated cancellation, remains available after semester closure or role/lifecycle removal only for the same persisted semester/Lecturer/role identity, and cannot reactivate a cancelled window. New fully cancelled rows and cancelled-row identity reassignments still require normal role eligibility.
 - Every plan creation/copy, Draft entry save, publication/supersession, and availability creation/cancellation records an immutable actor-attributed audit with deterministic JSON-safe before/after snapshots and affected plan, semester, Lecturer, and window identifiers.
 - Capacity-plan, entry, availability, cancellation, and capacity-audit management APIs are Office Staff/Admin-only. They expose stable plan/entry/window IDs, semester and version lineage, actors and timestamps, readiness errors, current-published state, current role-specific load/resolution metadata, and internal availability reasons. Other roles receive `403` and never receive these management payloads.
@@ -1170,3 +1402,26 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Spreadsheet reports must preserve untrusted text as literal XLSX text and neutralize formula-leading CSV strings, including leading whitespace/control prefixes. Real numeric cells remain numeric.
 - Backup reassignment may create a new active task when only retired assignments exist. Retired tasks, drafts and audits remain unchanged. An existing non-retired backup assignment for the same student, evaluator and period returns a conflict without another assignment audit; this includes paused and submitted assignments.
 - Marks period opening/closing configuration and task completion windows use explicit Malaysia time (UTC+08:00) for entry, editing and display regardless of device timezone. Invalid calendar dates must not silently normalize.
+
+
+## Appointment visual polish (24 October 2026)
+
+- Supervisor and Panel appointment views use restrained, consistently mapped Lucide icons across Student, Lecturer, Programme Coordinator and Office Staff/Admin experiences.
+- Summary counts, people cards, key headings and navigation retain visible labels; decorative icons are hidden from assistive technology. Existing workflows, status semantics, permissions and Student privacy remain authoritative.
+- Preserve readable responsive layouts at desktop and narrow mobile widths without adding a UI dependency. Design rationale and six critique rounds: `docs/APPOINTMENT_VISUAL_POLISH_2026-10-24.md`.
+
+
+### Research request detail visual coverage (24 October 2026)
+
+- Include research-change and programme-transfer request details in the appointment visual treatment for all roles that can view those records: labelled summary, comparison and approval headings with restrained decorative icons and consistent detail typography. Keep original/requested snapshot labels, audit history and role-specific actions intact.
+
+
+### Saved research profile and history visual coverage (24 October 2026)
+
+- Extend the same labelled, decorative icon treatment to current research profiles, the Student profile summary and the research-history disclosure. Preserve saved content, revision order, independent disclosures and Office-only correction/transfer capabilities.
+- Remove the secondary “Back to students” button from selected research profiles; retain the page-level return link.
+
+### Restrained Office tools visual polish (24 October 2026)
+
+- Extend the existing compact icon treatment to Office dashboard tool groups and key sections in Academic semesters, Calendar, Periods and deadlines, Lecturer capacity and Reconciliation. Keep visible text labels and use icons as decorative aids. Existing workload pages retain their appointment styling.
+- Preserve the current page layouts, forms, filters, table content, status meanings, permissions and workflow actions. Use existing dependencies and visual tokens, with no new animation or decorative charts.

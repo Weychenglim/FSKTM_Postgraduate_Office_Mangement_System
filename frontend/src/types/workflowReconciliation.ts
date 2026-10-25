@@ -1,6 +1,13 @@
 export type ReconciliationSeverity = 'BLOCKING' | 'WARNING';
 export type ReconciliationRepairability = 'REPAIRABLE' | 'REVIEW_REQUIRED';
 
+export interface ReconciliationAcceptance {
+  id: number;
+  actor: { id: number; name: string };
+  reason: string;
+  createdAt: string;
+}
+
 export interface ReconciliationNavigation {
   targetModule?: string;
   recordType?: string;
@@ -24,6 +31,7 @@ export interface ReconciliationIssue {
   dependencies: string[];
   navigation: ReconciliationNavigation;
   fingerprint: string;
+  acceptance?: ReconciliationAcceptance;
 }
 
 export interface ReconciliationSummary {
@@ -32,9 +40,11 @@ export interface ReconciliationSummary {
   warnings: number;
   repairable: number;
   reviewRequired: number;
+  accepted?: number;
 }
 
 export interface ReconciliationListResponse {
+  checkedAt?: string;
   summary: ReconciliationSummary;
   count: number;
   page: number;
@@ -55,9 +65,11 @@ export interface ReconciliationAllowedResolution {
 export interface ReconciliationPreview {
   issue: ReconciliationIssue;
   allowedResolutions: ReconciliationAllowedResolution[];
+  canAccept?: boolean;
 }
 
 export interface ReconciliationFilters {
+  reviewStatus?: 'OPEN' | 'ACCEPTED';
   module?: string;
   severity?: string;
   repairability?: string;

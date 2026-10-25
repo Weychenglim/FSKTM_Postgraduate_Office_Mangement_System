@@ -35,6 +35,10 @@ from .reconciliation import (
     ReconciliationConflict,
     ReconciliationError,
     allowed_resolutions,
+    accept_reconciliation_issue,
+    accepted_issue_audits,
+    acceptance_payload,
+    can_accept_issue,
     apply_reconciliation_issue,
     detect_reconciliation_issues,
     filter_reconciliation_issues,
@@ -76,8 +80,14 @@ def workflow_reconciliation_view(request):
             {"error": "Only Office Staff/Admin can access workflow reconciliation."},
             status=status.HTTP_403_FORBIDDEN,
         )
-    issues = detect_reconciliation_issues()
-    filtered = filter_reconciliation_issues(issues, request.query_params)
+    review_status = request.query_params.get("reviewStatus", "OPEN")
+    if review_status not in {"OPEN", "ACCEPTED"}:
+        return Response({"error": "Review status must be OPEN or ACCEPTED."}, status=status.HTTP_400_BAD_REQUEST)
+    all_issues = detect_reconciliation_issues(include_accepted=True)
+    accepted = accepted_issue_audits(all_issues)
+    issues = [issue for issue in all_issues if issue.issue_id not in accepted]
+    selected = [issue for issue in all_issues if issue.issue_id in accepted] if review_status == "ACCEPTED" else issues
+    filtered = filter_reconciliation_issues(selected, request.query_params)
     try:
         page = max(int(request.query_params.get("page", 1)), 1)
         page_size = min(max(int(request.query_params.get("pageSize", 50)), 1), 100)
@@ -95,6 +105,7 @@ def workflow_reconciliation_view(request):
         "reviewRequired": sum(
             issue.repairability == "REVIEW_REQUIRED" for issue in issues
         ),
+        "accepted": len(accepted),
     }
     programmes = sorted(
         Student.objects.exclude(programme="")
@@ -104,12 +115,14 @@ def workflow_reconciliation_view(request):
     return Response(
         {
             "summary": summary,
+            "checkedAt": timezone.now(),
             "count": len(filtered),
             "page": page,
             "pageSize": page_size,
             "availableProgrammes": programmes,
             "results": [
-                issue.to_dict() for issue in filtered[start : start + page_size]
+                {**issue.to_dict(), **({"acceptance": acceptance_payload(accepted[issue.issue_id])} if issue.issue_id in accepted else {})}
+                for issue in filtered[start : start + page_size]
             ],
         }
     )
@@ -136,12 +149,34 @@ def workflow_reconciliation_preview_view(request, issue_id):
             {"error": "Reconciliation issue not found."},
             status=status.HTTP_404_NOT_FOUND,
         )
+    accepted = accepted_issue_audits([issue]).get(issue.issue_id)
     return Response(
         {
-            "issue": issue.to_dict(),
+            "issue": {**issue.to_dict(), **({"acceptance": acceptance_payload(accepted)} if accepted else {})},
             "allowedResolutions": allowed_resolutions(issue),
+            "canAccept": can_accept_issue(issue) and accepted is None,
         }
     )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def workflow_reconciliation_accept_view(request, issue_id):
+    denied = reconciliation_admin_required(request)
+    if denied:
+        return denied
+    fingerprint = str(request.data.get("expectedFingerprint") or "").strip()
+    reason = str(request.data.get("reason") or "").strip()
+    if len(fingerprint) != 64 or not reason:
+        return Response({"error": "A valid expectedFingerprint and a reason are required."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        return Response(accept_reconciliation_issue(
+            issue_id=issue_id, expected_fingerprint=fingerprint, reason=reason, actor=request.user,
+        ))
+    except ReconciliationConflict as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
+    except ReconciliationError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["POST"])
@@ -189,9 +224,15 @@ def workflow_reconciliation_audits_view(request):
     denied = reconciliation_admin_required(request)
     if denied:
         return denied
-    audits = WorkflowReconciliationAudit.objects.select_related("actor")[:200]
+    audits = WorkflowReconciliationAudit.objects.select_related("actor")
+    for parameter, field in (("entityType", "entity_type"), ("entityId", "entity_id")):
+        value = str(request.query_params.get(parameter) or "").strip()
+        if value:
+            audits = audits.filter(**{field: value})
+    count = audits.count()
     return Response(
         {
+            "count": count,
             "results": [
                 {
                     "id": audit.pk,
@@ -210,7 +251,7 @@ def workflow_reconciliation_audits_view(request):
                     "affectedRecords": audit.affected_records,
                     "createdAt": audit.created_at,
                 }
-                for audit in audits
+                for audit in audits[:200]
             ]
         }
     )

@@ -8,6 +8,7 @@ import { recordReturn, recordFilterParams, type RecordReturn } from '../utils/re
 import type { ResearchPageQuery } from '../services/researchAmendmentsApi';
 import { coordinatorTransferQuery } from '../services/researchAmendmentsApi';
 import { supervisorResearchLabel } from '../utils/supervisorWorkspace';
+import {ResearchProfileDirectory} from './ResearchProfileDirectory';
 
 export function researchQueueReturn(source: RecordReturn, page: number): RecordReturn {
   const params = new URLSearchParams(source.path.split('?')[1] ?? '');
@@ -62,6 +63,12 @@ export function LecturerResearchWorkspace(props: React.ComponentProps<typeof Res
     type:sourceParams.get('type') ?? 'all',status:sourceParams.get('status') ?? '',from:sourceParams.get('from') ?? '',to:sourceParams.get('to') ?? '',
     sort:['waiting','oldest','newest'].includes(sourceParams.get('sort') ?? '') ? sourceParams.get('sort') as ResearchPageQuery['sort'] : undefined,
   }) : undefined;
+  const staffProfile = props.routeView === 'profile' && props.role !== 'Student';
+  const openProfile = (studentId: number) => {
+    const next = new URLSearchParams(params); next.set('profileStudent', String(studentId));
+    navigate(`${APP_ROUTES.supervisorResearchProfile}?${next}`, {state: location.state});
+  };
+  if (staffProfile && !(selected > 0)) return <ResearchProfileDirectory key={props.role ?? 'Lecturer'} onOpen={openProfile} refreshVersion={props.refreshVersion} />;
   return <ResearchAmendments {...props} role={props.role ?? 'Lecturer'} requestView={params.get('view') === 'history' ? 'history' : 'requests'}
     requestSearch={params.get('q') ?? ''} requestPage={Number(params.get('page')) || 1} requestPageSize={workspacePageSize(params.get('size'))}
     onRequestViewChange={value => setParams(current => researchViewParams(current,value,props.role === 'Programme Coordinator'||props.role === 'Office Staff/Admin'),{replace:false,state:location.state})} onRequestSearch={value => setFilter('q', value)}

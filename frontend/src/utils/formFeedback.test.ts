@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {ApiError} from '../services/apiClient';
+import {readFormFeedback, clearFeedbackFields} from './formFeedback';
+const fields={starts_on:'startsOn',ends_on:'endsOn',name:'name'};
+assert.deepEqual(readFormFeedback(new ApiError('Overlap',409,{starts_on:['Semester dates overlap another semester.']}),'Save failed',fields),{message:'Correct the highlighted fields, then save again.',fields:{startsOn:'Semester dates overlap another semester.'}});
+assert.deepEqual(readFormFeedback(new ApiError('Invalid',400,{name:['Required.'],non_field_errors:['Targets changed.']}),'Save failed',fields),{message:'Targets changed.',fields:{name:'Required.'}});
+assert.deepEqual(readFormFeedback(new ApiError('Forbidden',403,{name:'Not editable'}),'Permission changed',fields),{message:'Permission changed',fields:{}});
+assert.deepEqual(readFormFeedback(new ApiError('Invalid',400,{unrecognised:['A detailed rule failure.']}),'Save failed',fields),{message:'A detailed rule failure.',fields:{}});
+assert.deepEqual(clearFeedbackFields({message:'Review',fields:{startsOn:'Overlap',endsOn:'Required'}},['startsOn']),{message:'Review',fields:{endsOn:'Required'}});
+assert.equal(clearFeedbackFields({message:'Correct the highlighted fields, then save again.',fields:{startsOn:'Overlap'}},['startsOn']),null);
+assert.deepEqual(clearFeedbackFields({message:'Targets changed.',fields:{name:'Required.'}},['name']),{message:'Targets changed.',fields:{}},'Correcting a field must preserve an independent server rule failure');
+assert.deepEqual(clearFeedbackFields({message:'Connection unavailable',fields:{}},['startsOn']),{message:'Connection unavailable',fields:{}},'Editing must not hide unrelated action failures');
+console.log('Structured form feedback extraction and independent field correction passed');

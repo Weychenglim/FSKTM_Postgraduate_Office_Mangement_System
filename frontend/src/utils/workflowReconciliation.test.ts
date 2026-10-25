@@ -34,7 +34,7 @@ assert.equal(
 );
 assert.equal(
   reconciliationRecordRoute('MARKS', 'MARKS_TASK', '12'),
-  APP_ROUTES.marks,
+  APP_ROUTES.marksTasks,
 );
 
 const app = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8');
