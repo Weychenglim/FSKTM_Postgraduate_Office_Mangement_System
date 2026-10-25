@@ -1,5 +1,21 @@
 # Project Requirements
 
+Marks acceptance verification must cover Office rubric/period setup, one lecturer's separate Supervisor/Panel assignments, revised draft persistence, submission locking, own read-only history and matching Office results using isolated test data. Submission-day labels in Office records also use Malaysia time consistently with lecturer views.
+
+Lecturer marking responsibility navigation uses compact numeric badges for nonzero pending-task counts (or submitted counts in history), omits zero-count text, and preserves descriptive counts for assistive technology.
+
+## Lecturer marking bug-review clarifications (25 October 2026)
+
+Saving or submitting must persist the latest rubric-component scores and feedback, including cleared scores and feedback, without restoring older compatibility values. Explicitly reviewing the latest record after a conflict replaces stale form values and resets the unsaved-change baseline. Submission dates must use Malaysia time consistently from both the task queue and submission history. These clarify existing marking correctness requirements; no new workflow or permissions are introduced.
+
+## Lecturer submission history retention (25 October 2026)
+
+Lecturers can read their own currently submitted evaluations independently of the active assignment list, including paused/retired assignments and closed/archived evaluation periods. History reads must never generate tasks, grant editing access or expose another evaluator's marks. Retain role separation, identify evaluation periods, sort actual submission timestamps newest first and apply inclusive submission-date filters in Malaysia time. History has independent loading/error/retry states, automatic search/semester/date filters, role-specific empty states and readable phone rows. View submission is read-only. Existing save, submit, correction and reopening authority is unchanged; reopened draft entries reappear only after resubmission.
+
+## Lecturer marking responsibilities (25 October 2026)
+
+Lecturer Marks Entry separates My supervisees and My panel students using the existing portal workspace navigation style. Keep both choices visible and show unfinished task counts; expose Backup marking only when assigned. On first load prefer an assigned responsibility and retain explicit selections through filtering, record navigation and submission history. Summary cards cover the selected role and semester before search/status filtering. Count evaluation tasks, including separate periods for one student, rather than presenting them as student counts. Integrate automatic search/semester/status filters and Clear filters inside the task card. Group identity and research/semester metadata, use Start marking / Continue marking / View submission actions, and omit empty table scaffolding. On phones stack task rows so marking actions remain visible without horizontal scrolling. Distinguish a failed history read from an empty history. Keep the marking responsibility visible in editable, read-only and submitted records. Successful draft saves stay in the editor, acknowledge saving and reset unsaved-change tracking; subsequent edits restore the unsaved state. Preserve backend assignment, scoring, eligibility and submission authority.
+
 ## Evaluation period browsing and editing (24 October 2026)
 
 An empty period workspace uses the shared neutral white card with a calendar icon, a short explanation and one New period action within the card. Omit the redundant list heading and duplicate header action when there are no rows. Keep archive controls available for an archived-only list and preserve creation restrictions for read-only semesters.
