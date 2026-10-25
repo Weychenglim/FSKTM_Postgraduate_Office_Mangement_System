@@ -16,7 +16,7 @@ import type {
   RubricVersion,
 } from '../types';
 import { buildMarkScorePayload } from '../utils/marksProductionManagement';
-import { request } from './apiClient';
+import { ApiError, request } from './apiClient';
 
 export async function getMarkRecords(): Promise<MarkRecord[]> {
   return request<MarkRecord[]>('/marks/');
@@ -295,6 +295,13 @@ function taskScores(task: EvaluationTask) {
   return buildMarkScorePayload(task.components || []);
 }
 
+function taskWriteVersion(task: EvaluationTask): string {
+  if (!task.writeVersion || !/^[a-f0-9]{64}$/.test(task.writeVersion)) {
+    throw new ApiError('Reload this task before saving or submitting marks.', 409);
+  }
+  return task.writeVersion;
+}
+
 export async function saveMarkDraft(
   task: EvaluationTask,
 ): Promise<EvaluationTask> {
@@ -304,6 +311,7 @@ export async function saveMarkDraft(
     {
       method: 'PUT',
       body: JSON.stringify({
+        expectedVersion: taskWriteVersion(task),
         scores: taskScores(task),
         comments: task.comments || '',
       }),
@@ -314,12 +322,13 @@ export async function saveMarkDraft(
 
 export async function submitMarkEntry(
   task: EvaluationTask,
+  submissionId: string,
 ): Promise<EvaluationTask> {
   if (!task.id) throw new Error('Evaluation task ID is missing.');
-  await saveMarkDraft(task);
+  if (!submissionId) throw new Error('A submission reference is required. Review and submit again.');
   const submitted = await request<EvaluationTask>(
     `/marks/tasks/${task.id}/submit/`,
-    { method: 'POST' },
+    { method: 'POST', body: JSON.stringify({ expectedVersion: taskWriteVersion(task), submissionId, scores: taskScores(task), comments: task.comments || '' }) },
   );
   return withLegacyRubricFields(submitted);
 }

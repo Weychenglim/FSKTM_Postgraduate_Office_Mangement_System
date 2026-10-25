@@ -1,3 +1,5 @@
+from .test_write_helpers import with_version
+from .test_write_helpers import submission_payload
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -29,10 +31,10 @@ class CompletionWindowTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         window_id = response.data['windows'][0]['id']
         self.client.force_authenticate(self.supervisor)
-        response = self.client.put(f'/api/marks/tasks/{self.task.pk}/draft/', {'scores':[{'componentId':self.rubric.components.get().pk,'marksAwarded':'80.00'}]}, format='json')
+        response = self.client.put(f'/api/marks/tasks/{self.task.pk}/draft/', with_version(self.task, {'scores':[{'componentId':self.rubric.components.get().pk,'marksAwarded':'80.00'}]}), format='json')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data.get('periodEffectiveStatus'), 'CLOSED')
-        response = self.client.post(f'/api/marks/tasks/{self.task.pk}/submit/')
+        response = self.client.post(f'/api/marks/tasks/{self.task.pk}/submit/', submission_payload(self.task), format='json')
         self.assertEqual(response.status_code, 200, response.data)
         self.task.refresh_from_db()
         self.assertEqual(self.task.mark_entry.submitted_completion_window_id, window_id)

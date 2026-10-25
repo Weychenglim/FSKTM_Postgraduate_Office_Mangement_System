@@ -23,6 +23,7 @@ assert.ok(chrome, 'Chrome or Edge is required');
 const directory = await mkdtemp(join(tmpdir(), 'marks-real-journey-'));
 const bundle = join(directory, 'fixture.js');
 let server;
+let interruptSubmission = true;
 try {
   await build({ entryPoints: ['tests/marksJourney.fixture.tsx'], outfile: bundle, bundle: true, format: 'esm', platform: 'browser', define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'error' });
   const css = (await readdir('dist/assets')).find(name => name.startsWith('index-') && name.endsWith('.css'));
@@ -30,6 +31,13 @@ try {
   server = createServer(async (req, res) => {
     if (req.url.startsWith('/api/')) {
       const proxy = httpRequest(new URL(req.url, backend), { method: req.method, headers: { ...req.headers, host: backend.host } }, upstream => {
+        if (interruptSubmission && req.method === 'POST' && /\/tasks\/\d+\/submit\/$/.test(req.url) && upstream.statusCode === 200) {
+          interruptSubmission = false;
+          // The real backend has committed. Simulate a gateway losing that result.
+          upstream.resume();
+          upstream.on('end', () => { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ detail: 'The submission response was interrupted. Retry to confirm the result.' })); });
+          return;
+        }
         res.writeHead(upstream.statusCode, upstream.headers); upstream.pipe(res);
       });
       proxy.on('error', () => { res.writeHead(502); res.end('Test backend unavailable'); });
@@ -52,7 +60,7 @@ try {
   assert.ok(encoded && encoded !== 'RUNNING', 'Browser journey did not finish');
   const result = JSON.parse(encoded.replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&'));
   assert.equal(result.error, undefined, JSON.stringify(result));
-  assert.ok(result.checks.length >= 15, 'The complete journey must run');
+  assert.equal(result.checks.length, 23, 'The complete journey including conflict and interrupted-response recovery must run');
   console.log(result.checks.map(check => `PASS ${check}`).join('\n'));
 } finally {
   if (server) await new Promise(resolve => server.close(resolve));

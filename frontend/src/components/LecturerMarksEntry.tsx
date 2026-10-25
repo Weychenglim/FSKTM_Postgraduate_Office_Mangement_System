@@ -297,8 +297,8 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                 throw failure;
               }
             }}
-            onSubmit={async (updatedTask) => completeDecision(async () => {
-              const submittedTask = await submitMarkEntry(updatedTask);
+            onSubmit={async (updatedTask, submissionId) => completeDecision(async () => {
+              const submittedTask = await submitMarkEntry(updatedTask, submissionId);
               setTasks((current) => replaceEvaluationTask(current, submittedTask));
             }, () => loadTasks(true))}
           />

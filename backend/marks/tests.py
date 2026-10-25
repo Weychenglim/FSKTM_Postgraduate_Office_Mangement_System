@@ -1,3 +1,5 @@
+from .test_write_helpers import with_version
+from .test_write_helpers import submission_payload
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -143,7 +145,7 @@ class MarkEntryWorkflowTests(APITestCase):
         self.client.force_authenticate(user=user)
 
     def score_payload(self, problem="30.00", method="50.00"):
-        return {
+        return with_version(self.task, {
             "scores": [
                 {
                     "componentId": self.problem.pk,
@@ -157,7 +159,7 @@ class MarkEntryWorkflowTests(APITestCase):
                 },
             ],
             "comments": "Overall comments",
-        }
+        })
 
     def test_assigned_lecturer_can_save_draft_and_total_is_recalculated(self):
         self.authenticate(self.lecturer)
@@ -196,7 +198,7 @@ class MarkEntryWorkflowTests(APITestCase):
             format="json",
         )
 
-        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
+        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json')
 
         self.assertEqual(draft.status_code, status.HTTP_200_OK)
         self.assertEqual(submitted.status_code, status.HTTP_400_BAD_REQUEST)
@@ -209,7 +211,7 @@ class MarkEntryWorkflowTests(APITestCase):
             format="json",
         )
 
-        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
+        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json')
         self.assertEqual(submitted.status_code, status.HTTP_200_OK)
         self.assertEqual(submitted.data["status"], "SUBMITTED")
 
@@ -220,7 +222,7 @@ class MarkEntryWorkflowTests(APITestCase):
         )
         self.assertEqual(locked_edit.status_code, status.HTTP_409_CONFLICT)
 
-        duplicate_submit = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
+        duplicate_submit = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json')
         self.assertEqual(
             duplicate_submit.status_code,
             status.HTTP_409_CONFLICT,
@@ -351,7 +353,7 @@ class MarkEntryWorkflowTests(APITestCase):
             self.score_payload(),
             format="json",
         )
-        self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
+        self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json')
         entry = MarkEntry.objects.get(task=self.task)
 
         with self.assertRaises(ValidationError):
@@ -385,7 +387,7 @@ class MarkEntryWorkflowTests(APITestCase):
             self.score_payload(),
             format="json",
         )
-        self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
+        self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json')
         entry = MarkEntry.objects.get(task=self.task)
 
         with self.assertRaisesMessage(
@@ -430,7 +432,7 @@ class MarkEntryWorkflowTests(APITestCase):
             self.score_payload(),
             format="json",
         )
-        self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
+        self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json')
         entry = MarkEntry.objects.get(task=self.task)
 
         reopen_submitted_marks(
@@ -451,7 +453,7 @@ class MarkEntryWorkflowTests(APITestCase):
             self.score_payload(),
             format="json",
         )
-        self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
+        self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json')
         entry = MarkEntry.objects.get(task=self.task)
         self.period.lifecycle_status = EvaluationPeriod.Lifecycle.CLOSED
         self.period.save(update_fields=["lifecycle_status"])
@@ -809,7 +811,7 @@ class MarkEntryWorkflowTests(APITestCase):
             self.score_payload(),
             format="json",
         )
-        self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
+        self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json')
         entry = MarkEntry.objects.get(task=self.task)
         correct_submitted_marks(
             entry=entry,

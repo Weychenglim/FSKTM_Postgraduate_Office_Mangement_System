@@ -6,7 +6,7 @@ import { MarkEntryRecords } from '../src/components/MarkEntryRecords';
 import { RecordPageProvider } from '../src/components/RecordPage';
 import { ListState } from '../src/components/ListState';
 import { setAuthToken, request } from '../src/services/apiClient';
-import { createRubricVersion, createRubricComponent, getRubricVersion, createEvaluationPeriod, publishEvaluationPeriod, generateEvaluationTasks, getEvaluationTasks, getSubmittedEvaluations, getMarkRecords, getMarkRecordById } from '../src/services/marksApi';
+import { createRubricVersion, createRubricComponent, getRubricVersion, createEvaluationPeriod, publishEvaluationPeriod, generateEvaluationTasks, getEvaluationTasks, getSubmittedEvaluations, getMarkRecords, getMarkRecordById, saveMarkDraft } from '../src/services/marksApi';
 
 // Real API requests only. Credentials are ephemeral test-user tokens held in memory.
 const checks: string[] = [];
@@ -54,6 +54,13 @@ try {
   await enter(document.querySelector('textarea[id^="marks-comments-"]')!, 'First draft comments');
   await click('Save draft'); await until(() => !document.body.textContent?.includes('Unsaved changes'));
   check((await getEvaluationTasks()).find(task => task.evaluatorRole === 'SUPERVISOR')?.totalMark === '75.00', 'First UI draft persists its real scores');
+  const otherTab = (await getEvaluationTasks()).find(task => task.evaluatorRole === 'SUPERVISOR')!;
+  await saveMarkDraft({ ...otherTab, comments: 'Saved in another tab' });
+  await enter(mark('Problem definition'), '35');
+  await click('Save draft'); await until(() => !!document.querySelector('#mark-draft-save-feedback'));
+  check(mark('Problem definition').value === '35' && button('Save draft')?.matches(':disabled'), 'A stale tab preserves its input and cannot overwrite newer saved marks');
+  await click('Load latest draft'); await until(() => !document.querySelector('#mark-draft-save-feedback'));
+  check(Number(mark('Problem definition').value) === 30, 'Explicit conflict recovery loads the latest saved draft');
   await enter(mark('Problem definition'), '35'); await enter(mark('Methodology'), '50');
   await enter(document.querySelector('textarea')!, 'Revised supervisor feedback');
   await enter(document.querySelector('textarea[id^="marks-comments-"]')!, 'Revised supervisor comments');
@@ -64,6 +71,9 @@ try {
   await click('Continue marking'); await until(() => !!mark('Problem definition'));
   check(Number(mark('Problem definition').value) === 35 && Number(mark('Methodology').value) === 50, 'Reopening a draft restores its saved component scores');
   await click('Submit marks'); await click('Submit and lock marks');
+  await until(() => !!document.querySelector('dialog [role="alert"]'));
+  check((await getSubmittedEvaluations()).length === 1, 'An interrupted response does not undo the real committed submission');
+  await click('Submit and lock marks');
   await until(() => !document.querySelector('dialog[open]') && !button('Save draft'));
   check(mark('Problem definition').disabled, 'Successful submission locks the actual editor');
   await click('Back to Marks Entry'); await until(() => !document.querySelector('#mark-entry-detail-page'));
@@ -85,7 +95,7 @@ try {
   const history = await getSubmittedEvaluations();
   check(history.length === 2 && history.every(task => task.canEdit === false && task.canSubmit === false), 'Real history API contains both own submissions with read-only rights');
   let locked = false;
-  try { await request(`/marks/tasks/${revised.id}/draft/`, { method: 'PUT', body: JSON.stringify({ scores: [{ componentId: problem.id, marksAwarded: 1 }, { componentId: method.id, marksAwarded: 1 }] }) }); } catch (failure) { locked = (failure as { status: number }).status === 409; }
+  try { await request(`/marks/tasks/${revised.id}/draft/`, { method: 'PUT', body: JSON.stringify({ expectedVersion: history.find(task => task.id === revised.id)!.writeVersion, scores: [{ componentId: problem.id, marksAwarded: 1 }, { componentId: method.id, marksAwarded: 1 }] }) }); } catch (failure) { locked = (failure as { status: number }).status === 409; }
   check(locked, 'Backend rejects edits to submitted marks');
 
   root?.unmount(); root = null;

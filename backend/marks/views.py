@@ -29,13 +29,13 @@ from .serializers import (
     EvaluationTaskSerializer,
     SubmittedEvaluationSerializer,
     MarkDraftSerializer,
+    MarkSubmissionSerializer,
     ReasonSerializer,
     SubmittedMarksCorrectionSerializer,
     SubmittedMarksReasonSerializer,
     RubricComponentInputSerializer,
     RubricCreateSerializer,
     RubricUpdateSerializer,
-    submit_entry,
 )
 from .services import (
     MarksStateConflict,
@@ -811,8 +811,10 @@ def submit_marks_view(request, pk):
             {"error": "Evaluation task was not found."},
             status=status.HTTP_404_NOT_FOUND,
         )
+    serializer = MarkSubmissionSerializer(data=request.data, context={'task': task})
+    serializer.is_valid(raise_exception=True)
     try:
-        submit_entry(task)
+        serializer.save()
     except MarksStateConflict as exc:
         return state_conflict_response(exc)
     task = lecturer_task_or_none(request.user, pk)

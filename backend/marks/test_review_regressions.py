@@ -1,3 +1,4 @@
+from .test_write_helpers import submission_payload
 from decimal import Decimal
 
 from rest_framework.test import APITestCase
@@ -18,7 +19,7 @@ class MarksReviewRegressionTests(APITestCase):
         self.assertEqual(response.status_code, 400, response.data)
         self.assertIn("marksAwarded", str(response.data))
         self.assertFalse(MarkEntry.objects.filter(task=self.task).exists())
-        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
+        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json')
         self.assertEqual(submitted.status_code, 400)
         self.assertFalse(MarkEntry.objects.filter(task=self.task).exists())
 
@@ -39,7 +40,7 @@ class MarksReviewRegressionTests(APITestCase):
         self.assertEqual(entry.updated_at, updated_at)
         self.assertEqual(entry.comments, "Overall comments")
         self.assertEqual(entry.status, "DRAFT")
-        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
+        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json')
         self.assertEqual(submitted.status_code, 200, submitted.data)
         self.assertEqual(Decimal(submitted.data["totalMark"]), Decimal("80.00"))
 
@@ -54,7 +55,7 @@ class MarksReviewRegressionTests(APITestCase):
         saved = self.client.put(f"/api/marks/tasks/{self.task.pk}/draft/",
             self.score_payload(problem="0.00", method="0.00"), format="json")
         self.assertEqual(saved.status_code, 200, saved.data)
-        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
+        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json')
         self.assertEqual(submitted.status_code, 200, submitted.data)
         self.assertEqual(submitted.data["totalMark"], "0.00")
 

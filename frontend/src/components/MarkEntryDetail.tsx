@@ -13,6 +13,7 @@ import { RecordPage } from './RecordPage';
 import {FormFeedback} from './FormFeedback';
 import {focusFeedback, readFormFeedback, type FormFeedbackState} from '../utils/formFeedback';
 import type { EvaluationTask } from '../types';
+import { ApiError } from '../services/apiClient';
 import {
   PortalButton,
   PortalCard,
@@ -25,7 +26,7 @@ interface MarkEntryDetailProps {
   onBack: () => void;
   onReload?: () => Promise<EvaluationTask>;
   onSave: (updatedTask: EvaluationTask) => void | Promise<void>;
-  onSubmit: (updatedTask: EvaluationTask) => void | DecisionOutcome | Promise<void | DecisionOutcome>;
+  onSubmit: (updatedTask: EvaluationTask, submissionId: string) => void | DecisionOutcome | Promise<void | DecisionOutcome>;
 }
 
 const evaluatorRoleLabel = (task: EvaluationTask): string =>
@@ -61,6 +62,8 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   const [saving, setSaving] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<FormFeedbackState | null>(null);
   const [draftSaved, setDraftSaved] = useState(false);
+  const [draftConflict, setDraftConflict] = useState(false);
+  const submissionAttempt = useRef<{ snapshot: string; id: string } | null>(null);
   const savingRef = useRef(false);
   const initial = useRef(JSON.stringify({ values, comments }));
   const dirty = JSON.stringify({ values, comments }) !== initial.current;
@@ -77,14 +80,21 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
     setDraftSaved(false);
     setShowValidation(false);
     setSaveFeedback(null);
+    setDraftConflict(false);
+    submissionAttempt.current = null;
   } : undefined;
   const save = async (submit: boolean) => {
-    if (savingRef.current) return false;
+    if (savingRef.current || draftConflict) return false;
     savingRef.current = true;
     setSaving(true);
     setSaveFeedback(null);
     try {
-      const outcome = await (submit ? onSubmit(buildTask('SUBMITTED')) : onSave(buildTask('DRAFT SAVED')));
+      const payload = buildTask(submit ? 'SUBMITTED' : 'DRAFT SAVED');
+      if (submit) {
+        const snapshot = JSON.stringify({ taskId: payload.id, version: payload.writeVersion, components: payload.components, comments: payload.comments });
+        if (submissionAttempt.current?.snapshot !== snapshot) submissionAttempt.current = { snapshot, id: crypto.randomUUID() };
+      }
+      const outcome = await (submit ? onSubmit(payload, submissionAttempt.current!.id) : onSave(payload));
       if (submit) setSubmitted(true);
       else {
         initial.current = JSON.stringify({ values, comments });
@@ -96,6 +106,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
       // Confirmation failures remain in DecisionDialog; draft saves stay with the editor.
       if (submit) throw error;
       const feedback = readFormFeedback(error, error instanceof Error ? error.message : 'The mark draft could not be saved. Try again.');
+      if (error instanceof ApiError && [403, 404, 409].includes(error.status ?? 0)) setDraftConflict(true);
       setSaveFeedback(feedback);
       focusFeedback(feedback, {}, 'mark-draft-save-feedback');
       return false;
@@ -140,7 +151,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
 
   const requestSubmission = () => {
     setShowValidation(true);
-    if (!isReadOnly && task.canSubmit === true && errors.length === 0) setConfirmOpen(true);
+    if (!isReadOnly && !draftConflict && task.canSubmit === true && errors.length === 0) setConfirmOpen(true);
   };
 
   return (
@@ -285,11 +296,22 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
             {!isReadOnly ? (
               <div className="space-y-2">
                 <FormFeedback id="mark-draft-save-feedback" title="Draft wasn’t saved" feedback={saveFeedback}/>
+                {draftConflict && reload ? <>
+                  <p className="card-description">Your entries are still shown. Loading the latest record will replace them.</p>
+                  <PortalButton fullWidth onClick={async () => {
+                    if (savingRef.current) return;
+                    savingRef.current = true; setSaving(true);
+                    try { await reload(); }
+                    catch (failure) { setSaveFeedback(readFormFeedback(failure, 'The latest draft could not be loaded. Your entries are still here.')); }
+                    finally { savingRef.current = false; setSaving(false); }
+                  }}>Load latest draft</PortalButton>
+                </> : null}
                 {dirty || draftSaved ? <p role="status" className="card-description">{dirty ? 'Unsaved changes' : 'Draft saved'}</p> : null}
                 <PortalButton
                   fullWidth
                   icon={Save}
                   variant="secondary"
+                  disabled={draftConflict}
                   onClick={() => void save(false)}
                 >
                   Save draft
@@ -298,7 +320,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                   fullWidth
                   icon={CheckCircle2}
                   variant="primary"
-                  disabled={task.canSubmit !== true}
+                  disabled={task.canSubmit !== true || draftConflict}
                   aria-describedby={task.canSubmit !== true ? `marks-submit-help-${task.id}` : undefined}
                   onClick={requestSubmission}
                 >

@@ -296,6 +296,7 @@ export interface EvaluationTaskComponent {
 }
 
 export interface EvaluationTask extends DeadlineMetadata {
+  writeVersion?: string;
   id?: number;
   studentId: string;
   studentName: string;

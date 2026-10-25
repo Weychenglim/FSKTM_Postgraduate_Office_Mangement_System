@@ -3,12 +3,14 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
+from django.utils.crypto import constant_time_compare
 from rest_framework import serializers
 
 from .completion_windows import task_access, task_due_at, lock_tasks, task_window_active
 from .deadlines import mark_deadline_metadata
-from .models import EvaluationPeriod, EvaluationTask, MarkEntry, MarkScore
+from .models import EvaluationPeriod, EvaluationTask, MarkEntry, MarkScore, MarkSubmissionReceipt
 from .services import MarksStateConflict
+from .write_versions import entry_version, submission_fingerprint
 
 
 def initials(name):
@@ -135,6 +137,7 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
     totalMark = serializers.SerializerMethodField()
     submittedDate = serializers.SerializerMethodField()
     submittedAt = serializers.DateTimeField(source="mark_entry.submitted_at", read_only=True, allow_null=True)
+    writeVersion = serializers.SerializerMethodField()
     components = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     dueAt = serializers.SerializerMethodField()
@@ -157,6 +160,7 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
             "totalMark",
             "submittedDate",
             "submittedAt",
+            "writeVersion",
             "components",
             "comments",
             "dueAt",
@@ -169,6 +173,9 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
 
     def get_initials(self, obj):
         return initials(obj.profile.student_name)
+
+    def get_writeVersion(self, obj):
+        return entry_version(obj, getattr(obj, 'mark_entry', None))
 
     def get_deadline(self, obj):
         closes_at = task_due_at(obj)
@@ -316,6 +323,7 @@ class SubmittedMarksCorrectionSerializer(SubmittedMarksReasonSerializer):
 
 
 class MarkDraftSerializer(serializers.Serializer):
+    expectedVersion = serializers.CharField(min_length=64, max_length=64)
     scores = ScoreInputSerializer(many=True)
     comments = serializers.CharField(required=False, allow_blank=True)
 
@@ -342,39 +350,71 @@ class MarkDraftSerializer(serializers.Serializer):
 
     @transaction.atomic
     def save(self):
-        task = self.context["task"]
-        task = lock_tasks([task.pk])[0]
+        task = lock_tasks([self.context['task'].pk])[0]
         assert_task_accepts_marks(task)
-        entry, _ = MarkEntry.objects.select_for_update().get_or_create(task=task)
-        if entry.status == MarkEntry.Status.SUBMITTED:
-            raise MarksStateConflict("Submitted marks are locked.")
-        entry.status = MarkEntry.Status.DRAFT
-        entry.comments = self.validated_data.get("comments", "")
-        entry.save(update_fields=["status", "comments", "updated_at"])
-        submitted_ids = {
-            score_data["componentId"]
-            for score_data in self.validated_data["scores"]
-        }
-        entry.scores.exclude(component_id__in=submitted_ids).delete()
-        for score_data in self.validated_data["scores"]:
-            score, _ = MarkScore.objects.get_or_create(
-                entry=entry,
-                component=self.validated_data["components"][
-                    score_data["componentId"]
-                ],
-                defaults={
-                    "marks_awarded": score_data["marksAwarded"],
-                    "feedback": score_data.get("feedback", ""),
-                },
-            )
-            score.marks_awarded = score_data["marksAwarded"]
-            score.feedback = score_data.get("feedback", "")
-            try:
-                score.full_clean()
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError(exc.message_dict) from exc
-            score.save()
-        entry.recalculate_total()
+        entry = MarkEntry.objects.select_for_update().filter(task=task).first()
+        if not constant_time_compare(entry_version(task, entry), self.validated_data['expectedVersion']):
+            raise MarksStateConflict('This draft changed elsewhere. Load the latest record before saving or submitting.')
+        return save_draft_locked(task, entry, self.validated_data)
+
+
+def save_draft_locked(task, entry, data):
+    if entry is None:
+        entry = MarkEntry.objects.create(task=task)
+    if entry.status == MarkEntry.Status.SUBMITTED:
+        raise MarksStateConflict("Submitted marks are locked.")
+    entry.status = MarkEntry.Status.DRAFT
+    entry.comments = data.get("comments", "")
+    entry.save(update_fields=["status", "comments", "updated_at"])
+    submitted_ids = {
+        score_data["componentId"]
+        for score_data in data["scores"]
+    }
+    entry.scores.exclude(component_id__in=submitted_ids).delete()
+    for score_data in data["scores"]:
+        score, _ = MarkScore.objects.get_or_create(
+            entry=entry,
+            component=data["components"][
+                score_data["componentId"]
+            ],
+            defaults={
+                "marks_awarded": score_data["marksAwarded"],
+                "feedback": score_data.get("feedback", ""),
+            },
+        )
+        score.marks_awarded = score_data["marksAwarded"]
+        score.feedback = score_data.get("feedback", "")
+        try:
+            score.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+        score.save()
+    entry.recalculate_total()
+    return entry
+
+
+class MarkSubmissionSerializer(MarkDraftSerializer):
+    submissionId = serializers.UUIDField()
+
+    @transaction.atomic
+    def save(self):
+        task = lock_tasks([self.context['task'].pk])[0]
+        entry = MarkEntry.objects.select_for_update().filter(task=task).first()
+        data = self.validated_data
+        fingerprint = submission_fingerprint(data)
+        receipt = MarkSubmissionReceipt.objects.filter(task=task, submission_id=data['submissionId']).first()
+        if receipt is not None:
+            if not constant_time_compare(receipt.request_hash, fingerprint):
+                raise MarksStateConflict('This submission reference was already used for different marks. Review the latest record.')
+            if entry is None or entry.status != MarkEntry.Status.SUBMITTED or not constant_time_compare(receipt.entry_version, entry_version(task, entry)):
+                raise MarksStateConflict('This mark record changed after submission. Review the latest record.')
+            return entry
+        assert_task_accepts_marks(task)
+        if not constant_time_compare(entry_version(task, entry), data['expectedVersion']):
+            raise MarksStateConflict('This draft changed elsewhere. Load the latest record before saving or submitting.')
+        entry = save_draft_locked(task, entry, data)
+        entry = submit_entry_locked(task, entry)
+        MarkSubmissionReceipt.objects.create(task=task, submission_id=data['submissionId'], request_hash=fingerprint, entry_version=entry_version(task, entry))
         return entry
 
 
@@ -394,6 +434,10 @@ def submit_entry(task):
         raise serializers.ValidationError(
             "Save a complete draft before submission."
         ) from exc
+    return submit_entry_locked(task, entry)
+
+
+def submit_entry_locked(task, entry):
     assert_task_accepts_marks(task)
     if entry.status == MarkEntry.Status.SUBMITTED:
         raise MarksStateConflict("Marks have already been submitted.")

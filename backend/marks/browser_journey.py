@@ -16,7 +16,7 @@ from accounts.models import OfficeStaff
 from academics.models import AcademicSemester
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from . import test_period_targeting as fixtures
-from .models import EvaluationPeriod, EvaluationTask, MarkEntry, Rubric
+from .models import EvaluationPeriod, EvaluationTask, MarkEntry, MarkSubmissionReceipt, Rubric
 
 User = get_user_model()
 
@@ -69,3 +69,4 @@ class MarksBrowserJourney(LiveServerTestCase):
         self.assertEqual({entry.task.evaluator_role: str(entry.total_mark) for entry in entries}, {'SUPERVISOR': '85.00', 'PANEL': '60.00'})
         self.assertTrue(all(entry.status == 'SUBMITTED' for entry in entries))
         self.assertFalse(MarkEntry.objects.filter(task__evaluator=self.other).exists())
+        self.assertEqual(MarkSubmissionReceipt.objects.count(), 2, 'Retry must not create a second submission receipt.')

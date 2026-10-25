@@ -1,3 +1,4 @@
+from .test_write_helpers import submission_payload
 from datetime import datetime, timezone as dt_timezone
 from decimal import Decimal
 from unittest.mock import patch
@@ -100,7 +101,7 @@ class LecturerSubmissionHistoryTests(APITestCase):
         self.client.force_authenticate(self.lecturer)
         self.assertEqual(self.client.get(self.url).status_code, 200)
         self.assertEqual(self.client.put(f"/api/marks/tasks/{self.task.pk}/draft/", {}, format="json").status_code, 404)
-        self.assertEqual(self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/").status_code, 404)
+        self.assertEqual(self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/", submission_payload(self.task), format='json').status_code, 404)
 
     def test_empty_history_is_a_successful_empty_list(self):
         self.client.force_authenticate(self.lecturer)
