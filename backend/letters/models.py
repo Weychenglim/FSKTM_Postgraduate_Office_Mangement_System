@@ -20,6 +20,8 @@ from django.db import models
 from django.db.models import Q
 from django.utils.timezone import localtime
 
+from .recipients import OPTIONAL_DETAILS
+
 
 class LetterPurpose(models.TextChoices):
     REQUEST = "REQUEST", "Student requests"
@@ -85,6 +87,14 @@ class LetterTemplate(models.Model):
     def is_automatic(self):
         return self.purpose in AUTOMATIC_PURPOSES
 
+    def optional_details(self):
+        """The optional lines a student may tick for this letter: those whose
+        tag the letter uses. Only letters that ask who they are for have them."""
+        if not self.asks_recipient:
+            return []
+        both = f"{self.content}\n{self.content_ms}"
+        return [code for code, _, tag in OPTIONAL_DETAILS if f"{{{{{tag}}}}}" in both]
+
     def to_public_dict(self, *, include_wording=True):
         """Shape this template the way the React frontend's ``LetterTemplate``
         type expects. Students get it without the wording or the office fields,
@@ -100,6 +110,7 @@ class LetterTemplate(models.Model):
             "signatoryName": self.signatory_name,
             "signatoryTitle": self.signatory_title,
             "asksRecipient": self.asks_recipient,
+            "optionalDetails": self.optional_details(),
             "validMonths": self.valid_months,
             "lastModified": localtime(self.updated_at).strftime("%b %d, %Y"),
             "modifiedBy": self.modified_by,

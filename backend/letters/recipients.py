@@ -64,6 +64,8 @@ ORGANISATIONS = {
         "United Overseas Bank (Malaysia) Bhd",
     ],
     "GOVERNMENT": [
+        "Bahagian Kemasukan Pelajar IPTA, Kementerian Pendidikan Tinggi Malaysia",
+        "Bahagian Perancangan dan Penyelidikan Dasar Pendidikan",
         "Education Malaysia Global Services (EMGS)",
         "Jabatan Imigresen Malaysia",
         "Jabatan Kebajikan Masyarakat",
@@ -114,11 +116,13 @@ ORGANISATIONS = {
     ],
     "TRANSPORTATION": [
         "AirAsia Berhad",
+        "AirAsia X Berhad",
         "Batik Air Malaysia",
         "Express Rail Link Sdn Bhd (KLIA Ekspres)",
         "Firefly Sdn Bhd",
         "Keretapi Tanah Melayu Berhad (KTMB)",
         "Malaysia Airlines Berhad",
+        "MASwings Sdn Bhd",
         "Mass Rapid Transit Corporation Sdn Bhd (MRT Corp)",
         "Prasarana Malaysia Berhad (Rapid KL)",
     ],

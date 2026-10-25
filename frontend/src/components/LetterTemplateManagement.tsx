@@ -48,6 +48,8 @@ import {
   getLetterRequestCounts,
 } from '../services';
 import { PortalSelect } from './PortalSelect';
+import { ToggleSwitch } from './ToggleSwitch';
+import { OPTIONAL_DETAIL_LABELS, RECIPIENT_PURPOSE_LABELS, offeredDetails } from '../utils/letterRecipients';
 
 const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]; malformed: string[] }) =>
   [
@@ -60,6 +62,10 @@ const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]
 const REQUEST_TAGS = new Set(APPOINTMENT_PLACEHOLDERS.filter((p) => p.purposes.includes('REQUEST')).map((p) => p.tag));
 const RECIPIENT_TAGS = ['{{RECIPIENT}}', '{{BALANCE_SEMESTERS_MIN}}', '{{BALANCE_SEMESTERS_MAX}}'];
 const MAX_VALID_MONTHS = 60;
+const RECIPIENT_LINE_RE = /^[ \t]*\{\{RECIPIENT\}\}[ \t]*\n(?:[ \t]*\n)*/gm;
+
+const listInWords = (items: string[]) =>
+  items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 
 const LETTER_TYPES = ['Academic Certification', 'Visa & Immigration', 'General Notifications', 'Financial Clearance'];
 const DEFAULT_REFERENCE_PREFIX = 'UMF/PG';
@@ -477,6 +483,25 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     clearProblem('contentMs');
   };
 
+  // Turning it on puts who the letter is for at the top of each page; turning
+  // it off takes that line out again.
+  const toggleAsksRecipient = (on: boolean) => {
+    setEditorAsksRecipient(on);
+    clearProblem('asksRecipient');
+    clearProblem('contentMs');
+    if (on) {
+      const addTop = (text: string) => (text.includes('{{RECIPIENT}}') ? text : `{{RECIPIENT}}\n\n${text.replace(/^\s+/, '')}`);
+      setEditorContent(addTop);
+      setEditorContentMs((text) => (text.trim() ? addTop(text) : text));
+      if (!editorContent.includes('{{RECIPIENT}}')) triggerToast('Recipient was added at the top of the letter. Move it if needed.');
+    } else {
+      const takeLine = (text: string) => text.replace(RECIPIENT_LINE_RE, '');
+      setEditorContent(takeLine);
+      setEditorContentMs(takeLine);
+      if (/^[ \t]*\{\{RECIPIENT\}\}[ \t]*$/m.test(`${editorContent}\n${editorContentMs}`)) triggerToast('Recipient was taken out of the letter.');
+    }
+  };
+
   // Deleting a blank also takes it out of the letter.
   const deleteBlank = (field: LetterCustomField) => {
     takeOut(`{{${field.name}}}`);
@@ -633,6 +658,12 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     const settings = [
       RECIPIENT_TAGS.some((tag) => both.includes(tag)) && !editorAsksRecipient
         ? 'This letter uses who it is for or semesters left. Turn on "Students say who it is for".'
+        : '',
+      editorAsksRecipient && !editorContent.includes('{{RECIPIENT}}')
+        ? 'Students say who this letter is for, but the letter does not show it. Add Recipient from Student info.'
+        : '',
+      editorAsksRecipient && editorContentMs.trim() && !editorContentMs.includes('{{RECIPIENT}}')
+        ? 'The Malay page does not show who the letter is for. Add Recipient to it too.'
         : '',
       both.includes('{{VALID_UNTIL}}') && !editorValidMonths.trim() ? 'This letter shows a valid-until date. Say how many months it stays valid.' : '',
     ].filter(Boolean).join(' ');
@@ -1256,23 +1287,41 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                 {editorPurpose === 'REQUEST' && (
                   <section aria-labelledby="template-asking-heading" className="app-card p-5 space-y-4">
                     <h3 id="template-asking-heading" className="section-label">Asking for this letter</h3>
-                    <label className="flex items-start gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-brand-navy"
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p id="letter-template-asks-recipient-label" className="text-[13px] font-bold text-slate-800">Students say who it is for</p>
+                        <p id="letter-template-asks-recipient-hint" className="text-[11px] font-semibold text-slate-500 leading-snug">
+                          {editorAsksRecipient
+                            ? 'On. Students choose what the letter is for, then the organisation, as in Maya.'
+                            : 'Off. Turn it on for letters like the confirmation letter, where students pick a bank, agency or company.'}
+                        </p>
+                      </div>
+                      <ToggleSwitch
+                        id="letter-template-asks-recipient"
                         checked={editorAsksRecipient}
-                        onChange={(e) => {
-                          setEditorAsksRecipient(e.target.checked);
-                          clearProblem('asksRecipient');
-                        }}
+                        onChange={toggleAsksRecipient}
+                        labelledBy="letter-template-asks-recipient-label"
+                        describedBy="letter-template-asks-recipient-hint"
+                        className="py-0"
                       />
-                      <span>
-                        <span className="block text-[13px] font-bold text-slate-800">Students say who it is for</span>
-                        <span className="block text-[11px] font-semibold text-slate-500 leading-snug">
-                          They choose a bank, agency or company and type its address, as in Maya. Adds Recipient and Semesters Left to Student info.
-                        </span>
-                      </span>
-                    </label>
+                    </div>
+                    {editorAsksRecipient && (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 space-y-2 text-[11.5px] font-semibold text-slate-600 leading-snug">
+                        <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">What students fill in</p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          <li>Purpose: {listInWords(Object.values(RECIPIENT_PURPOSE_LABELS))}.</li>
+                          <li>Recipient, from the list for that purpose (for Transportation: KTMB, AirAsia, Malaysia Airlines and more), or typed in.</li>
+                          <li>The recipient's address.</li>
+                          <li>
+                            {offeredDetails(`${editorContent}\n${editorContentMs}`).length > 0
+                              ? `Additional information they can tick: ${listInWords(
+                                  offeredDetails(`${editorContent}\n${editorContentMs}`).map((code) => OPTIONAL_DETAIL_LABELS[code].toLowerCase()),
+                                )}. Those lines print only when ticked.`
+                              : 'No additional information to tick. Add Semesters Left or Current Semester from Student info to offer it.'}
+                          </li>
+                        </ul>
+                      </div>
+                    )}
                     {problems.asksRecipient && <p role="alert" className="text-[11px] font-bold text-rose-600">{problems.asksRecipient}</p>}
                     <Field
                       label="Valid for (months)"
@@ -1291,7 +1340,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                           clearProblem('validMonths');
                         }}
                         aria-invalid={problems.validMonths ? true : undefined}
-                        className="form-control form-control-md w-28"
+                        className="form-control form-control-md w-40"
                         placeholder="For example: 3"
                       />
                     </Field>

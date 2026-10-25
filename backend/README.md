@@ -173,6 +173,7 @@ The office's `GET requests/` also takes `madeBy=request|automatic`.
 **Student confirmation letters (as in Maya).**
 - A template with `asksRecipient` makes the student say who the letter is for (`details`): a purpose (Banking, Government agencies, Mobility, Non-government agencies, Sponsorship, Transportation), an organisation from the built-in list in `letters/recipients.py` or typed in, the address to print, and which optional lines to show (`MIN_PERIOD`, `MAX_PERIOD`, `CURRENT_SEMESTER`). Lines for options not chosen are left out of the letter.
 - Request templates may use `{{RECIPIENT}}`, `{{VALID_UNTIL}}`, `{{BALANCE_SEMESTERS_MIN}}` and `{{BALANCE_SEMESTERS_MAX}}`. The first and the semesters need `asksRecipient`; the valid-until date (issue date plus the template's `validMonths`) needs `validMonths`.
+- A template with `asksRecipient` must show `{{RECIPIENT}}` on each page it has. Its `optionalDetails` (in every template listing, students included) names the optional lines its wording shows; students are offered only those, and any other ticked option is dropped.
 - Semesters left come from the registry's current semester, expected completion and maximum semester when they can be read (a semester label, or a count from the intake); otherwise the office types them in at approval.
 - A template's `contentMs` is the same letter in Malay. It is filled with Malay dates, programme names and mode of study, and printed as a second page.
 - A newly approved confirmation letter replaces only the student's issued copy for the same organisation.

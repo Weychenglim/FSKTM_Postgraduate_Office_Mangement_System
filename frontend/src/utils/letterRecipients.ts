@@ -24,6 +24,18 @@ export const OPTIONAL_DETAIL_LABELS: Record<string, string> = {
   CURRENT_SEMESTER: 'Current semester',
 };
 
+/** The letter tag each optional detail fills; a letter offers the details whose tag it uses. */
+export const OPTIONAL_DETAIL_TAGS: Record<string, string> = {
+  MIN_PERIOD: '{{BALANCE_SEMESTERS_MIN}}',
+  MAX_PERIOD: '{{BALANCE_SEMESTERS_MAX}}',
+  CURRENT_SEMESTER: '{{CURRENT_SEMESTER}}',
+};
+
+/** The optional details a letter's wording can show, in the order students see them. */
+export function offeredDetails(content: string): string[] {
+  return Object.keys(OPTIONAL_DETAIL_TAGS).filter((code) => content.includes(OPTIONAL_DETAIL_TAGS[code]));
+}
+
 export const EMPTY_REQUEST_DETAILS: LetterRequestDetails = {
   purpose: '',
   organisation: '',

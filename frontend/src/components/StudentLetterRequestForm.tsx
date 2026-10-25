@@ -124,6 +124,10 @@ export const StudentLetterRequestForm: React.FC<StudentLetterRequestFormProps> =
   const chosen = listed.find((name) => name.toLowerCase() === details.organisation.trim().toLowerCase()) ?? '';
   const typeIt = typing || (purpose !== null && listed.length === 0);
   const organisationName = purpose?.organisationLabel.toLowerCase() ?? 'organisation';
+  // Only the details this letter can show; an older server sends no list, so all are offered.
+  const extraDetails = (options?.optionalDetails ?? []).filter(
+    (option) => !template.optionalDetails || template.optionalDetails.includes(option.code),
+  );
   // The copy an approval replaces: for a confirmation letter, only the one for the same organisation.
   const replaces =
     currentCopies.find(
@@ -351,10 +355,10 @@ export const StudentLetterRequestForm: React.FC<StudentLetterRequestFormProps> =
               <p className="text-[13px] font-semibold text-slate-700 sm:pt-3">{shortDate(today)}</p>
             </FormRow>
 
-            {asksRecipient && options && (
+            {asksRecipient && extraDetails.length > 0 && (
               <FormRow label="Additional Information" hint="Shown on the letter" error={errors.include}>
                 <div className="space-y-3 sm:pt-3">
-                  {options.optionalDetails.map((option) => (
+                  {extraDetails.map((option) => (
                     <label key={option.code} className="flex items-center gap-2.5 text-[13px] font-semibold text-slate-700 cursor-pointer">
                       <input
                         type="checkbox"

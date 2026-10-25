@@ -92,6 +92,10 @@ def _template_errors(template):
         return {"asksRecipient": "Only letters students ask for can ask who the letter is for."}
     if not template.asks_recipient and any(tag in both for tag in RECIPIENT_TAGS):
         return {"asksRecipient": "This letter uses who it is for or semesters left. Turn on \"Students say who it is for\"."}
+    if template.asks_recipient and "{{RECIPIENT}}" not in (template.content or ""):
+        return {"asksRecipient": "Students say who this letter is for, but the letter does not show it. Add Recipient from Student info."}
+    if template.asks_recipient and (template.content_ms or "").strip() and "{{RECIPIENT}}" not in template.content_ms:
+        return {"contentMs": "The Malay page does not show who the letter is for. Add Recipient to it too."}
     if "{{VALID_UNTIL}}" in both and not template.valid_months:
         return {"validMonths": "This letter shows a valid-until date. Say how many months it stays valid."}
     return None

@@ -61,6 +61,8 @@ export interface LetterTemplate {
   contentMs?: string;
   /** Students say who the letter is for (a bank, an agency...) when they ask. */
   asksRecipient?: boolean;
+  /** The optional details a student may tick, because the letter shows them, e.g. MIN_PERIOD. */
+  optionalDetails?: string[];
   /** How many months an issued letter stays valid; null for no limit. */
   validMonths?: number | null;
 }

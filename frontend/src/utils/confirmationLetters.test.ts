@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { LETTER_WORDS, buildLetterHtml, malayLetterDate, renderLetterBodyHtml } from './letterDocument';
-import { OPTIONAL_DETAIL_LABELS, RECIPIENT_PURPOSE_LABELS, chosenDetailLabels, recipientAddressLines } from './letterRecipients';
+import {
+  OPTIONAL_DETAIL_LABELS,
+  OPTIONAL_DETAIL_TAGS,
+  RECIPIENT_PURPOSE_LABELS,
+  chosenDetailLabels,
+  offeredDetails,
+  recipientAddressLines,
+} from './letterRecipients';
 
 // the purposes and optional details are the server's
 const recipients = readFileSync(resolve('../backend/letters/recipients.py'), 'utf8');
@@ -12,6 +19,12 @@ const serverDetails = Object.fromEntries([...block('OPTIONAL_DETAILS').matchAll(
 assert.ok(Object.keys(serverPurposes).length > 0, 'could not read PURPOSES from letters/recipients.py');
 assert.deepEqual(RECIPIENT_PURPOSE_LABELS, serverPurposes);
 assert.deepEqual(OPTIONAL_DETAIL_LABELS, serverDetails);
+const serverTags = Object.fromEntries([...block('OPTIONAL_DETAILS').matchAll(/\("([A-Z_]+)", "[^"]+", "([A-Z_]+)"\)/g)].map(([, code, tag]) => [code, `{{${tag}}}`]));
+assert.deepEqual(OPTIONAL_DETAIL_TAGS, serverTags);
+
+// a letter offers only the optional details its wording shows
+assert.deepEqual(offeredDetails('| Balance (Max) | {{BALANCE_SEMESTERS_MAX}} |\n{{CURRENT_SEMESTER}}'), ['MAX_PERIOD', 'CURRENT_SEMESTER']);
+assert.deepEqual(offeredDetails('{{RECIPIENT}}\n\nDear Sir/Madam,'), []);
 
 // the PDF's Malay words are the screen's
 const pdf = readFileSync(resolve('../backend/letters/pdf_export.py'), 'utf8');
@@ -67,12 +80,17 @@ for (const label of ['Programme', 'Purpose', 'Recipient', 'Address Line 1', 'Add
 assert.match(form, /requestLetter\(template\.id, note\.trim\(\), asksRecipient \? details : undefined\)/);
 assert.equal((form.match(/searchPlaceholder="Search"/g) ?? []).length, 2, 'the purpose and recipient lists can be searched');
 assert.match(form, /Not in the list\? Type the name/);
+assert.match(form, /\{asksRecipient && options && \(/, 'purpose and recipient show only when the office switched it on');
+assert.match(form, /template\.optionalDetails\.includes\(option\.code\)/, 'only the details the letter shows can be ticked');
 const app = readFileSync(resolve('src/App.tsx'), 'utf8');
 assert.match(app, /onOpenRequestForm=\{\(templateId\) => navigate\(routeForLetterApplication\(templateId\)\)\}/);
 const review = readFileSync(resolve('src/components/OfficeLetterRequests.tsx'), 'utf8');
 assert.match(review, /malayBodyHtml=\{previewMsHtml \|\| undefined\}/);
 const editor = readFileSync(resolve('src/components/LetterTemplateManagement.tsx'), 'utf8');
 assert.match(editor, /Students say who it is for/);
+assert.match(editor, /<ToggleSwitch\s+id="letter-template-asks-recipient"[\s\S]*?onChange=\{toggleAsksRecipient\}/, 'it is an on/off switch');
+assert.match(editor, /`\{\{RECIPIENT\}\}\\n\\n\$\{text/, 'switching it on puts Recipient at the top of the letter');
+assert.match(editor, /What students fill in/);
 assert.match(editor, /Valid for \(months\)/);
 
 console.log('Confirmation letter tests passed.');

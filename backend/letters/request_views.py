@@ -305,6 +305,8 @@ def _create_request(request):
         details, errors = clean_request_details(request.data.get("details"))
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        offered = template.optional_details()
+        details["include"] = [code for code in details["include"] if code in offered]
 
     pending = Response(
         {

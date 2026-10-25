@@ -98,6 +98,34 @@ class AskingTests(ConfirmationLetterTestCase):
         self.assertEqual(response.data["requestDetails"]["organisation"], "National University of Singapore")
         self.assertTrue(response.data["requestDetails"]["typedIn"])
 
+    def test_students_are_offered_only_the_details_the_letter_shows(self):
+        user = self.student("SCL006")
+        self.client.force_authenticate(user)
+        listed = {row["name"]: row for row in self.client.get("/api/letter-templates/").data}
+        self.assertEqual(listed["Student Confirmation Letter"]["optionalDetails"], ["MIN_PERIOD", "MAX_PERIOD", "CURRENT_SEMESTER"])
+        self.assertEqual(listed["Visa Support Letter"]["optionalDetails"], [])
+        self.assertNotIn("content", listed["Student Confirmation Letter"])
+        short = LetterTemplate.objects.create(
+            name="Bank Letter",
+            status=LetterTemplate.Status.ACTIVE,
+            asks_recipient=True,
+            content="{{RECIPIENT}}\n\n{{STUDENT_NAME}} ({{STUDENT_ID}}) is registered.",
+        )
+        response = self.client.post(
+            REQUESTS, {"templateId": short.pk, "details": {**MAYBANK, "include": ["MIN_PERIOD"]}}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["requestDetails"]["include"], [])
+
+    def test_the_lists_cover_the_maya_examples(self):
+        self.client.force_authenticate(self.student("SCL007"))
+        options = {row["code"]: row["organisations"] for row in self.client.get(f"{REQUESTS}recipient-options/").data["purposes"]}
+        for name in ("Keretapi Tanah Melayu Berhad (KTMB)", "AirAsia Berhad", "AirAsia X Berhad", "Malaysia Airlines Berhad"):
+            self.assertIn(name, options["TRANSPORTATION"])
+        self.assertIn("Bahagian Kemasukan Pelajar IPTA, Kementerian Pendidikan Tinggi Malaysia", options["GOVERNMENT"])
+        self.assertIn("High Commission of the Republic of Singapore", options["GOVERNMENT"])
+        self.assertEqual(options["MOBILITY"], [], "host universities are typed in")
+
     def test_other_letters_do_not_ask_who_they_are_for(self):
         user = self.student("SCL005")
         self.assertEqual(self.ask(user).status_code, status.HTTP_201_CREATED)
@@ -211,6 +239,15 @@ class TemplateRulesTests(ConfirmationLetterTestCase):
         allowed = self.create(content="{{RECIPIENT}}\n\nDear Sir/Madam,", asksRecipient=True)
         self.assertEqual(allowed.status_code, status.HTTP_201_CREATED, allowed.data)
         self.assertTrue(allowed.data["asksRecipient"])
+
+    def test_a_letter_that_asks_who_it_is_for_must_show_it(self):
+        refused = self.create(content="Dear Sir/Madam,", asksRecipient=True)
+        self.assertEqual(refused.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("does not show it", refused.data["asksRecipient"])
+        malay = self.create(content="{{RECIPIENT}}\n\nDear Sir/Madam,", contentMs="Tuan/Puan,", asksRecipient=True)
+        self.assertIn("contentMs", malay.data)
+        both = self.create(content="{{RECIPIENT}}\n\nDear Sir/Madam,", contentMs="{{RECIPIENT}}\n\nTuan/Puan,", asksRecipient=True)
+        self.assertEqual(both.status_code, status.HTTP_201_CREATED, both.data)
 
     def test_a_valid_until_date_needs_the_months_it_is_valid(self):
         refused = self.create(content="Valid until {{VALID_UNTIL}}.")
