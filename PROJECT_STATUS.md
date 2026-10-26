@@ -821,6 +821,598 @@ Final validation: all 168 frontend test checks pass, including production demo/C
 
 Browser coverage: Office attention and exact pending recommendation were inspected locally. The user requested no further browser checks; cross-role desktop/mobile browser acceptance and new decision previews were not completed or claimed. Shared rendering, navigation, capability, privacy and outcome contracts have automated coverage. Temporary viewport override was reset. API restarted at 127.0.0.1:8000; portal remains localhost:3001. Implementation stays local and uncommitted; the earlier requested snapshot was already pushed separately.
 
+## Letters: Lists, A Student Form Per Letter, And Both Sides Restructured (2026-10-25)
+
+Plan: `docs/superpowers/plans/2026-10-25-letter-generation-redesign.md`, approved by Xiang after the research and wireframes. Screens follow Wey Cheng's module design (Supervisor Appointments, Marks): icon tabs, summary cards, the grey filter card, responsive tables, record pages, the numbered stepper and `ApprovalProcess`.
+
+- **Lists the office edits** (Letter Generation, Lists tab). Purposes (Banking, Transportation…) and the organisations under each, with a Malay name and a saved address that is filled in for the student; whether students may type one that is not listed; simple lists for "Choose from a list" questions. Add, paste many (names already listed are skipped), edit, sort A to Z, move up or down, hide or show. An entry a letter used can only be hidden; unused ones can be deleted. Seeded from the old built-in lists (migration `letters.0009`).
+- **A student form per letter type.** The editor's Student form tab: "Who is the letter for?" (with the purposes it offers and whether it asks for the address), "Additional information", and the office's own short text, date, list and yes-or-no questions, in order, with a live preview of the student's form. Answers go on the letter where the office places them (English and Malay; dates and yes or no in Malay on the Malay page) and show in the office review. Requests keep a copy of every answer, so later edits never change an issued letter. This replaces the on/off switch; letters that had it on got the question automatically.
+- **Office screens.** Tabs in the order they are used, with icons: Requests, Issued letters, Letter types, Lists (`/letters`, `/letters/issued`, `/letters/types`, `/letters/lists`). Requests has summary cards that filter, the filter card (search, letter, status), a For column and paging; the review page adds "Approve and open next". The letter type editor is a record page with four tabs (Details, Student form, Letter, Issuing), one Insert menu grouped by where a detail comes from, a preview that can be filled in with a real student's record (by matric number), an error summary that points at the tab, and no tag names shown to staff.
+- **Student screens.** Letter cards say what the form will ask and how long it usually takes. The form has two steps, "Letter details" (the Maya layout) and "Check and send" with Change links. My requests has Current and History, each request with its progress steps and dates, valid-until reminders, and Request again with last time's answers.
+- **Letter type editor made simpler (2026-10-26, Xiang found it confusing).** The four tabs became numbered steps in the portal's stepper: About the letter, Student form (only for letters students ask for), Write the letter, Signature and status. A new letter type goes through them in order with Continue and is created at the end (then the list opens); an existing one opens at any step, with Save at the top. "When is this letter used?" is the first choice, as cards; the old "Letter type" dropdown is now Category; status is chosen once, in the last step. The wording shows details as [Student Name] instead of tags (saved as tags, so nothing else changes), is checked as it is typed, and has the printed letter previewed beside it. Office blanks are added from Insert detail and listed under the wording.
+- **Address required (2026-10-26, Xiang).** When a letter asks for the address, Address Line 1, Postcode, City and State/Country must be filled in (checked on the form and by the server); Address Line 2 stays optional.
+- **Fix:** issued letters now send `validUntil` as a date, so "valid until" shows properly (it read "Invalid date" since 2026-10-23).
+- **Merged first:** origin/main (PR #21) as `d2095e4`; dev DB migrated after `db-backups/fsktm_pg_office_before_main_pr21_merge_2026-10-25.dump`, then to `letters.0009` after `db-backups/fsktm_pg_office_before_letter_lists_2026-10-25.dump`.
+- **Checks:** backend 1816 tests OK (2 skipped); frontend type check clean, 217 test files pass, production build passes. Browser runs as office and student (TG accounts): lists editing and paste, a new letter type with four questions, the student form with required errors, saved address and Check and send, approve and open next, the preview with a real student, valid-until in My requests; no page errors and no sideways scroll on a phone.
+
+## Letters: Student Confirmation Letter As In Maya (2026-10-23)
+
+The supervisor asked for UM Maya's confirmation letter request to be part of the system.
+
+- **The student says who the letter is for.**
+  - They apply on a page laid out like Maya's "Letter Details Application Form" (`/letters/apply/<template id>`, added 2026-10-25): their ID and name on top, then one row per field with the label on the left and a hint on the right. Every letter now uses this page instead of a pop-up; a plain letter only has the programme, the date and a note.
+  - They choose a purpose (Banking, Government agencies, Mobility, Non-government agencies, Sponsorship or Transportation), then the organisation from a built-in list they can search: 47 Malaysian banks, 27 agencies and embassies, sponsors, NGOs and transport companies. An organisation not listed can be typed in.
+  - They type the address to print, and tick what else to show: minimum period of study, maximum period of study, current semester. Lines they do not tick are left out.
+- **The letter** follows the Maya sample: the recipient block, a details table (name, IC/passport, matric number, programme, method of study, faculty, date valid, semesters left), and a Malay second page ("Surat Pengesahan Pelajar") with Malay dates, programme name and mode of study.
+  - Date valid is the issue date plus the template's months (3 for this letter).
+  - Semesters left are worked out from the registry when it can be read; otherwise the office types them in at approval.
+- **The office** still approves each request. The review shows who the letter is for and previews both pages. A new letter replaces only the student's copy for the same organisation, so a Maybank letter and a KTMB letter can both be valid.
+- **The office's switch decides it** (2026-10-25). "Students say who it is for" is an on/off switch on any letter students ask for. On: the student's form shows Purpose and Recipient (for Transportation: KTMB, AirAsia, Malaysia Airlines and more), the address and only the optional details the letter shows, and Recipient is added to the top of each page. Off: the plain form, and Recipient is taken out. A letter that asks but does not print the recipient cannot be saved. Checked in the browser with a throwaway letter, switched on and off, then deleted.
+- **Template editor.** An English/Malay switch for writing, an "Asking for this letter" card ("Students say who it is for", "Valid for (months)"), a preview of both A4 pages, and `| Label | value |` lines for details tables. The PDF and the print view have the Malay page too.
+- **Migrations** `letters.0006` (fields) and `letters.0007` (adds the Student Confirmation Letter and archives Confirmation of Enrolment). The dev DB was migrated after the backup `db-backups/fsktm_pg_office_before_confirmation_letters_2026-10-23.dump`.
+- **Verification.**
+  - The backend passes 1706 tests (20 new for confirmation letters).
+  - All 203 frontend scripts pass, along with lint and the build.
+  - In the browser, TG-STU-01 requested a letter for Maybank (searching "maybank" in the bank list), and TG-OFFICE-01 reviewed both pages, typed the missing semesters left and approved it (`UMF/PG/SCL/2026/0001`). The issued letter, its PDF (two pages) and the template editor were checked, with no page errors.
+
+## Module-by-Module Check of Xiang's Modules (2026-10-17)
+
+Each of Xiang's modules was tested in turn: the backend rules through the API, every button in the browser, and the layout at 1440, 1024, 768 and 390 px. The latest code was already on `Xiang` (GitHub's `main` and every teammate branch were merged in), so nothing was pulled. It ran on private servers (email printed to the console, never sent) with throwaway smoke accounts, all removed afterwards.
+
+| Module | Checks run | Bugs fixed | Commit |
+|---|---|---|---|
+| Authentication and Settings | API 53/53, browser 64/64 | 4 | `3b422c6` |
+| Announcements and notifications | API 61/61, browser 69/69 | 4 | `c6b7fbb` |
+| Student Registry | import phases 1 to 9 (all green), browser 45/45 | 4 | `2ffea24` |
+| Letter Generation | requests 26/26, appointment letters 33 + 16 + 20, new checks 24/24 | 2 | `c8cd895` |
+| File Management | 7 existing runs (95 checks), new checks 17/17 | none | |
+| FAQ chatbot | chat 29/29, phone, office 36/36, gaps 47/47 | none | |
+
+- **Authentication and Settings:**
+  - a quick double reload signed people out. A reload that cut off `/api/auth/refresh/` left the browser holding the cookie the server had just replaced. For 30 seconds that browser, proved by a new HttpOnly `fsktm_session_key` cookie set at sign-in, may renew with it. A copied refresh token alone is still refused (Wey Cheng's `test_refresh_rotates_cookie_and_rejects_previous_token` still passes), and sign-out or a password change ends it;
+  - signing in from a portal link (for example an email) now opens that page, as does signing in again after a session ends. Signing out on purpose starts the next sign-in on its landing page;
+  - Settings refused neither a phone number with letters or a formula nor the same password again, unlike the older endpoints. Problems now show under the field;
+  - the header greeting follows the time of day in Malaysia (it always said Good Morning).
+- **Announcements and notifications:**
+  - the attached file covered the last lines of the message box;
+  - the chosen priority is announced to screen readers;
+  - in a notification, Reference lines up under its label like From and To;
+  - on a phone the message scrolls and Close stays in view.
+- **Student Registry:**
+  - the office can correct a student's name and email. An email in use is refused, an activated student's old address is told, and an unactivated student's old activation link stops working;
+  - the record warns before unsaved edits are lost, and a fixed field clears the last save problem;
+  - the current semester was labelled Admission Intake. Intake now uses the same label style, and the last sign-in uses the portal's date format;
+  - on a phone the summary cards sit two to a row, and the student table scrolls sideways instead of squeezing names.
+- **Letter Generation:**
+  - the office could no longer revoke an issued letter or resend its notification (`414ec2b` had left one View button per row). Both are back inside the letter's view, so each row still has one button;
+  - a revoked request letter is now emailed to the student, like an approval or a rejection.
+- **Seen, not changed (Wey Cheng's shared code):**
+  - the sidebar does not react to a resize, so turning a tablet from landscape to portrait leaves it open over the page (`AppLayout`);
+  - record pages move focus to the heading, so a box is drawn around it when a page is opened by its link.
+
+**Verification:** backend 1453 tests, all pass apart from Wey Cheng's known appointments migration test (`project_course_codes`). Frontend type check, 150 of 150 script tests, the build and the production security checks pass. The dev database holds no smoke data afterwards.
+
+## Remaining-Modules Plan: Full Check (2026-10-16)
+
+A full check of everything the plan built (UC22 appointment letters, UC03 staff accounts, UC28/29 FAQ chatbot): the backend rules, every button in the browser, and the layout at 1440, 1024, 768 and 390 px. It ran on private servers (email printed to the console, never sent) with throwaway smoke accounts, all removed afterwards. The dev database is back to its real data: 117 FAQ entries, no saved questions, no documents, no smoke accounts.
+
+- **Backend:** 1432 tests, all pass apart from Wey Cheng's known appointments migration test (`project_course_codes`). The real-model FAQ checks ran too (`FAQ_REAL_MODEL_TESTS=1`).
+- **Frontend:** type check, 148 of 148 script tests, the build and the production security checks pass.
+- **Buttons, in the browser:**
+
+  | Module | Earlier runs, again | Buttons those runs did not press |
+  |---|---|---|
+  | UC22 letters | L2 33/33, L3 16/16 | 20/20: panel template with tags, bold and Check Placeholders; a second active panel template refused; register filters, Reset, View, Close; the student's View, Print and PDF; File Submission View and Download |
+  | UC03 staff | S3 49/49 | 62/62: list pages, search, Role and Status filters, the registry tabs; office and coordinator accounts with send later; activation end to end (email, set password, sign in with Staff ID); an email change stopping the old link; reset link; telling the old address; sign-in off for real (signed out, can't sign in, back on); Turn off sign-in instead; No programme; Keep it and Delete; Open their account |
+  | UC28/29 FAQ | C3 29/29, phone, C4 36/36, C5 14/14 | 47/47 knowledge base and chat: list pages, Show them, filters; an entry from Add to Delete (other ways of asking, Preview, Save draft, Publish, Save changes, Try it, Archive, Restore, leaving with changes); Mark as checked alone; Add as another way to ask with search and Cancel; Dismiss; common, related and portal buttons in the chat. 12/12 documents: a wrong file type refused, Download, Replace the file, Restore, Rename Cancel, a restored document quoted again |
+
+  Every failure along the way was the check script itself (waiting too briefly, or a test word no entry contains), confirmed by hand each time.
+- **Layout:** 24 pages, each at the four widths: no sideways page scroll, nothing past the screen edge, no buttons on top of each other.
+- **Fixed:** on a phone, the Staff & Lecturers list and the FAQ entries list squeezed their first column to a few letters a line. Both tables now keep a minimum width and scroll sideways inside their box, like the app's other lists.
+- **Seen, not changed (shared code, not from this plan):**
+  - record pages move focus to the heading for screen readers, so Chrome draws a box around it when a page is opened by its link;
+  - at 1024 px the footer's "Support Desk" link wraps to a second line.
+
+## FAQ Chatbot, Phase C6: Evaluation; UC28 And UC29 Complete (2026-10-16)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `8eb2fed`. **This completes UC28 and UC29, and with them the whole remaining-modules plan (UC22, UC03, UC28, UC29).** Optional C7 (AI rewording) was not asked for and is not built.
+
+- **The evaluation set** (`docs/faq/evaluation-set.json`): 122 questions written the way students write them, each labelled with the published entries that answer it:
+  - 82 in English: 62 paraphrases, 9 short, 5 slang, 4 with typos and 2 exact terms;
+  - 20 in Malay or mixed Malay and English;
+  - 20 off-topic, which must get no answer.
+
+  Where two entries answer the same thing (for example "Fees" and "How much is the total fee?"), either counts.
+- **`python manage.py evaluate_faq`** runs the set through three versions of the search and reports:
+  - top-1 and top-3;
+  - answered right;
+  - helped (answered right, or the right entry among the choices);
+  - wrong answers;
+  - off-topic refused;
+  - time per question.
+
+  It sweeps the two cut-offs. The results are kept in `docs/faq/evaluation-results.json`.
+- **How the cut-offs were chosen:** answer as many questions right as possible, with at most 2 wrong answers (2%) and at least 90% of off-topic questions refused. A wrong answer misleads a student; a set of choices still helps.
+
+**Results for the report (Testing chapter), 2026-10-16, on the 56 published entries:**
+
+| Version | Cut-offs (strong / possible) | Top-1 | Top-3 | Answered right | Helped | Wrong answers | Off-topic refused | Time per question |
+|---|---|---|---|---|---|---|---|---|
+| Keywords only (BM25) | 0.61 / 0.22 | 65.7% | 75.5% | 39.2% | 67.6% | 2 | 90% | 3 ms |
+| Meaning only (MiniLM) | 0.70 / 0.43 | 85.3% | 93.1% | 52.9% | 87.3% | 2 | 90% | 11 ms |
+| **Combined (fusion), in use** | **0.69 / 0.42** | **91.2%** | **94.1%** | **64.7%** | **89.2%** | **2** | **90%** | **12 ms** |
+
+- **Combined is best on every measure** at the same budget of wrong answers. This justifies the hybrid design (design decision D12 and the C2 notes).
+- **By kind of question** (combined):
+
+  | Kind | Answered right | Helped |
+  |---|---|---|
+  | Paraphrases | 72.6% | 95.2% |
+  | Malay | 50% | 80% |
+  | Short | 55.6% | 88.9% |
+  | Slang | 60% | 80% |
+  | Typos | 25% | 50% |
+  | Exact terms | 100% | 100% |
+- **Trade-off, for the report:** looser cut-offs (0.62 / 0.36) would answer 78.4% right and help 92.2%, but give 4 wrong answers and refuse only 80% of off-topic questions. The stricter pair was chosen.
+- **Tried and dropped:** offering choices whenever the top two entries are nearly level. Margins of 0.02 to 0.08 made no difference, because the wrong answers' runners-up were never that close.
+- **Keyword fallback** gets its own cut-offs (`FAQ_KEYWORD_STRONG_MATCH` 0.61, `FAQ_KEYWORD_POSSIBLE_MATCH` 0.22), since it scores on another scale. Borrowing the combined pair would have helped only 58% instead of 68%.
+- **Regression tests** (`faq.test_evaluation`):
+  - the set itself is sound: 122 questions, 20 Malay, 20 off-topic, every reference is a real FAQ row, no repeats;
+  - the decision and the rule;
+  - keyword search alone on the imported FAQ must keep top-3 at least 72%, helped at least 64%, at most 2 wrong answers and 90% of off-topic refused. This runs every time;
+  - with `FAQ_REAL_MODEL_TESTS=1`, combined must keep top-1 at least 88%, top-3 at least 92%, answered right at least 60%, helped at least 86%, at most 2 wrong answers and 90% of off-topic refused (it passes).
+- **Known limits found** (for the report):
+  - **Typos:** a word like "aply" matches neither the keywords nor the model well.
+  - **Malay:** half of the questions are answered outright, but 80% helped once choices are counted.
+  - **Similar entries:** the two remaining wrong answers go to near entries ("when is course registration" gets the timetable entry; "berapa yuran permohonan" gets the total fee entry).
+  - **What improves these:** the office adding other ways of asking from the Student questions tab, and its corrections to the 61 entries that still need checking.
+  - **The document cut-off** (0.6) can't be measured until the office uploads its real handbook.
+- **Optional student check** (5 students: did it help, was it easy) is left for Xiang to run for the report.
+
+**Verification:**
+- Backend: all pass apart from Wey Cheng's known test. The real-model checks also pass with `FAQ_REAL_MODEL_TESTS=1`.
+- `check` and `makemigrations --check` are clean. No frontend change in this phase.
+
+## FAQ Chatbot, Phase C5: Reference Documents (2026-10-16)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `0222ea7`.
+
+- **New models** (migration `faq.0003`):
+  - `FaqDocument`, the uploaded handbook or guide, kept in private storage;
+  - `FaqPassage`, about 150 words with the page it came from;
+  - saved questions and the history now also point at documents;
+  - five new history actions: uploaded, replaced, renamed, archived, restored.
+- **Uploads:**
+  - the same safety checks as File Management (`check_upload`), PDF and Word only, 10 MB;
+  - PDF text comes from PDFium and Word text from the file's own XML, so there is no new library;
+  - passages end at a sentence where possible and never run across a page;
+  - a scanned PDF has no text, so it is kept as "No text found" and never searched. No text recognition is done.
+- **How documents answer:**
+  - passages are searched only when no entry matches;
+  - the reply is then "From <title>, page N", the passage, a note that it is "a passage from a document the PG Office uploaded, not a reviewed FAQ answer", **Open document** (a download), and "Did this help?";
+  - the cut-off is `FAQ_DOCUMENT_MATCH`, 0.6 for now: the meaning score with the model, or, with keywords alone, at least two words must agree;
+  - archived documents and those with no text are never quoted.
+- **Who opens a document:** the office always. Students and coordinators only while it is ready and not archived. Lecturers are refused.
+- **Office screen:** a new **Documents** tab (`/faq/documents`):
+  - upload with an optional title (otherwise taken from the file name);
+  - each document shows its file, size, pages, uploader and date, with "Ready, N passages", "No text found (scanned PDF?)" or "Archived";
+  - the ⋯ menu holds Download, Rename, Replace the file, and Archive or Restore.
+- **Dev database:** backed up first (`..._before_faq_documents_2026-10-16.dump`), then migrated to `faq.0003`.
+
+**Browser check** (private servers, smoke accounts, the real model): 14 of 14 pass.
+- **Office:** a text PDF is ready with its passages; a scanned PDF shows "No text found"; a title comes from the file name; renaming works.
+- **Student:** asking "What time does the faculty library open on Saturday?" quotes "From Smoke Library Guide, page 1" with the extract label, and Open document downloads the PDF.
+- **Archive:** after archiving, the same question no longer quotes it.
+- **Layout:** the tab fits at 1440, 1024, 768 and 390 pixels. No console errors.
+- **Afterwards:** the smoke documents, their files, questions, history and accounts were removed.
+- **Small fixes from the screenshots:** small files now show in KB instead of "0 MB", and "1 page" is singular.
+
+**Verification:**
+- Backend: 1,426 pass, 1 skipped (the real model) and 1 fails, Wey Cheng's known test. The 13 new tests cover a text PDF (passages and pages), a scanned PDF, Word text, refusing other types and broken files, rename, replace (the old file deleted), archive and restore, office-only management, a passage answering with no entry, a clear entry winning, archived and unreadable documents never searched, a weak passage refused, keyword mode needing two words, who may open a file, and passages never crossing a page.
+- Frontend: all 148 test scripts pass. `faqOffice.test.ts` now also checks the document wording and that every new history action has words; that guard caught five missing ones, which were added. TypeScript, the build and both production security checks pass.
+
+## FAQ Chatbot, Phase C4: The Office's Knowledge Base Screens (2026-10-16)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `c24dacf`. The office's FAQ page ("FAQ Knowledge Base") replaces the Academic FAQ Editor mock. Its tabs are their own addresses: `/faq`, `/faq/questions`, `/faq/settings`, and entries at `/faq/entries/<id>` and `/faq/entries/new`.
+
+- **Entries:**
+  - a banner says how many imported entries need checking and how many are live, with **Show them** and **Download the review list**;
+  - search, plus Category and Status dropdowns (with counts);
+  - columns for Question (with its problem note, or how many other ways of asking and its portal button), Category, Status (a chip only when not Published) and Updated;
+  - a notice appears if the server is on keyword search only.
+- **Entry page:**
+  - question, other ways students ask (chips), answer with a Preview, category, and portal button;
+  - for an imported entry that needs checking, the PDF's text and its problem sit above the fields, with **Save changes**, **Mark as checked**, and **Mark as checked and publish**;
+  - Save draft and Publish for drafts; Save changes once published; Restore when archived. The ⋯ menu holds Archive and Delete;
+  - **Try it** shows the match (Strong, Possible or none) and the top entries with their scores, marks "This entry", and says when the entry isn't published yet. Nothing is saved;
+  - History.
+- **Student questions:**
+  - four numbers: questions this month, answered, marked helpful, and to look at;
+  - groups of questions with No match or "No", with how often and when they were asked, and what the chatbot did;
+  - **Add as another way to ask**: the closest entries are suggested through Try it, with a search for others;
+  - **Create entry**: opens a new entry with the question filled in, and settles the group once it is saved;
+  - **Dismiss**.
+- **Settings:** the contact text, and up to four common questions for the start screen.
+- **Backend additions:**
+  - `questions/` (`?only=stats` gives just the numbers, for the tab's count) and `questions/review/`;
+  - `settings/`;
+  - list rows carry their number of other ways of asking and the import note.
+- **Grouping by meaning.** The first browser run showed that "where can i park my car at the faculty" and "faculty parking where" did not group, because only identical words did. Groups now also form when questions are close in meaning (0.75 with the model, measured: same-meaning pairs scored 0.80 to 0.89, unrelated about 0.08). Without the model, only the same words group.
+- **The office's corrections:** `python manage.py import_faq_corrections <filled review list>` loads the correct answers, and questions where given. Each corrected entry is checked and published (`--draft` to hold them).
+  - **Fixed on the way:** the workbook was left open, which locked the file on Windows.
+  - **Waiting:** the office has not returned the list yet, so the 61 entries still need checking.
+
+**Browser check** (private servers, smoke accounts, the real model): 36 of 36 pass.
+- **Entries:** the banner and the review list download; checking an imported entry with the preview and another way of asking, then publishing it; Try it finding "This entry"; adding and publishing a new entry with a portal button.
+- **Student questions:** grouping, adding a group to an entry, creating an entry from a group, and dismissing.
+- **Settings and the ⋯ menu:** saving settings; archive and delete.
+- **Layout and roles:** all four pages fit at 1440, 1024, 768 and 390 pixels; a coordinator who opens an entry address gets the chatbot instead.
+- No console errors.
+- Afterwards the smoke entries, questions and accounts were removed, and the settings were restored. Nothing was added to the real entries, and the dev database is back to 56 Published and 61 Needs checking.
+
+**Verification:**
+- Backend: 1,413 pass, 1 skipped (the real model) and 1 fails, Wey Cheng's known test. The 13 new office tests cover grouping (by words and by meaning), add, create and dismiss, the numbers, the settings, office-only access, and the corrections loader (publish, draft, blank rows, unknown entry numbers, missing columns, formula text). Tests never load the real model.
+- Frontend: all 148 test scripts pass, including the new `utils/faqOffice.test.ts`. It checks that every backend status and history action has words. TypeScript, the build and both production security checks pass.
+
+## FAQ Chatbot, Phase C3: The Chat Screen (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `55d961d`. The FAQ Chatbot page now answers from the office's FAQ instead of fixed replies.
+
+- **Start:**
+  - "Hi! I answer questions using the PG Office FAQ. I can't see your own records...";
+  - the six topics as chips. A topic lists its questions;
+  - four common questions above the question box until the first question.
+- **Replies:**
+  - **A clear match:**
+    - the office's answer, with "Matched: ..." when the student asked in other words;
+    - working links and the optional portal button;
+    - the source line ("From the PG Office FAQ · topic");
+    - up to three related questions;
+    - "Did this help? Yes / No".
+  - **A possible match:** "Which one did you mean?" with up to three choices, plus **None of these**.
+  - **No match, "No" and "None of these":** the office's contact text, and "Your question has been passed to the office, without your name, so they can add an answer."
+  - **Errors** show Try again. Too many questions in a minute shows "Please wait a moment".
+- **Who sees it:** students, and now **programme coordinators**, who ask rather than edit (`App.tsx`, one condition). The office keeps the editor screen, which C4 rebuilds.
+- **Safe answers** (`utils/faqText.ts`, `FaqText.tsx`):
+  - **bold**, bullets and `[text](address)` links, plus web and email addresses written out;
+  - only web, email and portal addresses are ever linked; anything else stays text;
+  - no raw HTML is rendered;
+  - outside links open in a new tab with `noopener noreferrer`.
+- **Layout:** the question box stays pinned and lifts above the page footer as before. The conversation is a polite live region for screen readers.
+- **Removed:** the fixed keyword replies, the fake typing delay and the "AI Assistant" labels.
+
+**Browser check** (private servers 8002 and 3002, smoke accounts, the real model): 29 of 29 pass.
+- **Start and answers:** topics and common questions; a topic's question answered; a typed paraphrase answered with "Matched:"; Yes thanked.
+- **Links and No:** a web address answer linking safely; No showing the contact.
+- **Choices and no match:** choices, picking one, and None of these; an off-topic question getting No match.
+- **Errors:** a failed request retried.
+- **Layout:** the footer links stay usable; the chat fits at 1440, 1024, 768 and 390 pixels, also opened straight on a phone.
+- **Roles:** a coordinator gets answers.
+- No unexpected console errors.
+- The run's 9 saved questions and both smoke accounts were removed afterwards.
+
+**Verification:**
+- Frontend: all 147 test scripts pass, including the new `utils/faqText.test.ts`. It covers links, script links refused, raw HTML, bullets and "Matched:", the portal buttons matching the backend, and coordinators getting the chatbot. TypeScript, the build and both production security checks pass.
+- Backend: no change in this phase.
+
+## FAQ Chatbot, Phase C2: Search And Replies (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `62603fe`.
+
+- **New dependency:** `fastembed` 0.9 (it brings `onnxruntime` 1.31 and `numpy` 2.5). It is in `requirements.txt` and installed in `backend/.venv`.
+  - The model, `paraphrase-multilingual-MiniLM-L12-v2`, downloaded once into `backend/faq_model_cache/` (241 MB). The folder is git-ignored.
+- **How an answer is found** (`faq/search.py`):
+  - two searches run over every Published entry and its other ways of asking. A keyword search (BM25, with English and Malay stop words and simple plurals) catches exact terms; the meaning model catches paraphrases and Malay;
+  - the two rankings are merged with reciprocal rank fusion;
+  - the top entry's confidence decides: Strong shows the answer with up to three related questions, Possible offers up to three choices, and anything lower is No match with the office's contact text;
+  - the starting cut-offs are 0.72 and 0.5 (`FAQ_STRONG_MATCH`, `FAQ_POSSIBLE_MATCH`). They are set properly from the evaluation in C6.
+- **Speed and storage:**
+  - the model loads once per process, lazily, never at import;
+  - vectors are stored in `FaqVector`, keyed by model and a fingerprint of the text, so nothing is worked out twice;
+  - the index rebuilds itself when entries, other ways of asking or category names change.
+- **No model, still answers.** If the model can't be loaded, keyword search carries on alone, and `search-status/` tells the office. `FAQ_SEARCH=keywords` forces it.
+- **API:**
+  - `start/`, `ask/` (also for a picked choice or related question) and `feedback/`, for students and programme coordinators;
+  - `try/` (saves nothing, shows the scores) and `search-status/`, for the office;
+  - lecturers are refused, as they have no FAQ menu.
+- **Saved questions** (`FaqQuestion`) keep the text, outcome, entry shown, score, search mode and "Did this help?", but no name or student ID. "Did this help?" needs the signed token from that answer.
+  - `purge_faq_questions` deletes questions after 12 months.
+  - At most 30 questions a minute per person.
+- **New settings row** (`FaqSettings`): the contact text and the four common questions. The office edits them in C4; until then the start screen suggests one question per topic.
+- **Dev database:** migrated to `faq.0002`.
+  - **Slip:** the backup was taken just after this migration rather than before (`..._before_faq_search_after_0002_2026-10-15.dump`). The migration only adds three new empty tables, so nothing was at risk.
+- **First run on the real FAQ** (Try it, nothing saved):
+  - the first answer takes about 4 seconds (loading, and working out the 56 questions once); later ones take 10 to 30 ms;
+  - "how to apply?" is a Strong match;
+  - "where to buy nasi lemak" gets No match;
+  - questions whose only entry still needs checking (PTPTN, weekend classes) correctly find nothing.
+- **Docs:** `backend/README.md` covers asking, the search, the model and the commands (`rebuild_faq_index`, `purge_faq_questions`).
+
+**Verification:**
+- Backend: 1,400 pass, 1 skipped (the real-model check) and 1 fails, Wey Cheng's known test. The 28 new tests use a small fake encoder and cover:
+  - a Malay question finding the English entry, and keywords rescuing an exact term the model misses;
+  - choices, no match, and only Published entries ever found;
+  - the index following changes, and vectors kept;
+  - questions saved without identity, feedback tokens, and picking a choice;
+  - who may ask, Try it saving nothing, the rate limit, keyword fallback and a model that won't load;
+  - deleting after 12 months.
+- With `FAQ_REAL_MODEL_TESTS=1`, the real model finds the English entry for a Malay question (it passes).
+- `check` and `makemigrations --check` are clean.
+
+## FAQ Chatbot, Phase C1: The Knowledge Base Backend (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `b4ec50e`.
+
+- **New app `backend/faq/`** (migration `faq.0001`):
+  - `FaqCategory`;
+  - `FaqEntry`, with four statuses: Published, Draft, Needs checking and Archived, plus the PDF's own text for imported rows;
+  - `FaqAltQuestion`, for other ways students ask;
+  - `FaqChange`, the history, which cannot be edited or deleted.
+
+  Only Published entries are ever searchable (`FaqEntry.objects.published()`).
+- **API** at `/api/faq/`, for Office Staff/Admin only:
+  - entries: list with search, category and status filters and counts per status; create; edit; delete;
+  - status actions: publish, mark as checked, archive, restore;
+  - categories: list, add, rename;
+  - the review list as an Excel download.
+- **Answers:** links must start with `https://`, `http://`, `mailto:` or `/`. A script link is refused.
+- **Import** (`python manage.py import_faq`, from `docs/faq/faq-entries.json`):
+  - **56 Published**: the clean category rows;
+  - **61 Needs checking**: 37 damaged category rows, plus the 24 rows found only on the PDF's "ALL" sheet, placed in the category of the row before them;
+  - **46 skipped**: "ALL" rows that repeat a categorised question exactly, so none of them added another way of asking;
+  - the six categories get plain names, in PDF order. The spelling slips are fixed;
+  - running it again adds nothing and never overwrites the office's edits.
+- **Review list for the office** (`python manage.py export_faq_review`): one Excel sheet of the 61 entries to check, with the question and answer now, the PDF's text, what looks wrong, and empty columns for the corrections. Text that starts like a formula is made safe.
+  - **To send to the office:** `Final Year Project/faq-review-2026-10-15.xlsx` (outside the repository).
+- **Dev database:** backed up (`..._before_faq_app_2026-10-15.dump`), migrated to `faq.0001`, and the FAQ imported.
+- **Docs:** `backend/README.md` has an FAQ knowledge base section.
+
+**Verification:**
+- Backend: 1,373 of 1,374 pass. The one failure is Wey Cheng's known test. The 32 new tests cover:
+  - the import counts per status and categories;
+  - running twice, and the office's edits kept;
+  - Needs checking never searchable, the PDF text kept, and the nearest category for "ALL" rows;
+  - the review list, and formula safety;
+  - office-only access, safe links, other ways of asking, the status steps, delete with history, and the list filters.
+- `check` and `makemigrations --check` are clean. No frontend change.
+
+## Staff Accounts, Phase S3: The Screens; UC03 Complete (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part B. Commit `d97177f`. **This completes UC03.** Registry > Staff & Lecturers now runs on live data, and the office no longer needs Django admin to make staff accounts.
+
+- **Pages** (office only; anyone else who opens them is sent back to `/registry`):
+  - **`/registry/staff`, the list:**
+    - search, plus Role and Status dropdowns;
+    - columns for name and email, role with duties or programme underneath, status (a chip only when not Active) and last signed in;
+    - pages of 25;
+    - one main button, **Add account**. There are no summary cards.
+  - **`/registry/staff/new`, Add account:**
+    - pick one of three role cards first; only that role's fields then appear;
+    - lecturers tick their duties, with a reminder about Lecturer capacity;
+    - coordinators pick a programme, and programmes that already have a coordinator are greyed out with the coordinator's name;
+    - the "Send the activation email now" tick is on by default;
+    - a duplicate email or Staff ID names its holder, with an "Open their account" link;
+    - leaving a filled form asks first.
+  - **`/registry/staff/<id>`, the account page:**
+    - Details, with Edit details in a dialog;
+    - Duties as ticks. A duty with open work can't be unticked and lists that work;
+    - a capacity line read from Lecturer capacity;
+    - History;
+    - an Access box with one fitting action: send activation email (or copy the link), send password reset link, or turn sign-in back on.
+
+    The ⋯ menu holds "Turn off sign-in" and "Delete account". Each one opens a dialog that explains first when it can't go ahead: the open work for sign-in, or the reasons for delete. The same dialog offers "Turn off sign-in instead". Coordinators get Change programme, which shows what waits in each programme before moving.
+- **Created accounts** open on their own page with the activation outcome. If the email failed, the page offers **Try again** and **Copy the link**.
+- **The mock is gone.** `getStaff`, `MOCK_STAFF`, `MOCK_DEPARTMENTS` and the `StaffRecord` type are removed. They are replaced by `types/staffAccount.ts`, `services/staffAccountsApi.ts` and `utils/staffAccounts.ts`.
+- **Code layout:**
+  - `StaffLecturersRegistry.tsx` keeps its exported names.
+  - The Students / Staff & Lecturers switcher moved to `RegistryModuleTabs.tsx` and now changes the address.
+  - Shared files have additive changes only: `App.tsx` (one lazy route) and `constants/routes.ts`.
+- **Fixed on the way: `SelectMenu` inside a dialog.** A modal dialog leaves the rest of the page inert and below it, so a dropdown list opened inside one could not be clicked. The list now opens inside the dialog. This also fixes the programme dropdown in File Management's "Who can see this file?" dialog.
+- **Design decisions for the report:**
+  - **D9.** One role per account. A lecturer's duties (Supervisor, Panel member) give several roles at once (FR-06), with no separate permission editor (UC03 "configure permissions").
+  - **D10.** Used accounts are switched off, not deleted, so history and audits stay. Only an account added by mistake, never signed in and linked to nothing, can be deleted (UC03).
+
+**Browser check** (private servers 8002 and 3002, smoke accounts only): 49 of 49 pass.
+- **Accounts:** the list and filters, adding a lecturer with the email sent, editing, adding a duty, copying the link, and deleting the unused account.
+- **Refusals:** a duplicate email and Staff ID refused with links; the leave-page warning.
+- **Blocked actions:** an unremovable duty, and sign-in off and delete explained for a lecturer with a waiting request.
+- **Sign-in and programme:** sign-in off and back on; a coordinator's programme move, with the taken programme greyed out; no risky actions on your own account.
+- **Widths:** the list, account page and form fit at 1440, 1024, 768 and 390 pixels.
+- **Other roles:** a coordinator and a lecturer are sent back from `/registry/staff`, see no tab, and get 403 from the API.
+- No unexpected console errors.
+- Emails went to the console only. Smoke data was removed afterwards: the dev database is back to 8 staff accounts, no history rows, and the demo coordinator unchanged.
+
+**Verification:**
+- Frontend: all 146 test scripts pass, including the new `utils/staffAccounts.test.ts`. It also checks that every backend work count and history action has words. TypeScript, the build and both production security checks pass.
+- Backend: no change in this phase, so the S2 run stands (1,341 of 1,342, with only Wey Cheng's known test failing).
+
+## Staff Accounts, Phase S2: The Rules (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part B. Commit `2eeb89a`. The backend for staff accounts is complete; the screens come in S3.
+
+- **Duties** (`POST /api/registry/staff/<id>/duties/`):
+  - only lecturer accounts have them;
+  - a duty is added only while the lecturer is active and can sign in;
+  - a duty is removed only when nothing open needs it, and the refusal lists that work:
+    - Supervisor: active supervision or co-supervision, and supervisor requests or co-supervisor nominations still waiting;
+    - Panel: active panel appointments and nominations still waiting.
+- **Capacity line.** The account page reads Lecturer capacity through Wey Cheng's resolver, read-only.
+  - A new duty shows "not configured" until the office adds a limit there.
+  - A limit left behind for a removed duty is flagged.
+- **Coordinator programme** (`programme/`):
+  - can move to a programme no other active coordinator manages, or to none;
+  - `check` counts the approvals waiting in the old and new programme first: supervisor requests, co-supervisor nominations, panel nominations and amendments.
+- **Sign-in off and on** (`sign-in/`). Turning it off:
+  - needs a reason and ends every session;
+  - is refused for your own account and for the last office account;
+  - is refused while `lecturer_blockers` (Wey Cheng's, read-only) shows open work, which is listed, and points to Participant lifecycle.
+
+  Turning it back on is refused for a retired lecturer, and for a coordinator whose programme someone else now manages.
+- **Delete.**
+  - Only for an account that has never signed in and that no record points to.
+  - The check goes through every table linked to the account or its lecturer profile, hidden links included (letters), apart from its own profile, duties, notices and history.
+  - Otherwise the reasons come back and the office turns sign-in off instead.
+- **The account page** now carries `capacity`, `activeWork` and `deletion`, so S3 can explain each action before it is tried.
+
+**Verification:**
+- Backend: 1,341 of 1,342 pass. The one failure is Wey Cheng's known `appointments.test_capacity_reassessment_migration`. The 32 new tests cover each blocker for duties and sign-in off, your own account, the last office account, sessions ending, delete refused for linked records (including a letter and a capacity entry), the programme clash, the approvals check, two quick conflicting changes, and office-only access.
+- `check` and `makemigrations --check` are clean.
+- No new migration. No frontend change in this phase.
+
+## Staff Accounts, Phase S1: Backend (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part B. Commit `8efcbec`. The office can now add and look after staff accounts through the API; the screens come in S3.
+
+- **New model:** `accounts.AccountChange` (migration `accounts.0014`), the account history.
+  - Each row records who made the change, when, and what changed.
+  - Rows cannot be edited or deleted, and they keep the name and email after an account is deleted.
+- **API** at `/api/registry/staff/`, for Office Staff/Admin only:
+  - list, with search, role, status and pages;
+  - add;
+  - options (departments in use, and each programme's coordinator);
+  - details and edit;
+  - send link and copy the activation link;
+  - history.
+- **Adding an account:**
+  - no password is made; the activation link has no time limit, as for imported students;
+  - lecturers get their ticked duties (Supervisor, Panel);
+  - coordinators get their programme, and a programme that already has a coordinator who can sign in is refused;
+  - office accounts also get `is_staff` and the marks permissions, as `seed_users` gives the demo office. Without them the office actions on participant lifecycle, delegations, capacity reassessment and marks refuse the account.
+- **Duplicates:** the email (ignoring letter case) and the Staff ID (across office staff and lecturers, and never a student's matric number) are refused, and the refusal names the account that holds them.
+- **Editing:**
+  - the role, duties and programme are refused here (duties and programme come in S2);
+  - an email change tells the old address, but only for an activated account. Old links stop working.
+- **Links:**
+  - "Send link" sends activation until a password is set, then the 30-minute reset link, and is limited per account;
+  - only an activation link can be copied, so the office never gets into an account that has a password.
+- **Docs:** `backend/README.md` has a Staff account endpoints section.
+
+**Verification:**
+- Backend: 1,309 of 1,310 pass. The one failure is Wey Cheng's known `appointments.test_capacity_reassessment_migration`. The 39 new tests cover each role's profile rows, duplicates across tables, the activation email sent once, send later, a failed email, a race, reset only after activation, office-only access, filters, and history.
+- `check` and `makemigrations --check` are clean.
+- The dev database was backed up (`..._before_staff_accounts_2026-10-15.dump`) and migrated to `accounts.0014`.
+- No frontend change in this phase.
+
+## Appointment Letters, Phase L3: Students And Lecturers; UC22 Complete (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part A. Commit `1040211`. **This completes UC22.**
+
+- **The letter page.** It lives at `/files/letters/<id>`, in Files, because lecturers have no Letter Generation menu.
+  - It shows the reference, the issue date, who the letter was sent to, the A4 letter with its own signatory and the office disclaimer, and **Download PDF**.
+  - Back goes to the student's files for staff, and to File Submission for students.
+  - Anyone the letter was not sent to sees "This letter isn't available to you."
+- **Notices.**
+  - `APPOINTMENT_LETTER` notices open the letter page.
+  - The office's "appointment letter not made" notices open Issued Letters.
+- **Lecturers.** On a student's files, the header lists "Your appointment letters" with links, from `GET /api/letters/appointment-letters/received/`.
+- **Students.**
+  - File Submission's "Letters from the office" now includes appointment letters, marked "issued".
+  - My Requests labels them "Sent automatically".
+  - A letter still waiting for the office stays hidden.
+- **Docs:** `backend/README.md` has the appointment letter endpoints and rules.
+
+**Browser check** (private servers 8002 and 3002, smoke accounts only): 16 of 16 pass.
+- The supervisor opens the letter from the notice, downloads the PDF, reaches it from the student's files, and goes back.
+- Another lecturer is refused.
+- The student opens it from the notice at phone width and sees it in File Submission.
+- A waiting letter stays hidden and cannot be opened.
+- No console errors apart from the planned 404s.
+- With "Email alerts" on, the supervisor's email (console backend) read "Appointment letter: supervisor for …" and linked to `/files/letters/<id>`.
+- Smoke data was removed afterwards.
+
+**Verification:**
+- Frontend: all 145 test scripts pass, plus TypeScript, the build and both production security checks.
+- Backend: L3 changed no backend code, so the L2 run stands (1,270 of 1,271, with only Wey Cheng's known test failing).
+
+## Appointment Letters, Phase L2: Office Screens (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part A. Commit `54a6e97`.
+
+**Template editor:**
+- **Used For.** Three cards: Student requests, Supervisor appointment letter, Panel appointment letter. Choosing an appointment letter shows a note on who receives it.
+- **Signatory.** "Signed by" name and title fields.
+- **Placeholders.**
+  - Tags are grouped into "Student record" and "Appointment". Appointment tags appear only for the letter kinds that can use them.
+  - The placeholder check uses the same rules and hint wording as the server.
+- **Library.** It marks templates that are sent automatically.
+- **Preview.** It prints the template's own signatory and, for appointment letters, the office disclaimer.
+
+**Issued Letters:**
+- **Missing-letters banner.** It appears only when approved appointments have no letter. It shows how many can be made now, why the others cannot, and a "See which appointments" list, with **Create N letters** and **Set up template**.
+- **Made by filter.** All, Student requests, or Sent automatically.
+- **Letter view.** It says who the letter was sent to. For appointment letters, its footer offers **Reissue with current details** (rather than a menu clipped by the scrolling table).
+
+**Requests:**
+- A waiting appointment letter is labelled as made automatically and shows "Goes to".
+- It has no Reject and no student note, and is issued with **Issue letter**.
+- The preview shows who will sign it.
+
+**Shared:**
+- `LetterPages`, the print window and `letterDataFromIssued` use each letter's own closing lines (`letterClosing`).
+- Every letter's API row now carries its signatory.
+
+**Browser check** (private servers 8002 and 3002, smoke accounts only): 33 of 33 pass.
+- Covered: the editor, the panel and supervisor tag rules, the banner and its button, the Made by filter, the letter view and reissue, and the Requests review and issue.
+- Widths: 360, 390, 768 and 1440 px all fit, with no console errors.
+- The banner's Create button was answered in the browser, so no letters were made for the dev database's real demo appointments.
+
+**Found and fixed during the check:** the preview of a *waiting* letter showed the default signatory. A waiting letter has no signatory copy until issued, so the review data now carries the template's signatory, and a backend test covers it.
+
+**Smoke data:** removed afterwards, including the "waiting" notices sent to the three real office accounts. The Files smoke cleanup now also removes appointment-letter notices, since its setup creates appointments.
+
+**Verification:**
+- Backend: 1,270 of 1,271 tests pass; the one failure is Wey Cheng's known migration test.
+- Frontend: all 145 test scripts pass, plus TypeScript, the build and both production security checks.
+
+## Appointment Letters, Phase L1: Backend (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part A (UC22).
+
+**Before building:**
+- Wey Cheng's PR #19 (`ee8b3fb`) was fast-forwarded into `Xiang` after a walkthrough.
+- The dev database was backed up and migrated to `appointments.0016` (course codes).
+- One test fails on `main` itself and belongs to his file: `appointments.test_capacity_reassessment_migration` compares rows after migrating to the latest migration, and his new `project_course_codes` column adds a key. Xiang passes it on.
+
+**What L1 adds (backend only):**
+- **Template purpose.**
+  - A template is used for *Student requests*, a *Supervisor appointment letter* or a *Panel appointment letter* (`LetterTemplate.purpose`).
+  - Only one Active template per appointment letter kind; a database constraint covers races.
+  - Students never see or request appointment templates.
+  - A template's purpose cannot change while its letters wait for a decision.
+- **Signatory.** Templates have an optional "Signed by" name and title. Each letter keeps its own copy, and the PDF prints it.
+- **Appointment placeholders.** Twelve new tags, for example `{{RESEARCH_TITLE}}`, `{{COURSE_CODES}}` (from Wey Cheng's new field), `{{PANEL_NAME}}`, `{{COORDINATOR_NAME}}` and `{{SEMESTER}}`. Each works only in the letter kinds it fits, and the template check says which.
+- **The hook.**
+  - `letters/signals.py` hears a new active Supervisor or Panel appointment and makes the letter once the approval is saved (`transaction.on_commit`, robust).
+  - No teammate file was changed.
+  - A failed letter never undoes an approval.
+- **Making the letter** (`letters/appointment_letters.py`):
+  - Issued at once from the active template.
+  - Recipients: the student and the supervisor; for panel letters, the panel member too, with the current primary supervisor in copy.
+  - Each person gets an in-app notice and, when email alerts are on, an email linking to `/files/letters/<id>`.
+  - If a value is blank or the template has office-filled fields, the letter waits in Requests for the office instead.
+  - At most one live letter per appointment, guarded by the database.
+- **When there is no usable template** (or the panel profile has no student), the office gets one notice per appointment. `GET /api/letters/appointment-letters/missing/` lists active appointments without letters, and `POST .../create/` makes them (chosen ones, or `all`).
+- **Reissue.** `POST /api/letters/requests/<id>/reissue/` issues the letter again with current details, such as an amended research title. The old letter is revoked as "Replaced by <ref>." and everyone is told.
+- **Access.**
+  - Lecturers on a letter can open it and its PDF; `GET .../appointment-letters/received/` lists theirs.
+  - Students see appointment letters only once issued, and cannot withdraw them.
+  - The office's letter list filters by `madeBy=request|automatic`.
+  - Rejecting a waiting appointment letter tells no student.
+  - Revoking and resending reach everyone on the letter.
+- **Migration:** `letters.0005` (dev DB backed up first, then migrated). The frontend placeholder and disclaimer mirrors (`letterDocument.ts`) and their tests were updated.
+
+- **Migration dependency.** `letters.0005` depends on `appointments.0004`, where `SupervisorAppointment` was created, not on the newest appointments migration. Wey Cheng's migration tests roll appointments back to 0012 or 0014 while keeping every other app at its latest. A dependency on 0016 broke `test_amendment_migration`; 0004 keeps his tests as they were.
+
+**Commit:** `df853d9`.
+
+**Verification:**
+- **Backend:** 1,269 of 1,270 tests pass, including 28 new ones in `letters/test_appointment_letters.py`.
+  - One test goes through the real approval endpoints: apply, accept, approve, then panel recommend, accept, approve.
+  - The one failure is the known teammate test above, which fails the same way on `main`.
+- **Checks:** Django checks and the migration-drift check are clean. The dev DB is consistent (`migrate --check`).
+- **Frontend:** all 144 test scripts pass, plus TypeScript, the production build and both production security guards.
+- **Not yet:** a browser check, because L1 has no screens. That comes in L2 and L3.
+
 ## Current-change snapshot prepared for branch push (2026-10-15)
 
 At the user's request, packaged all current tracked/untracked project changes on `codex/portal-consistency-and-toast` for commit and push; the user will create the PR. Included existing Supervisor/shared-decision/programme-access/workspace work, tests, handoffs and the proposed Panel design. Private environment/credential files and database backups remain excluded; staged filename/content checks found no recognised credential patterns. Removed whitespace only in two staged files. Requirements and architecture were checked and retain the current implemented/proposed boundaries. No new Panel redesign implementation.

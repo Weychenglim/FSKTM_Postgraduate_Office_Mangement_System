@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  APPOINTMENT_PLACEHOLDERS,
   LETTER_PLACEHOLDERS,
   fieldNameFromLabel,
   fieldNameProblem,
@@ -17,10 +18,29 @@ const serverEntries = [...registry.matchAll(/^\s+"([A-Z_]+)": \("([^"]+)",/gm)].
 );
 assert.ok(serverEntries.length > 0, 'could not read letters/placeholders.py');
 assert.deepEqual(
-  LETTER_PLACEHOLDERS.map((p) => ({ tag: p.tag, label: p.label })),
+  [...LETTER_PLACEHOLDERS, ...APPOINTMENT_PLACEHOLDERS].map((p) => ({ tag: p.tag, label: p.label })),
   serverEntries,
-  'LETTER_PLACEHOLDERS must match letters/placeholders.py',
+  'LETTER_PLACEHOLDERS and APPOINTMENT_PLACEHOLDERS must match letters/placeholders.py',
 );
+
+// each appointment tag works in the same letter kinds as on the server
+const purposeBlock = registry.match(/^APPOINTMENT_PURPOSES = \{([\s\S]*?)^\}/m)?.[1] ?? '';
+const purposeNames: Record<string, string[]> = {
+  _BOTH: ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT'],
+  '(SUPERVISOR_LETTER,)': ['SUPERVISOR_APPOINTMENT'],
+  '(PANEL_LETTER,)': ['PANEL_APPOINTMENT'],
+  '(REQUEST,)': ['REQUEST'],
+};
+const serverPurposes = [...purposeBlock.matchAll(/^\s+"([A-Z_]+)": ([^\n]+),$/gm)].map(([, name, value]) => ({
+  tag: `{{${name}}}`,
+  purposes: purposeNames[value.trim()],
+}));
+assert.deepEqual(
+  APPOINTMENT_PLACEHOLDERS.map((p) => ({ tag: p.tag, purposes: [...p.purposes] })),
+  serverPurposes,
+  'APPOINTMENT_PLACEHOLDERS purposes must match letters/placeholders.py',
+);
+assert.match(fieldNameProblem('PANEL_NAME', []) ?? '', /built-in/);
 
 // the editor check agrees with the server's rules
 assert.deepEqual(findPlaceholderProblems('Dear {{STUDENT_NAME}}, ref {{REFERENCE_NUMBER}}'), { unknown: [], malformed: [] });
@@ -61,12 +81,15 @@ assert.match(preview, /title="Filled in by the office when approving"[^>]*>\{\{A
 assert.match(preview, /title="Unknown placeholder"[^>]*>\{\{OOPS\}\}/);
 
 // the editor runs a real check, including the template's own fields
-const editor = readFileSync(resolve('src/components/LetterTemplateManagement.tsx'), 'utf8');
+const editor = ['LetterTypeEditor', 'LetterWordingEditor'].map((name) => readFileSync(resolve(`src/components/${name}.tsx`), 'utf8')).join('\n');
+const shell = readFileSync(resolve('src/components/LetterTemplateManagement.tsx'), 'utf8');
 assert.doesNotMatch(editor, /visual layout assertion check/);
-assert.match(editor, /findPlaceholderProblems\(editorContent, editorFields\.map/);
-assert.match(editor, /getLetterPlaceholders\(\)/);
-assert.match(editor, /<option value="Archived">/);
-assert.match(editor, /<OfficeFieldsEditor\b/);
+assert.match(editor, /const names = \[\.\.\.editorFields\.map\(\(f\) => f\.name\), \.\.\.questionNames\(draft\.questions\)\];/, 'office blanks and student questions are known tags');
+assert.match(editor, /findPlaceholderProblems\(editorContent, names, editorPurpose\)/);
+assert.match(editor, /findPlaceholderProblems\(editorContentMs, names, editorPurpose\)/, 'the Malay page is checked too');
+assert.match(shell, /getLetterPlaceholders\(\)/);
+assert.match(editor, /value: 'Archived' as const/, 'a letter type can be archived');
+assert.match(editor, /fieldNameFromLabel\(label, officeTags\)/, 'a new blank never takes a question\'s tag');
 assert.match(editor, /customFields: editorFields/);
 
 console.log('Letter placeholder parity tests passed.');

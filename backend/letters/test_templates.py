@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from .models import LetterTemplate
-from .placeholders import PLACEHOLDERS
+from .placeholders import ALL_PLACEHOLDERS, PLACEHOLDERS
 
 User = get_user_model()
 
@@ -128,7 +128,7 @@ class PlaceholderValidationTests(APITestCase):
     def test_placeholder_catalogue_lists_every_tag_and_needs_authentication(self):
         response = self.client.get("/api/letter-templates/placeholders/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual([item["name"] for item in response.data], list(PLACEHOLDERS))
+        self.assertEqual([item["name"] for item in response.data], list(ALL_PLACEHOLDERS))
         self.assertEqual(response.data[0]["tag"], "{{STUDENT_NAME}}")
         self.assertTrue(all(item["label"] and item["source"] for item in response.data))
 

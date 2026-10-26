@@ -615,3 +615,68 @@ class CoordinatorDelegation(models.Model):
     def delete(self, *args, **kwargs):
         from django.core.exceptions import ValidationError
         raise ValidationError('Delegation records cannot be deleted.')
+
+
+class AccountChangeQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("Account history cannot be changed.")
+
+    def delete(self):
+        raise ValidationError("Account history cannot be deleted.")
+
+
+class AccountChange(models.Model):
+    """One change to an office staff, lecturer or coordinator account (UC03).
+
+    Rows are never edited or deleted. Each keeps the account's name and email
+    as text, so the history still reads after the account itself is deleted.
+    """
+
+    class Action(models.TextChoices):
+        CREATED = "CREATED", "Account created"
+        DETAILS_EDITED = "DETAILS_EDITED", "Details edited"
+        EMAIL_CHANGED = "EMAIL_CHANGED", "Email changed"
+        DUTIES_CHANGED = "DUTIES_CHANGED", "Duties changed"
+        PROGRAMME_CHANGED = "PROGRAMME_CHANGED", "Programme changed"
+        SIGN_IN_OFF = "SIGN_IN_OFF", "Sign-in turned off"
+        SIGN_IN_ON = "SIGN_IN_ON", "Sign-in turned back on"
+        LINK_SENT = "LINK_SENT", "Link sent"
+        LINK_COPIED = "LINK_COPIED", "Activation link copied"
+        DELETED = "DELETED", "Account deleted"
+
+    account = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="account_changes",
+    )
+    account_name = models.CharField(max_length=255)
+    account_email = models.CharField(max_length=254)
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="account_changes_made",
+    )
+    actor_name = models.CharField(max_length=255, blank=True)
+    action = models.CharField(max_length=32, choices=Action.choices)
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    objects = AccountChangeQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"{self.get_action_display()}: {self.account_name}"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("Account history cannot be changed.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Account history cannot be deleted.")

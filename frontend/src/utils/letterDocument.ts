@@ -17,7 +17,7 @@
  * are shared by both, and by the PDF copy on the server.
  */
 
-import type { GeneratedLetter } from '../types';
+import type { GeneratedLetter, LetterPurpose } from '../types';
 
 /** Static faculty letterhead details, shared by the preview and the printout. */
 export const LETTERHEAD = {
@@ -33,9 +33,35 @@ export const LETTERHEAD = {
   disclaimer:
     "This letter is issued upon the student's request for official purposes only. " +
     'Any alteration to this document shall render it invalid.',
+  appointmentDisclaimer:
+    'This letter is issued by the postgraduate office for official purposes only. ' +
+    'Any alteration to this document shall render it invalid.',
+  malayDisclaimer:
+    'Surat ini dikeluarkan atas permintaan pelajar untuk urusan rasmi sahaja. ' +
+    'Sebarang pindaan pada dokumen ini menjadikannya tidak sah.',
   signatoryName: 'Dean of Postgraduate Studies',
   signatoryOffice: 'FSKTM Office Executive Secretariat',
 } as const;
+
+export type LetterLanguage = 'en' | 'ms';
+
+/** The words printed around the body, on the English page and the Malay one. */
+export const LETTER_WORDS = {
+  en: { reference: 'Our Ref', date: 'Date', stamp: 'Computer-generated. Verify with the PG Office.', page: 'Page', of: 'of', continued: 'continued' },
+  ms: { reference: 'Rujukan Kami', date: 'Tarikh', stamp: 'Dijana oleh komputer. Sahkan dengan Pejabat PG.', page: 'Muka surat', of: 'daripada', continued: 'sambungan' },
+} as const;
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MALAY_MONTHS = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+
+/** A letter date in Malay: "23 October 2026" becomes "23 Oktober 2026". */
+export function malayLetterDate(date: string): string {
+  return date.replace(/[A-Za-z]+/g, (word) => {
+    const index = MONTHS.findIndex((month) => month.toLowerCase() === word.toLowerCase());
+    if (index < 0) return word;
+    return word === word.toUpperCase() ? MALAY_MONTHS[index].toUpperCase() : MALAY_MONTHS[index];
+  });
+}
 
 /** Everything needed to render one letter (body is already substituted). */
 export interface LetterData {
@@ -44,9 +70,15 @@ export interface LetterData {
   date: string;
   /** Letter body with placeholders already filled in. Blank lines = paragraphs. */
   bodyParagraphs: string;
+  /** The Malay page's body, printed as a second page when there is one. */
+  bodyParagraphsMs?: string;
   /** Used only to name the saved PDF file. */
   studentName: string;
   matricNumber: string;
+  /** The closing lines; the faculty defaults when left out. */
+  disclaimer?: string;
+  signatoryName?: string;
+  signatoryOffice?: string;
 }
 
 /** The placeholder tags a template author can use, with friendly labels. */
@@ -71,7 +103,55 @@ export const LETTER_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string }> 
   { tag: '{{EXPECTED_COMPLETION}}', label: 'Expected Completion' },
 ];
 
+const APPOINTMENT_LETTERS: ReadonlyArray<LetterPurpose> = ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT'];
+
+/** What each kind of template is called where its tags are explained. */
+const PURPOSE_PLURAL: Record<LetterPurpose, string> = {
+  REQUEST: 'student request letters',
+  SUPERVISOR_APPOINTMENT: 'supervisor appointment letters',
+  PANEL_APPOINTMENT: 'panel appointment letters',
+};
+
+export const isAppointmentLetter = (purpose: LetterPurpose | undefined) => purpose === 'SUPERVISOR_APPOINTMENT' || purpose === 'PANEL_APPOINTMENT';
+
+/**
+ * Tags only some letter kinds may use: appointment letters' tags, filled from
+ * the approved appointment, and request letters' tags, filled from who the
+ * student said the letter is for.
+ */
+export const APPOINTMENT_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string; purposes: ReadonlyArray<LetterPurpose> }> = [
+  { tag: '{{RESEARCH_TITLE}}', label: 'Research Title', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{RESEARCH_AREA}}', label: 'Research Area', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{COURSE_CODES}}', label: 'Course Codes', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{SUPERVISOR_DEPARTMENT}}', label: 'Supervisor Department', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{SUPERVISOR_ACCEPTED_DATE}}', label: 'Supervisor Accepted On', purposes: ['SUPERVISOR_APPOINTMENT'] },
+  { tag: '{{PANEL_NAME}}', label: 'Panel Member', purposes: ['PANEL_APPOINTMENT'] },
+  { tag: '{{PANEL_DEPARTMENT}}', label: 'Panel Department', purposes: ['PANEL_APPOINTMENT'] },
+  { tag: '{{PANEL_ACCEPTED_DATE}}', label: 'Panel Accepted On', purposes: ['PANEL_APPOINTMENT'] },
+  { tag: '{{COORDINATOR_NAME}}', label: 'Approved By', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{APPROVED_DATE}}', label: 'Approved On', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{APPOINTMENT_DATE}}', label: 'Appointment Date', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{SEMESTER}}', label: 'Semester', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{RECIPIENT}}', label: 'Recipient', purposes: ['REQUEST'] },
+  { tag: '{{VALID_UNTIL}}', label: 'Valid Until', purposes: ['REQUEST'] },
+  { tag: '{{BALANCE_SEMESTERS_MIN}}', label: 'Semesters Left (Minimum)', purposes: ['REQUEST'] },
+  { tag: '{{BALANCE_SEMESTERS_MAX}}', label: 'Semesters Left (Maximum)', purposes: ['REQUEST'] },
+];
+
 const KNOWN_TAGS = new Set(LETTER_PLACEHOLDERS.map((p) => p.tag));
+const ALL_TAGS = new Set([...KNOWN_TAGS, ...APPOINTMENT_PLACEHOLDERS.map((p) => p.tag)]);
+const TAG_PURPOSES = new Map(APPOINTMENT_PLACEHOLDERS.map((p) => [p.tag, p.purposes]));
+
+/** The tags a template used for `purpose` may use, besides its own fields. */
+export function placeholdersFor(purpose: LetterPurpose = 'REQUEST') {
+  return [...LETTER_PLACEHOLDERS, ...APPOINTMENT_PLACEHOLDERS.filter((p) => p.purposes.includes(purpose))];
+}
+
+/** For a tag only some letter kinds may use, which ones; else null. Same wording as the server. */
+export function placeholderPurposeHint(tag: string): string | null {
+  const purposes = TAG_PURPOSES.get(tag);
+  return purposes ? `${tag} works only in ${purposes.map((p) => PURPOSE_PLURAL[p]).join(' and ')}.` : null;
+}
 const TOKEN_RE = /\{\{([^{}]*)\}\}/g;
 const TRIPLE_RE = /\{\{\{[^{}]*\}\}\}/g;
 const STRAY_BRACES_RE = /\{\{[^{}\n]{0,40}|[^{}\n]{0,40}\}\}/g;
@@ -83,19 +163,22 @@ const SINGLE_TAG_RE = /(?<!\{)\{[A-Z_]+\}(?!\})/g;
  * The same check the server runs before saving (`letters/placeholders.py`):
  * tags that are not supported, tags in triple or single braces, and
  * `{{`/`}}` pairs that are not a well-formed `{{NAME}}` tag. The template's own
- * office-filled fields (`customNames`) count as supported.
+ * office-filled fields (`customNames`) count as supported, and so do the
+ * appointment tags its `purpose` allows.
  */
 export function findPlaceholderProblems(
   content: string,
   customNames: readonly string[] = [],
+  purpose: LetterPurpose = 'REQUEST',
 ): { unknown: string[]; malformed: string[] } {
   const own = new Set(customNames.map((name) => `{{${name}}}`));
+  const allowed = new Set(placeholdersFor(purpose).map((p) => p.tag));
   const unknown: string[] = [];
   const malformed: string[] = [...(content.match(TRIPLE_RE) ?? [])];
   const rest = content.replace(TRIPLE_RE, ' ');
   for (const [token, name] of rest.matchAll(TOKEN_RE)) {
     if (!/^[A-Z_]+$/.test(name)) malformed.push(token);
-    else if (!KNOWN_TAGS.has(token) && !own.has(token)) unknown.push(token);
+    else if (!allowed.has(token) && !own.has(token)) unknown.push(token);
   }
   const leftover = rest.replace(TOKEN_RE, ' ');
   malformed.push(...(leftover.match(SINGLE_TAG_RE) ?? []));
@@ -120,18 +203,18 @@ const TAG_STYLES = {
  * window. When `highlightPlaceholders` is on (the staff editor preview), any
  * leftover `{{TAG}}` is wrapped in a highlight chip.
  */
-function applyInlineMarkup(raw: string, highlightPlaceholders: boolean, officeTags: ReadonlySet<string>): string {
+function applyInlineMarkup(raw: string, highlightPlaceholders: boolean, officeTags: ReadonlySet<string>, tagLabels?: ReadonlyMap<string, string>): string {
   let s = esc(raw);
   s = s.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>'); // bold (before italic)
   s = s.replace(/__([^_]+?)__/g, '<u>$1</u>'); // underline (double underscore)
   s = s.replace(/\*([^*\n]+?)\*/g, '<em>$1</em>'); // italic (single asterisk)
   if (highlightPlaceholders) {
     s = s.replace(/\{\{[A-Z_]+\}\}/g, (tag) => {
-      const look = KNOWN_TAGS.has(tag) ? TAG_STYLES.builtIn : officeTags.has(tag) ? TAG_STYLES.office : TAG_STYLES.unknown;
+      const look = ALL_TAGS.has(tag) ? TAG_STYLES.builtIn : officeTags.has(tag) ? TAG_STYLES.office : TAG_STYLES.unknown;
       return (
         `<span${look.title ? ` title="${look.title}"` : ''} style="background:${look.background};` +
         `color:${look.color};font-family:ui-monospace,monospace;` +
-        `font-weight:800;font-size:.85em;padding:1px 6px;border-radius:4px;">${tag}</span>`
+        `font-weight:800;font-size:.85em;padding:1px 6px;border-radius:4px;">${esc(tagLabels?.get(tag) ?? tag)}</span>`
       );
     });
   }
@@ -144,14 +227,18 @@ function applyInlineMarkup(raw: string, highlightPlaceholders: boolean, officeTa
  * student preview, and the printed PDF so all three look identical.
  *
  * Supported markup: `**bold**`, `*italic*`, `__underline__`, blank lines start a
- * new paragraph, and lines beginning with `- ` become a bullet list.
+ * new paragraph, lines beginning with `- ` become a bullet list, and lines like
+ * `| Name | {{STUDENT_NAME}} |` become rows of a details table.
  */
+const DETAIL_ROW_RE = /^\s*\|(.*)\|\s*$/;
+
 export function renderLetterBodyHtml(
   body: string,
-  opts?: { highlightPlaceholders?: boolean; officeFields?: readonly string[] },
+  opts?: { highlightPlaceholders?: boolean; officeFields?: readonly string[]; tagLabels?: ReadonlyMap<string, string> },
 ): string {
   const highlight = opts?.highlightPlaceholders ?? false;
   const officeTags = new Set((opts?.officeFields ?? []).map((name) => `{{${name}}}`));
+  const labels = opts?.tagLabels;
   return body
     .split(/\n{2,}/)
     .map((block) => {
@@ -167,12 +254,27 @@ export function renderLetterBodyHtml(
                 l.replace(/^\s*-\s+/, ''),
                 highlight,
                 officeTags,
+                labels,
               )}</li>`,
           )
           .join('');
         return `<ul style="margin:0 0 14px;padding-left:22px;list-style:disc;">${items}</ul>`;
       }
-      const html = lines.map((l) => applyInlineMarkup(l, highlight, officeTags)).join('<br>');
+      if (nonEmpty.length > 0 && nonEmpty.every((l) => DETAIL_ROW_RE.test(l))) {
+        const rows = nonEmpty
+          .map((l) => {
+            const [label, ...rest] = (l.match(DETAIL_ROW_RE)?.[1] ?? '').split('|').map((cell) => cell.trim());
+            const cell = 'padding:1px 0;vertical-align:top;';
+            return (
+              `<tr><td style="${cell}width:36%;padding-right:10px;">${applyInlineMarkup(label, highlight, officeTags, labels)}</td>` +
+              `<td style="${cell}width:14px;">:</td>` +
+              `<td style="${cell}">${applyInlineMarkup(rest.join(' '), highlight, officeTags, labels)}</td></tr>`
+            );
+          })
+          .join('');
+        return `<table style="width:100%;border-collapse:collapse;margin:0 0 14px;"><tbody>${rows}</tbody></table>`;
+      }
+      const html = lines.map((l) => applyInlineMarkup(l, highlight, officeTags, labels)).join('<br>');
       return `<p style="margin:0 0 14px;">${html}</p>`;
     })
     .join('');
@@ -192,7 +294,7 @@ export function fillLetterTags(content: string, values: Readonly<Record<string, 
 
 // Office-filled field names: capitals and underscores, as the server requires.
 export const FIELD_NAME_PATTERN = /^[A-Z][A-Z_]{1,39}$/;
-const BUILT_IN_NAMES = new Set(LETTER_PLACEHOLDERS.map((p) => p.tag.slice(2, -2)));
+const BUILT_IN_NAMES = new Set([...LETTER_PLACEHOLDERS, ...APPOINTMENT_PLACEHOLDERS].map((p) => p.tag.slice(2, -2)));
 
 /** Why a new office-filled field name cannot be used, or null. */
 export function fieldNameProblem(name: string, taken: readonly string[]): string | null {
@@ -232,6 +334,15 @@ export function formatLetterDate(date: Date = new Date()): string {
 /** What the reference line shows before the office approves a request. */
 export const PENDING_REFERENCE = 'Assigned on approval';
 
+/** The closing lines of a letter: the template's own signatory, else the faculty default. */
+export function letterClosing(letter: Pick<GeneratedLetter, 'purpose' | 'signatoryName' | 'signatoryTitle'>) {
+  return {
+    disclaimer: isAppointmentLetter(letter.purpose) ? LETTERHEAD.appointmentDisclaimer : LETTERHEAD.disclaimer,
+    signatoryName: letter.signatoryName?.trim() || LETTERHEAD.signatoryName,
+    signatoryOffice: letter.signatoryTitle?.trim() || LETTERHEAD.signatoryOffice,
+  };
+}
+
 /** Print data for a letter the server has issued (needs its `content`). */
 export function letterDataFromIssued(letter: GeneratedLetter): LetterData {
   return {
@@ -239,8 +350,10 @@ export function letterDataFromIssued(letter: GeneratedLetter): LetterData {
     refNo: letter.referenceNumber,
     date: letter.date,
     bodyParagraphs: letter.content ?? '',
+    ...(letter.contentMs?.trim() ? { bodyParagraphsMs: letter.contentMs } : {}),
     studentName: letter.studentName,
     matricNumber: letter.matricNumber,
+    ...letterClosing(letter),
   };
 }
 
@@ -270,12 +383,42 @@ export function buildLetterHtml(data: LetterData): string {
   const logoUrl = `${window.location.origin}${LETTERHEAD.logoPath}`;
   const title = letterFileName(data);
 
-  // Render the (already-substituted) body through the shared markup formatter,
-  // so the printed letter matches the on-screen preview exactly (bold / italic /
-  // underline / bullet lists, paragraphs split on blank lines).
-  const bodyHtml = renderLetterBodyHtml(data.bodyParagraphs);
-
   const addressHtml = LETTERHEAD.addressLines.map((line) => esc(line)).join('<br>');
+
+  // The body goes through the shared markup formatter, so the printed letter
+  // matches the on-screen preview exactly.
+  const sheet = (body: string, language: LetterLanguage) => {
+    const words = LETTER_WORDS[language];
+    const disclaimer = language === 'ms' ? LETTERHEAD.malayDisclaimer : data.disclaimer ?? LETTERHEAD.disclaimer;
+    return `<div class="sheet">
+    <div class="header">
+      <div class="brand">
+        <img src="${logoUrl}" alt="Universiti Malaya" />
+        <div class="faculty">${esc(LETTERHEAD.faculty)}</div>
+      </div>
+      <div class="address">${addressHtml}</div>
+    </div>
+
+    <div class="meta">
+      <div>${words.reference}: <span class="value">${esc(data.refNo)}</span></div>
+      <div>${words.date}: <span class="value">${esc(language === 'ms' ? malayLetterDate(data.date) : data.date)}</span></div>
+    </div>
+
+    ${renderLetterBodyHtml(body)}
+
+    <p class="disclaimer">${esc(disclaimer)}</p>
+
+    <div class="signature">
+      <div>
+        <div class="line"></div>
+        <div class="name">${esc(data.signatoryName ?? LETTERHEAD.signatoryName)}</div>
+        <div class="office">${esc(data.signatoryOffice ?? LETTERHEAD.signatoryOffice)}</div>
+      </div>
+      <div class="stamp">${esc(words.stamp)}</div>
+    </div>
+  </div>`;
+  };
+  const sheets = [sheet(data.bodyParagraphs, 'en'), ...(data.bodyParagraphsMs?.trim() ? [sheet(data.bodyParagraphsMs, 'ms')] : [])];
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -361,42 +504,18 @@ export function buildLetterHtml(data: LetterData): string {
       font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
       color: #4f46e5; border: 1px solid #c7d2fe; background: #eef2ff;
       border-radius: 8px; padding: 6px 10px; text-align: center; line-height: 1.5;
+      max-width: 170px;
     }
+    .sheet + .sheet { margin-top: 12px; break-before: page; page-break-before: always; }
     @media print {
       body { background: #ffffff; }
       .sheet { width: auto; margin: 0; padding: 0; box-shadow: none; }
+      .sheet + .sheet { margin-top: 0; }
     }
   </style>
 </head>
 <body>
-  <div class="sheet">
-    <div class="header">
-      <div class="brand">
-        <img src="${logoUrl}" alt="Universiti Malaya" />
-        <div class="faculty">${esc(LETTERHEAD.faculty)}</div>
-      </div>
-      <div class="address">${addressHtml}</div>
-    </div>
-
-    <div class="meta">
-      <div>Our Ref: <span class="value">${esc(data.refNo)}</span></div>
-      <div>Date: <span class="value">${esc(data.date)}</span></div>
-    </div>
-
-    ${bodyHtml}
-
-    <p class="disclaimer">${esc(LETTERHEAD.disclaimer)}</p>
-
-    <div class="signature">
-      <div>
-        <div class="line"></div>
-        <div class="name">${esc(LETTERHEAD.signatoryName)}</div>
-        <div class="office">${esc(LETTERHEAD.signatoryOffice)}</div>
-      </div>
-      <div class="stamp">Computer-generated<br>Verify with the PG Office</div>
-    </div>
-  </div>
-
+  ${sheets.join('\n  ')}
 </body>
 </html>`;
 }

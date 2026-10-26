@@ -77,3 +77,21 @@ def password_reset_email(user, link):
         SIGN_OFF,
     ]
     return RESET_SUBJECT, "\n\n".join(paragraphs)
+
+
+EMAIL_CHANGED_SUBJECT = "The email for your FSKTM Postgraduate Office account has changed"
+
+
+def email_changed_email(user, old_email):
+    """Subject and body telling the old address that the office changed the
+    account's email, which is also its sign-in name."""
+    paragraphs = [
+        f"Dear {user.full_name},",
+        "We are writing to tell you that the FSKTM Postgraduate Office has changed the "
+        f"email address of your account from {old_email} to {user.email}.",
+        "Your password has not changed. Emails from the portal will now go to the new address.",
+        _how_to_sign_in(user, f"You can sign in at {portal_url()}", "your password"),
+        "If you did not expect this change, please contact the FSKTM Postgraduate Office.",
+        SIGN_OFF,
+    ]
+    return EMAIL_CHANGED_SUBJECT, "\n\n".join(paragraphs)

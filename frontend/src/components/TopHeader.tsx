@@ -11,6 +11,7 @@ import { useNotifications } from '../context/NotificationsContext';
 import { APP_ROUTES } from '../constants/routes';
 import { NotificationItem } from '../types';
 import { latestNotifications, notificationRecordRoute, type OpenNotificationState } from '../utils/notificationLinks';
+import { greetingFor } from '../utils/greeting';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
 interface TopHeaderProps {
@@ -83,7 +84,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </button>
         <div id="header-greeting-block" className="flex flex-col text-left min-w-0">
           <h4 id="header-greeting" className="text-slate-900 font-extrabold text-xs md:text-sm tracking-tight select-none truncate">
-            Good Morning, {userName}
+            {greetingFor()}, {userName}
           </h4>
         </div>
       </div>
