@@ -8,8 +8,10 @@ import { formSummary } from '../components/LetterTypesList';
 import { APP_ROUTES, isKnownAppPath, sidebarItemForPath } from '../constants/routes';
 import { SIDEBAR_ITEMS } from '../constants/navigation';
 import type { GeneratedLetter, LetterFormQuestion, LetterTemplate } from '../types';
+import { wordingProblems } from '../components/LetterWordingEditor';
 import { EMPTY_REQUEST_DETAILS } from './letterRecipients';
-import { newQuestion, questionNames, sameValues, valuesOf } from './letterEditor';
+import { renderLetterBodyHtml } from './letterDocument';
+import { BLANK_TEMPLATE, fromFriendly, newQuestion, questionNames, sameValues, tagLabels, toFriendly, valuesOf } from './letterEditor';
 
 const purposes = [
   {
@@ -81,6 +83,29 @@ assert.equal(blank.required, true);
 assert.equal(newQuestion('yesno', 'With family?', []).required, false);
 assert.deepEqual(newQuestion('recipient', '', []), { kind: 'recipient', purposes: [], askAddress: true });
 assert.deepEqual(questionNames([{ kind: 'recipient' }, { kind: 'text', name: 'NOTE_ONE', label: 'A' }]), ['NOTE_ONE']);
+
+// the office writes with [names] while the letter keeps its tags
+const labels = tagLabels([
+  { tag: '{{STUDENT_NAME}}', label: 'Student Name', kind: 'record' },
+  { tag: '{{TRAVEL_DATE}}', label: 'Travel date', kind: 'student' },
+  { tag: '{{ATTENDANCE}}', label: 'Student Name', kind: 'office' },
+  { tag: '{{NOTE_A}}', label: 'Note [main]', kind: 'office' },
+]);
+assert.equal(toFriendly('Dear {{STUDENT_NAME}}, on {{TRAVEL_DATE}}. {{OOPS}}', labels), 'Dear [Student Name], on [Travel date]. {{OOPS}}');
+assert.equal(labels.toLabel.get('{{ATTENDANCE}}'), 'Student Name (office fills in)', 'two details never share a name');
+assert.equal(labels.toLabel.get('{{NOTE_A}}'), 'Note (main)');
+const typed = 'Dear [Student Name] and [Student Name (office fills in)], see [page 2].';
+assert.equal(fromFriendly(typed, labels), 'Dear {{STUDENT_NAME}} and {{ATTENDANCE}}, see [page 2].');
+assert.equal(toFriendly(fromFriendly(typed, labels), labels), typed, 'what the office types comes back as typed');
+assert.match(renderLetterBodyHtml('Dear {{STUDENT_NAME}}', { highlightPlaceholders: true, tagLabels: labels.toLabel }), />Student Name<\/span>/, 'the preview names details too');
+
+// the wording is checked as it is typed
+const wording = wordingProblems({ ...BLANK_TEMPLATE, content: 'Dear {{STUDENT_NAME}} {{OOPS}}', questions: [{ kind: 'recipient', purposes: [], askAddress: true }] });
+assert.match(wording.content ?? '', /\{\{OOPS\}\} is not a detail this letter can fill in/);
+assert.match(wording.content ?? '', /does not show it/);
+assert.equal(wording.contentMs, undefined);
+assert.deepEqual(wordingProblems(BLANK_TEMPLATE), { content: undefined, contentMs: undefined });
+assert.match(wordingProblems({ ...BLANK_TEMPLATE, content: 'Valid until {{VALID_UNTIL}}' }).content ?? '', /Signature and status step/);
 
 // how a letter type and its form are described
 const template = { id: '1', name: 'Visa Letter', type: 'Visa', status: 'Active', lastModified: '', modifiedBy: '', description: '', purpose: 'REQUEST', formQuestions: questions } as unknown as LetterTemplate;

@@ -203,7 +203,7 @@ const TAG_STYLES = {
  * window. When `highlightPlaceholders` is on (the staff editor preview), any
  * leftover `{{TAG}}` is wrapped in a highlight chip.
  */
-function applyInlineMarkup(raw: string, highlightPlaceholders: boolean, officeTags: ReadonlySet<string>): string {
+function applyInlineMarkup(raw: string, highlightPlaceholders: boolean, officeTags: ReadonlySet<string>, tagLabels?: ReadonlyMap<string, string>): string {
   let s = esc(raw);
   s = s.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>'); // bold (before italic)
   s = s.replace(/__([^_]+?)__/g, '<u>$1</u>'); // underline (double underscore)
@@ -214,7 +214,7 @@ function applyInlineMarkup(raw: string, highlightPlaceholders: boolean, officeTa
       return (
         `<span${look.title ? ` title="${look.title}"` : ''} style="background:${look.background};` +
         `color:${look.color};font-family:ui-monospace,monospace;` +
-        `font-weight:800;font-size:.85em;padding:1px 6px;border-radius:4px;">${tag}</span>`
+        `font-weight:800;font-size:.85em;padding:1px 6px;border-radius:4px;">${esc(tagLabels?.get(tag) ?? tag)}</span>`
       );
     });
   }
@@ -234,10 +234,11 @@ const DETAIL_ROW_RE = /^\s*\|(.*)\|\s*$/;
 
 export function renderLetterBodyHtml(
   body: string,
-  opts?: { highlightPlaceholders?: boolean; officeFields?: readonly string[] },
+  opts?: { highlightPlaceholders?: boolean; officeFields?: readonly string[]; tagLabels?: ReadonlyMap<string, string> },
 ): string {
   const highlight = opts?.highlightPlaceholders ?? false;
   const officeTags = new Set((opts?.officeFields ?? []).map((name) => `{{${name}}}`));
+  const labels = opts?.tagLabels;
   return body
     .split(/\n{2,}/)
     .map((block) => {
@@ -253,6 +254,7 @@ export function renderLetterBodyHtml(
                 l.replace(/^\s*-\s+/, ''),
                 highlight,
                 officeTags,
+                labels,
               )}</li>`,
           )
           .join('');
@@ -264,15 +266,15 @@ export function renderLetterBodyHtml(
             const [label, ...rest] = (l.match(DETAIL_ROW_RE)?.[1] ?? '').split('|').map((cell) => cell.trim());
             const cell = 'padding:1px 0;vertical-align:top;';
             return (
-              `<tr><td style="${cell}width:36%;padding-right:10px;">${applyInlineMarkup(label, highlight, officeTags)}</td>` +
+              `<tr><td style="${cell}width:36%;padding-right:10px;">${applyInlineMarkup(label, highlight, officeTags, labels)}</td>` +
               `<td style="${cell}width:14px;">:</td>` +
-              `<td style="${cell}">${applyInlineMarkup(rest.join(' '), highlight, officeTags)}</td></tr>`
+              `<td style="${cell}">${applyInlineMarkup(rest.join(' '), highlight, officeTags, labels)}</td></tr>`
             );
           })
           .join('');
         return `<table style="width:100%;border-collapse:collapse;margin:0 0 14px;"><tbody>${rows}</tbody></table>`;
       }
-      const html = lines.map((l) => applyInlineMarkup(l, highlight, officeTags)).join('<br>');
+      const html = lines.map((l) => applyInlineMarkup(l, highlight, officeTags, labels)).join('<br>');
       return `<p style="margin:0 0 14px;">${html}</p>`;
     })
     .join('');

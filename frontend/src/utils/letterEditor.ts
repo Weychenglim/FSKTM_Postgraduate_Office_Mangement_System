@@ -4,7 +4,7 @@
  */
 
 // What the office edits on a letter type, and the words used for it, shared by
-// the letter type list, the editor's four tabs and the student form builder.
+// the letter type list, the editor's steps and the student form builder.
 
 import type { LetterCustomField, LetterPurpose, LetterQuestion, LetterQuestionKind, LetterTemplate, LetterTemplateStatus } from '../types';
 import { fieldNameFromLabel, placeholderPurposeHint } from './letterDocument';
@@ -54,15 +54,50 @@ export const STATUS_TONE: Record<LetterTemplateStatus, 'success' | 'warning' | '
   Archived: 'warning',
 };
 
-export const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]; malformed: string[] }) =>
-  [
-    unknown.length ? `Unknown placeholder(s): ${unknown.join(', ')}.` : '',
-    ...unknown.map(placeholderPurposeHint),
-    malformed.length ? `Malformed placeholder(s): ${malformed.join(', ')}. Write them as {{NAME}}.` : '',
-  ].filter(Boolean).join(' ');
-
 export const listInWords = (items: string[]) =>
   items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+
+export const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]; malformed: string[] }) =>
+  [
+    unknown.length ? `${listInWords(unknown)} ${unknown.length === 1 ? 'is not a detail' : 'are not details'} this letter can fill in. Pick details from Insert detail instead.` : '',
+    ...unknown.map(placeholderPurposeHint),
+    malformed.length ? `${listInWords(malformed)} ${malformed.length === 1 ? 'has' : 'have'} broken brackets. Delete it and pick the detail from Insert detail.` : '',
+  ].filter(Boolean).join(' ');
+
+export interface TagLabel {
+  tag: string;
+  label: string;
+  kind: 'record' | 'student' | 'office';
+}
+
+const KIND_SUFFIX: Record<TagLabel['kind'], string> = { record: '', student: ' (student answer)', office: ' (office fills in)' };
+
+/** The names the office sees for a letter's tags while writing, as in [Student Name]. Each name stands for one tag. */
+export function tagLabels(entries: readonly TagLabel[]) {
+  const toLabel = new Map<string, string>();
+  const toTag = new Map<string, string>();
+  for (const { tag, label, kind } of entries) {
+    if (toLabel.has(tag)) continue;
+    const clean = (label.trim() || tag.slice(2, -2)).replace(/\[/g, '(').replace(/\]/g, ')');
+    let shown = clean;
+    if (toTag.has(shown)) shown = `${clean}${KIND_SUFFIX[kind]}`;
+    if (toTag.has(shown)) shown = `${clean} (${tag.slice(2, -2)})`;
+    toLabel.set(tag, shown);
+    toTag.set(shown, tag);
+  }
+  return { toLabel, toTag };
+}
+
+export type TagLabels = ReturnType<typeof tagLabels>;
+
+export const toFriendly = (text: string, labels: TagLabels) =>
+  text.replace(/\{\{[A-Z_]+\}\}/g, (tag) => {
+    const label = labels.toLabel.get(tag);
+    return label ? `[${label}]` : tag;
+  });
+
+export const fromFriendly = (text: string, labels: TagLabels) =>
+  text.replace(/\[([^[\]\n]+)\]/g, (whole, label: string) => labels.toTag.get(label) ?? whole);
 
 /** Everything the editor changes, as the office types it. */
 export interface EditorValues {

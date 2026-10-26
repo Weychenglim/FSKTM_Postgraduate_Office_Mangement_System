@@ -108,7 +108,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
           onClose={() => setEditing(null)}
           onSaved={(saved, created) => {
             setTemplates((rows) => (created ? [saved, ...rows] : rows.map((row) => (row.id === saved.id ? saved : row))));
-            if (created) setEditing(saved);
+            if (created) setEditing(null);
           }}
           onDeleted={(deleted) => {
             setTemplates((rows) => rows.filter((row) => row.id !== deleted.id));

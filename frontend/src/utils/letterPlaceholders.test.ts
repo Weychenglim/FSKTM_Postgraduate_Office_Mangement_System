@@ -81,14 +81,14 @@ assert.match(preview, /title="Filled in by the office when approving"[^>]*>\{\{A
 assert.match(preview, /title="Unknown placeholder"[^>]*>\{\{OOPS\}\}/);
 
 // the editor runs a real check, including the template's own fields
-const editor = readFileSync(resolve('src/components/LetterTypeEditor.tsx'), 'utf8');
+const editor = ['LetterTypeEditor', 'LetterWordingEditor'].map((name) => readFileSync(resolve(`src/components/${name}.tsx`), 'utf8')).join('\n');
 const shell = readFileSync(resolve('src/components/LetterTemplateManagement.tsx'), 'utf8');
 assert.doesNotMatch(editor, /visual layout assertion check/);
 assert.match(editor, /const names = \[\.\.\.editorFields\.map\(\(f\) => f\.name\), \.\.\.questionNames\(draft\.questions\)\];/, 'office blanks and student questions are known tags');
 assert.match(editor, /findPlaceholderProblems\(editorContent, names, editorPurpose\)/);
 assert.match(editor, /findPlaceholderProblems\(editorContentMs, names, editorPurpose\)/, 'the Malay page is checked too');
 assert.match(shell, /getLetterPlaceholders\(\)/);
-assert.match(editor, /<option value="Archived">/);
+assert.match(editor, /value: 'Archived' as const/, 'a letter type can be archived');
 assert.match(editor, /fieldNameFromLabel\(label, officeTags\)/, 'a new blank never takes a question\'s tag');
 assert.match(editor, /customFields: editorFields/);
 

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// The "Student form" tab of a letter type: the questions students answer when
+// The "Student form" step of a letter type: the questions students answer when
 // they ask for it, in order, with a live preview of their form. "Who is the
 // letter for?" offers the office's recipients list; the office's own questions
 // become blanks it can place in the letter.
@@ -134,7 +134,7 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
     if (question.kind === 'extras') {
       return offered.length
         ? `Tick boxes for ${listInWords(offered.map((code) => OPTIONAL_DETAIL_LABELS[code].toLowerCase()))}. Those lines print only when ticked.`
-        : 'The letter shows none of these yet. Add Semesters Left or Current Semester in the Letter tab.';
+        : 'The letter shows none of these yet. Add Semesters Left or Current Semester in Write the letter.';
     }
     const parts = [
       questionKindLabel(question.kind),
@@ -254,7 +254,7 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
                     </label>
                   )}
                   <p className="card-caption sm:col-span-2">
-                    {wording.includes(`{{${question.name}}}`) ? 'The answer is in the letter.' : 'To print the answer, place it from Insert in the Letter tab.'}
+                    {wording.includes(`{{${question.name}}}`) ? 'The answer is in the letter.' : 'To print the answer, add it from Insert detail in Write the letter.'}
                   </p>
                 </div>
               )}

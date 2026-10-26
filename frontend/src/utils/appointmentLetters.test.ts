@@ -102,7 +102,7 @@ assert.equal(printData.signatoryOffice, LETTERHEAD.signatoryOffice);
 assert.equal(printData.disclaimer, LETTERHEAD.appointmentDisclaimer);
 
 // the office screens offer the new choices
-const editor = readFileSync(resolve('src/components/LetterTypeEditor.tsx'), 'utf8');
+const editor = ['LetterTypeEditor', 'LetterWordingEditor'].map((name) => readFileSync(resolve(`src/components/${name}.tsx`), 'utf8')).join('\n');
 assert.match(editor, /name="letter-template-purpose"/);
 assert.match(editor, /When is this letter used\?/);
 assert.match(editor, /findPlaceholderProblems\(editorContent, names, editorPurpose\)/);
