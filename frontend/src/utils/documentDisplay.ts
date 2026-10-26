@@ -41,9 +41,6 @@ export function studentsLine(students: DocumentStudentRef[]): { main: string; su
   return { main: `${first.name} and ${rest.length} more`, sub: rest.map(student => student.name).join(', ') };
 }
 
-export function typeAndTags(typeLabel: string, tags: string[]): string {
-  return [typeLabel, tags.map(tag => `#${tag}`).join('  ')].filter(Boolean).join('   ');
-}
 
 export function uploadedLine(name: string, isMe: boolean): string {
   return isMe ? 'Uploaded by you' : `Uploaded by ${name}`;

@@ -13,7 +13,7 @@ import { historyTime, shortDocumentDate, studentsLine } from '../utils/documentD
 import { PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { ErrorState, LoadingState } from './StateViews';
-import { OverflowMenu, type MenuAction } from './DocumentParts';
+import { AutoTagChips, OverflowMenu, type MenuAction } from './DocumentParts';
 import { DocumentPreview } from './DocumentPreview';
 import { ArchiveDialog, EditDetailsDialog, NewVersionDialog, ReturnDialog, SharingDialog } from './DocumentDialogs';
 
@@ -239,7 +239,10 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
                   </div>
                   <Fact label="Type">{document.type.label}</Fact>
                   <Fact label="Semester">{document.semester?.label ?? 'Not linked'}</Fact>
-                  <Fact label="Tags">{document.tags.length ? document.tags.map(tag => `#${tag}`).join('  ') : 'None'}</Fact>
+                  <div className="sm:col-span-2">
+                    <dt className="text-[12px] text-slate-500">Tags</dt>
+                    <dd className="mt-1"><AutoTagChips tags={document.autoTags} /></dd>
+                  </div>
                   <Fact label="Reference">{document.reference}</Fact>
                   <Fact label="Uploaded by">{document.uploadedBy.isMe ? 'You' : `${document.uploadedBy.name} (${document.uploadedBy.roleLabel.toLowerCase()})`}</Fact>
                   {document.description && <div className="sm:col-span-2"><Fact label="Note">{document.description}</Fact></div>}

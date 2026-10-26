@@ -372,8 +372,8 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 | ------ | ---- | ----- |
 | GET | `options/` | Everyone: the types they may choose, semesters, programmes |
 | GET | `students/?search=`, `students/<matric>/` | Staff: students they may tag, and one student's header |
-| GET, POST | `/` (list with `view`, `q`, `type`, `semester`, `student`, `uploader`, `status`, `kind`, `from`, `to`, `tag`, `archived`; multipart upload) | Everyone, by the access rules below |
-| GET | `summary/`, `tags/?search=` | Everyone (tab counts, tag suggestions) |
+| GET, POST | `/` (list with `view`, `q`, `type`, `group`, `semester`, `programme`, `intake`, `student`, `uploader`, `sender`, `required`, `status`, `kind`, `from`, `to`, `archived`; multipart upload) | Everyone, by the access rules below |
+| GET | `summary/` | Everyone (tab counts; the office and coordinators also get `studentsStillToHandIn`) |
 | GET, PATCH, DELETE | `<id>/` | View right; edit by the uploader or the office; delete by the uploader |
 | GET | `<id>/download/?version=`, `<id>/preview/`, `<id>/preview/pages/<n>/` | View right |
 | POST | `download-zip/` (`{ids}`) | View right on every file |
@@ -382,7 +382,6 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 | GET, PUT | `<id>/sharing/` | The office, or the staff member who uploaded it |
 | POST | `<id>/archive/` (`{reason}`), `<id>/restore/` | Office Staff/Admin |
 | GET, POST | `types/`, PATCH `types/<id>/` | Office Staff/Admin |
-| GET | `tags/?manage=1`; PATCH, DELETE `tags/<id>/`; POST `tags/<id>/merge/` (`{into}`) | Office Staff/Admin |
 | GET | `history/?show=&q=` | Office Staff/Admin |
 | GET | `required/`, `required/<typeId>/students/?show=todo,waiting,done` | Office Staff/Admin, and programme coordinators for their programmes |
 | POST | `required/<typeId>/remind/` | Office Staff/Admin, once a day per type |
@@ -403,7 +402,9 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 
 **Checking and versions.** For types the office checks, uploads wait in "To check". Returning needs a reason; the uploader is told in the app, and by email when "Email alerts" is on. A new version waits again.
 
-**Settings and history.** The office edits types (who uploads, who sees, checks, required, switched on), renames, merges and removes tags, and reads the history, which keeps deleted files as text. New sharing on a type reaches files students uploaded; what staff chose when uploading stays.
+**Automatic tags (2026-10-26).** Nobody types tags. Each file's `autoTags` are worked out when it is shown: Category (the type's group), Required, Semester, From (`sender`: student, lecturer, coordinator or office), and each student's Programme and Intake (a staff file's chosen programmes). Each tag carries the list filter it opens. They follow a student who changes programme. Search also matches programme, intake and category words. Typed tags and their endpoints were removed in `documents.0005`.
+
+**Settings and history.** The office edits types (who uploads, who sees, checks, required, switched on) and reads the history, which keeps deleted files as text. New sharing on a type reaches files students uploaded; what staff chose when uploading stays.
 
 **Required documents.** A type can be required of every Active student, or of chosen programmes only. A returned file still counts as owed. Remind sends a notice, and an email to students with "Deadline reminders" on.
 

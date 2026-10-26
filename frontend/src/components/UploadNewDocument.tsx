@@ -15,7 +15,7 @@ import { PortalButton, PortalConfirmModal } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { SelectMenu, SelectMenuOption } from './SelectMenu';
 import { ErrorState, LoadingState } from './StateViews';
-import { KindBadge, StudentPicker, TagInput } from './DocumentParts';
+import { KindBadge, StudentPicker } from './DocumentParts';
 
 interface UploadNewDocumentProps {
   onBack: () => void;
@@ -61,7 +61,6 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
   const [share, setShare] = useState<DocumentSharing>({ supervisors: false, panel: false, coordinator: false });
   const [audience, setAudience] = useState<StaffAudience>('ACADEMIC');
   const [programme, setProgramme] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
   const [title, setTitle] = useState(initialFile ? titleFromFileName(initialFile.name) : '');
   const [titleEdited, setTitleEdited] = useState(false);
   const [semester, setSemester] = useState('');
@@ -140,7 +139,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
   const maxBytes = options?.maxBytes ?? 10 * 1024 * 1024;
   const clientProblem = file ? fileProblem(file, type, staff, maxBytes) : null;
   const names = sharingNames(students);
-  const dirty = Boolean(file || typeCode || students.length || tags.length || description.trim() || titleEdited);
+  const dirty = Boolean(file || typeCode || students.length || description.trim() || titleEdited);
 
   const submit = async (acknowledgeWarnings = false) => {
     const found: Record<string, string> = {};
@@ -160,7 +159,6 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
         description,
         semester: isStudent ? '' : semester,
         students: staffFile || isStudent ? [] : students.map(student => student.matric),
-        tags,
         share: staff && !staffFile ? share : undefined,
         audience: staffFile ? audience : undefined,
         programmes: staffFile && programme ? [programme] : [],
@@ -382,11 +380,6 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
               <FieldError message={errors.title} />
             </Section>
           )}
-
-          <Section title="Tags (optional)" htmlFor="document-tags">
-            <TagInput inputId="document-tags" tags={tags} onChange={setTags} />
-            <FieldError message={errors.tags} />
-          </Section>
 
           <Section>
             <button type="button" aria-expanded={moreOpen} className="inline-flex items-center gap-1.5 text-[13px] font-bold text-blue-700 hover:text-blue-900" onClick={() => setMoreOpen(open => !open)}>

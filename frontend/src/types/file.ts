@@ -41,6 +41,7 @@ export interface DocumentOptions {
   canSeeRequired: boolean;
   semesters?: Array<{ id: number; label: string }>;
   programmes?: string[];
+  intakes?: string[];
   audiences?: Array<{ value: StaffAudience; label: string }>;
 }
 
@@ -76,6 +77,16 @@ export interface DocumentPermissions {
   canRestore: boolean;
 }
 
+export type DocumentAutoTagKind = 'category' | 'required' | 'semester' | 'from' | 'programme' | 'intake';
+export type DocumentSender = 'student' | 'lecturer' | 'coordinator' | 'office';
+
+/** A tag the system gives a file; `filter` is what clicking it filters the list by. */
+export interface DocumentAutoTag {
+  kind: DocumentAutoTagKind;
+  label: string;
+  filter: Partial<Pick<DocumentFilters, 'group' | 'required' | 'semester' | 'sender' | 'programme' | 'intake'>>;
+}
+
 export interface PortalDocument {
   id: number;
   reference: string;
@@ -90,7 +101,7 @@ export interface PortalDocument {
   staffAudienceLabel: string;
   staffProgrammes: string[];
   share: DocumentSharing;
-  tags: string[];
+  autoTags: DocumentAutoTag[];
   semester: { id: number; label: string } | null;
   uploadedBy: { name: string; role: string; roleLabel: string; isMe: boolean };
   uploadedAt: string;
@@ -127,6 +138,7 @@ export interface DocumentSummary {
   toCheck?: number;
   returned?: number;
   archived?: number;
+  studentsStillToHandIn?: number;
 }
 
 export interface TaggableStudent {
@@ -152,25 +164,24 @@ export interface StudentFileHeader {
   required?: Array<{ label: string; state: RequiredState }> | null;
 }
 
-export interface TagSuggestion {
-  name: string;
-  uses: number;
-}
-
 export type DocumentView = 'all' | 'check' | 'staff' | 'mine' | 'required';
 
 export interface DocumentFilters {
   view: DocumentView;
   q: string;
   type: string;
+  group: string;
   semester: string;
+  programme: string;
+  intake: string;
   student: string;
   uploader: '' | 'me' | 'students' | 'staff';
+  sender: '' | DocumentSender;
+  required: '' | '1';
   status: '' | DocumentCheckStatus;
   kind: '' | DocumentKind;
   from: string;
   to: string;
-  tag: string;
   archived: '' | '1';
 }
 
@@ -181,7 +192,6 @@ export interface DocumentUploadInput {
   description: string;
   semester: string;
   students: string[];
-  tags: string[];
   share?: DocumentSharing;
   audience?: StaffAudience;
   programmes?: string[];
@@ -218,12 +228,6 @@ export interface DocumentTypeInput {
   requiredDueNote: string;
   requiredProgrammes: string[];
   isActive: boolean;
-}
-
-export interface ManagedTag {
-  id: number;
-  name: string;
-  uses: number;
 }
 
 export interface SharingPerson {

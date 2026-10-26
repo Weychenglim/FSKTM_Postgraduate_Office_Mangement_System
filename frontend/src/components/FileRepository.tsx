@@ -11,7 +11,7 @@ import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocument
 import { getReceivedLetters } from '../services/lettersApi';
 import { APP_ROUTES, routeForDocument, routeForFileLetter } from '../constants/routes';
 import { filtersFromParams, filtersToParams, moreFilterCount } from '../utils/documentFilters';
-import { shortDocumentDate, studentsLine, typeAndTags, uploadedLine } from '../utils/documentDisplay';
+import { shortDocumentDate, studentsLine, uploadedLine } from '../utils/documentDisplay';
 import { MAX_ZIP_FILES, toggleSelection } from '../utils/documentPreview';
 import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { SelectMenu, SelectMenuOption } from './SelectMenu';
@@ -408,7 +408,7 @@ export const FileRepository: React.FC = () => {
                             <Link to={routeForDocument(document.id)} state={{ from }} className="block truncate text-[14px] font-bold text-brand-navy hover:underline">
                               {document.title}
                             </Link>
-                            <p className="truncate text-[12px] text-slate-500">{typeAndTags(document.type.label, document.tags)}</p>
+                            <p className="truncate text-[12px] text-slate-500">{document.type.label}</p>
                             <p className="mt-1 truncate text-[12px] text-slate-600 md:hidden">{filters.student ? '' : `${who.main} · `}{shortDocumentDate(document.uploadedAt)}</p>
                             <div className="mt-1.5 md:hidden">{document.archived ? <ArchivedChip /> : <CheckChip status={document.checkStatus} hideAccepted />}</div>
                           </div>

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import type { DocumentTypeOption, TaggableStudent } from '../types';
 import { APP_ROUTES, routeForNotificationTarget } from '../constants/routes';
-import { checkChip, formatFileSize, historyTime, REQUIRED_STATES, requiredProgressLine, stillToHandIn, studentsLine, typeAndTags, uploadedLine } from './documentDisplay';
+import { checkChip, formatFileSize, historyTime, REQUIRED_STATES, requiredProgressLine, stillToHandIn, studentsLine, uploadedLine } from './documentDisplay';
 import { EMPTY_DOCUMENT_FILTERS, filtersFromParams, filtersToParams, moreFilterCount } from './documentFilters';
 import { defaultSharing, sharingNames, staffTypeChoices, studentAudienceSentence } from './documentSharing';
-import { addTags, cleanTag } from './documentTags';
+import { suggestTypeForFile, tagText } from './documentTags';
 import { acceptAttribute, acceptedKinds, fileProblem, kindForName, kindsSentence, titleFromFileName } from './documentUpload';
 
 const type = (overrides: Partial<DocumentTypeOption>): DocumentTypeOption => ({
@@ -32,8 +32,6 @@ assert.deepEqual(
   studentsLine([{ matric: 'S1', name: 'Ali', programme: '' }, { matric: 'S2', name: 'Bella', programme: '' }, { matric: 'S3', name: 'Chen', programme: '' }]),
   { main: 'Ali and 2 more', sub: 'Bella, Chen' },
 );
-assert.equal(typeAndTags('Thesis', ['draft', 'chapter 4']), 'Thesis   #draft  #chapter 4');
-assert.equal(typeAndTags('Letter', []), 'Letter');
 assert.equal(uploadedLine('Siti', true), 'Uploaded by you');
 
 // Filters
@@ -49,6 +47,15 @@ assert.equal(filtersFromParams(new URLSearchParams('archived=1')).archived, '1',
 assert.equal(filtersFromParams(new URLSearchParams('archived=yes')).archived, '');
 assert.equal(moreFilterCount({ ...EMPTY_DOCUMENT_FILTERS, archived: '1' }), 1);
 assert.equal(filtersToParams({ ...EMPTY_DOCUMENT_FILTERS, archived: '1' }).toString(), 'archived=1');
+const tagged = filtersFromParams(new URLSearchParams('group=RESEARCH_PROJECT&programme=MASTER+OF+DATA+SCIENCE+(COURSEWORK)&intake=2025/2026&sender=student&required=1&tag=draft'));
+assert.deepEqual(
+  [tagged.group, tagged.programme, tagged.intake, tagged.sender, tagged.required],
+  ['RESEARCH_PROJECT', 'MASTER OF DATA SCIENCE (COURSEWORK)', '2025/2026', 'student', '1'],
+  'Each automatic tag is a filter in the address',
+);
+assert.equal(filtersFromParams(new URLSearchParams('sender=everyone')).sender, '');
+assert.equal('tag' in tagged, false, 'Typed tags are gone');
+assert.equal(moreFilterCount({ ...EMPTY_DOCUMENT_FILTERS, intake: '2025/2026', sender: 'office', group: 'LETTERS' }), 2);
 assert.equal(historyTime('2026-10-14T02:05:00Z'), '14 Oct 2026, 10:05', 'History times are in Malaysia time');
 assert.equal(historyTime('not a date'), '');
 const counts = { students: 40, done: 12, waiting: 3, returned: 2, missing: 23 };
@@ -103,10 +110,23 @@ assert.deepEqual(codes(staffTypeChoices(types, { isOffice: false, role: 'Lecture
 assert.deepEqual(codes(staffTypeChoices(types, { isOffice: false, role: 'Lecturer', staffFile: true, students: [] })), ['staff-document', 'other']);
 assert.deepEqual(codes(staffTypeChoices(types, { isOffice: true, role: 'Office Staff/Admin', staffFile: false, students: [] })), ['thesis', 'evaluation-form', 'research-proposal', 'other']);
 
-// Tags
-assert.equal(cleanTag('  #Signed   copy '), 'Signed copy');
-assert.deepEqual(addTags(['Draft'], 'draft, Final, #final'), { tags: ['Draft', 'Final'], problem: null });
-assert.equal(addTags([], 'x').problem, 'A tag is 2 to 30 characters.');
-assert.equal(addTags(Array.from({ length: 10 }, (_, n) => `tag ${n}`), 'one more').problem, 'A file can have at most 10 tags.');
+// Automatic tags and the suggested type
+assert.equal(tagText({ kind: 'programme', label: 'MASTER OF DATA SCIENCE (COURSEWORK)', filter: {} }), 'Master of Data Science (Coursework)');
+assert.equal(tagText({ kind: 'semester', label: 'Semester 1 2025/2026', filter: {} }), 'Semester 1 2025/2026');
+const choices = [
+  type({ code: 'turnitin-report', label: 'Turnitin Report' }),
+  type({ code: 'research-proposal', label: 'Research Proposal' }),
+  type({ code: 'thesis', label: 'Thesis' }),
+  type({ code: 'supervisor-appointment-form', label: 'Supervisor Appointment Form' }),
+  type({ code: 'other', label: 'Other' }),
+];
+const suggested = (name: string) => suggestTypeForFile(name, choices)?.code ?? null;
+assert.equal(suggested('Turnitin_report_final.pdf'), 'turnitin-report');
+assert.equal(suggested('TurnitinReport.pdf'), 'turnitin-report', 'Joined-up words are split');
+assert.equal(suggested('Ali Research Proposal v2.docx'), 'research-proposal');
+assert.equal(suggested('proposal_v2.docx'), null, 'Every telling word must be there');
+assert.equal(suggested('Thesis_chapter3.pdf'), 'thesis');
+assert.equal(suggested('supervisor-appointment-signed.pdf'), 'supervisor-appointment-form', 'Words like "form" are not needed');
+assert.equal(suggested('scan0012.jpg'), null);
 
-console.log('Document display, filter, upload, sharing and tag helpers behave as expected');
+console.log('Document display, filter, upload, sharing and automatic tag helpers behave as expected');
