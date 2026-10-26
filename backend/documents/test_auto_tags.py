@@ -100,6 +100,18 @@ class AutoTagTests(DocumentPeople, DocumentClient, APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("tags", response.data)
 
+    def test_a_student_is_told_their_own_record_for_the_upload_summary(self):
+        self.client.force_authenticate(self.ali.user)
+        me = self.client.get("/api/documents/options/").data["me"]
+        self.assertEqual((me["programme"], me["intake"]), (DS, "2025/2026 Semester 1"))
+        self.assertEqual(me["supervisors"], ["Dr Supervisor", "Dr Co"])
+        self.assertEqual(me["panel"], ["Dr Panel"])
+        self.assertEqual(me["coordinators"], [])
+        self.client.force_authenticate(self.bella.user)
+        self.assertEqual(self.client.get("/api/documents/options/").data["me"]["coordinators"], ["Prof Coordinator"])
+        self.client.force_authenticate(self.office)
+        self.assertNotIn("me", self.client.get("/api/documents/options/").data)
+
     def test_the_office_and_coordinators_see_how_many_students_are_behind(self):
         DocumentType.objects.filter(code="thesis").update(required=True)
         self.made(self.ali.user, "thesis", "Ali thesis")

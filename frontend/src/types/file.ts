@@ -43,6 +43,8 @@ export interface DocumentOptions {
   programmes?: string[];
   intakes?: string[];
   audiences?: Array<{ value: StaffAudience; label: string }>;
+  /** A student's own record, for the summary beside their upload. */
+  me?: { programme: string; intake: string; supervisors: string[]; panel: string[]; coordinators: string[] };
 }
 
 export interface DocumentStudentRef {
@@ -145,6 +147,7 @@ export interface TaggableStudent {
   matric: string;
   name: string;
   programme: string;
+  intake?: string;
   status: string;
   relation: string;
   roles: Array<'SUPERVISOR' | 'PANEL' | 'COORDINATOR'>;

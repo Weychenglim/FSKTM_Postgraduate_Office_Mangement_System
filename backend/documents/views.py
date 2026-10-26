@@ -174,6 +174,20 @@ def options_view(request):
             reverse=True,
         )
         payload["audiences"] = [{"value": value, "label": label} for value, label in Document.Audience.choices]
+    else:
+        student = Student.objects.filter(user=user).first()
+        if student is not None:
+            ids = {student.user_id}
+            names = dict(User.objects.filter(
+                pk__in={lecturer for _, lecturer in supervisors_of(ids)} | {member for _, member in panel_student_ids(student_ids=ids)}
+            ).values_list("pk", "full_name"))
+            payload["me"] = {
+                "programme": student.programme,
+                "intake": student.intake_semester,
+                "supervisors": [names[lecturer] for _, lecturer in supervisors_of(ids)],
+                "panel": [names[member] for _, member in panel_student_ids(student_ids=ids)],
+                "coordinators": [person.full_name for person in programme_coordinators(student.programme)] if student.programme else [],
+            }
     return Response(payload)
 
 
@@ -214,6 +228,7 @@ def student_search_view(request):
             "matric": student.matric_no,
             "name": student.user.full_name,
             "programme": student.programme,
+            "intake": student.intake_semester,
             "status": student.status,
             "relation": scope.relation_label(student),
             "roles": sorted(scope.relationships(student)),

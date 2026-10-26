@@ -33,6 +33,24 @@ export function checkChip(status: DocumentCheckStatus): { label: string; classNa
   return null;
 }
 
+type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+
+/** The office check as a status badge; null when the file needs no check. */
+export function checkBadge(status: DocumentCheckStatus): { label: string; tone: BadgeTone } | null {
+  if (status === 'WAITING') return { label: 'Waiting for office', tone: 'warning' };
+  if (status === 'RETURNED') return { label: 'Returned', tone: 'danger' };
+  if (status === 'ACCEPTED') return { label: 'Accepted', tone: 'success' };
+  return null;
+}
+
+/** Where one required document stands for a student, as a status badge. */
+export function requiredBadge(state: RequiredState, check?: DocumentCheckStatus): { label: string; tone: BadgeTone } {
+  if (state === 'MISSING') return { label: 'Not handed in', tone: 'danger' };
+  if (state === 'RETURNED') return { label: 'Returned, upload again', tone: 'warning' };
+  if (state === 'WAITING') return { label: 'Waiting for check', tone: 'info' };
+  return { label: check === 'ACCEPTED' ? 'Accepted' : 'Handed in', tone: 'success' };
+}
+
 /** "Ali Hassan" / "Ali Hassan and 2 more", with the IDs or remaining names underneath. */
 export function studentsLine(students: DocumentStudentRef[]): { main: string; sub: string } {
   if (!students.length) return { main: 'Staff file', sub: '' };

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import type { DocumentTypeOption, TaggableStudent } from '../types';
 import { APP_ROUTES, routeForNotificationTarget } from '../constants/routes';
-import { checkChip, formatFileSize, historyTime, REQUIRED_STATES, requiredProgressLine, stillToHandIn, studentsLine, uploadedLine } from './documentDisplay';
+import { checkBadge, checkChip, formatFileSize, requiredBadge, historyTime, REQUIRED_STATES, requiredProgressLine, stillToHandIn, studentsLine, uploadedLine } from './documentDisplay';
 import { EMPTY_DOCUMENT_FILTERS, filtersFromParams, filtersToParams, moreFilterCount } from './documentFilters';
-import { defaultSharing, sharingNames, staffTypeChoices, studentAudienceSentence } from './documentSharing';
-import { suggestTypeForFile, tagText } from './documentTags';
+import { defaultSharing, sharingNames, staffReach, staffTypeChoices, studentAudienceSentence, studentReach } from './documentSharing';
+import { suggestTypeForFile, tagText, uploadTags } from './documentTags';
 import { acceptAttribute, acceptedKinds, fileProblem, kindForName, kindsSentence, titleFromFileName } from './documentUpload';
 
 const type = (overrides: Partial<DocumentTypeOption>): DocumentTypeOption => ({
@@ -128,5 +128,26 @@ assert.equal(suggested('proposal_v2.docx'), null, 'Every telling word must be th
 assert.equal(suggested('Thesis_chapter3.pdf'), 'thesis');
 assert.equal(suggested('supervisor-appointment-signed.pdf'), 'supervisor-appointment-form', 'Words like "form" are not needed');
 assert.equal(suggested('scan0012.jpg'), null);
+const preview = uploadTags({ type: type({ required: true }), semester: 'Semester I 2026/2027', role: 'Office Staff/Admin', programmes: ['DS', 'DS', ''], intakes: ['2026/2027 Semester I'] });
+assert.deepEqual(preview.map(tag => `${tag.kind}:${tag.label}`), [
+  'category:Research Project', 'required:Required', 'semester:Semester I 2026/2027', 'from:PG office', 'programme:DS', 'intake:Intake 2026/2027 Semester I',
+], 'The upload summary shows the tags the server will give');
+assert.deepEqual(uploadTags({ type: null, semester: null, role: 'Student', programmes: [], intakes: [] }), []);
+
+// Status badges and who will see an upload
+assert.deepEqual(checkBadge('WAITING'), { label: 'Waiting for office', tone: 'warning' });
+assert.equal(checkBadge('NONE'), null);
+assert.deepEqual(requiredBadge('MISSING'), { label: 'Not handed in', tone: 'danger' });
+assert.equal(requiredBadge('DONE', 'ACCEPTED').label, 'Accepted');
+assert.equal(requiredBadge('DONE', 'NONE').label, 'Handed in');
+assert.deepEqual(
+  studentReach(type({ sharePanel: false }), { supervisors: ['Dr Aisyah'], panel: [], coordinators: [] }),
+  ['You', 'The PG office', 'Dr Aisyah (supervisor)', 'Your programme coordinator'],
+);
+assert.deepEqual(studentReach(type({}), undefined).slice(2), ['Your supervisor, once appointed', 'Your panel member, once appointed', 'Your programme coordinator']);
+assert.deepEqual(
+  staffReach({ supervisors: true, panel: true, coordinator: false }, [student({ supervisors: ['Dr Co', 'Dr Rizal'], panel: [] })]),
+  ['The PG office', 'Dr Co, Dr Rizal (supervisors)', 'No panel member yet'],
+);
 
 console.log('Document display, filter, upload, sharing and automatic tag helpers behave as expected');
