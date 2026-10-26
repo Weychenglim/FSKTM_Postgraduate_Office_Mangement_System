@@ -2,7 +2,8 @@
 address. The purposes and organisations are the office's recipients list (see
 ``choice_lists.py``); an organisation not listed can be typed in when its purpose
 allows it. The address starts from the organisation's saved one and the student
-can change it, since a letter usually goes to one branch or office.
+can change it, since a letter usually goes to one branch or office. When the
+letter asks for the address, everything but its second line must be filled in.
 """
 
 # The extra lines a student may ask to have shown, and the tag each one fills.
@@ -15,6 +16,12 @@ OPTIONAL_CODES = [code for code, _, _ in OPTIONAL_DETAILS]
 OPTIONAL_TAGS = {code: tag for code, _, tag in OPTIONAL_DETAILS}
 
 ADDRESS_FIELDS = ["addressLine1", "addressLine2", "postcode", "city", "state"]
+REQUIRED_ADDRESS = {
+    "addressLine1": "Enter the address.",
+    "postcode": "Enter the postcode.",
+    "city": "Enter the city.",
+    "state": "Enter the state or country.",
+}
 MAX_NAME = 160
 MAX_ADDRESS = 120
 
@@ -62,7 +69,9 @@ def clean_request_details(raw, question=None):
     if question.get("askAddress", True) is not False:
         for field in ADDRESS_FIELDS:
             value = " ".join(str(raw.get(field) or "").split())
-            if len(value) > MAX_ADDRESS:
+            if not value and field in REQUIRED_ADDRESS:
+                errors[field] = REQUIRED_ADDRESS[field]
+            elif len(value) > MAX_ADDRESS:
                 errors[field] = f"Keep it under {MAX_ADDRESS} characters."
             address[field] = value
     else:

@@ -7,6 +7,7 @@ from .models import ChoiceGroup, ChoiceItem, ChoiceList, GeneratedLetter, Letter
 from .test_letter_requests import REQUESTS, LetterRequestTestCase, User, make_student, make_user
 
 LISTS = "/api/letters/lists/"
+ADDRESS = {"addressLine1": "Jalan Universiti", "postcode": "50603", "city": "Kuala Lumpur", "state": "Wilayah Persekutuan"}
 
 
 class ListTestCase(LetterRequestTestCase):
@@ -33,7 +34,7 @@ class ListTestCase(LetterRequestTestCase):
 
     def ask(self, user, details, template=None):
         self.client.force_authenticate(user)
-        return self.client.post(REQUESTS, {"templateId": (template or self.letter).pk, "details": details}, format="json")
+        return self.client.post(REQUESTS, {"templateId": (template or self.letter).pk, "details": {**ADDRESS, **details}}, format="json")
 
 
 class ManagingListsTests(ListTestCase):

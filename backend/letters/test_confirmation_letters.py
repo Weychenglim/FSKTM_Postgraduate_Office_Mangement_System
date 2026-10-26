@@ -29,7 +29,15 @@ MAYBANK = {
     "state": "Wilayah Persekutuan",
     "include": ["MIN_PERIOD", "MAX_PERIOD"],
 }
-KTMB = {"purpose": "TRANSPORTATION", "organisation": "Keretapi Tanah Melayu Berhad (KTMB)", "include": []}
+KTMB = {
+    "purpose": "TRANSPORTATION",
+    "organisation": "Keretapi Tanah Melayu Berhad (KTMB)",
+    "addressLine1": "Stesen Sentral Kuala Lumpur",
+    "postcode": "50470",
+    "city": "Kuala Lumpur",
+    "state": "Wilayah Persekutuan",
+    "include": [],
+}
 
 
 class ConfirmationLetterTestCase(LetterRequestTestCase):
@@ -77,13 +85,22 @@ class AskingTests(ConfirmationLetterTestCase):
         user = self.student("SCL002")
         missing = self.ask_for(user, None)
         self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
-        blank = self.ask_for(user, {"purpose": "SHOPPING", "organisation": " "})
+        blank = self.ask_for(user, {**MAYBANK, "purpose": "SHOPPING", "organisation": " "})
         self.assertEqual(set(blank.data), {"purpose"})
-        no_name = self.ask_for(user, {"purpose": "BANKING", "organisation": " "})
+        no_name = self.ask_for(user, {**MAYBANK, "organisation": " "})
         self.assertEqual(set(no_name.data), {"organisation"})
         odd = self.ask_for(user, {**MAYBANK, "include": ["EVERYTHING"]})
         self.assertIn("include", odd.data)
         self.assertFalse(GeneratedLetter.objects.filter(student__user=user).exists())
+
+    def test_the_address_is_needed_except_its_second_line(self):
+        user = self.student("SCL008")
+        no_address = self.ask_for(user, {**MAYBANK, "addressLine1": " ", "postcode": "", "city": "", "state": ""})
+        self.assertEqual(no_address.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(set(no_address.data), {"addressLine1", "postcode", "city", "state"})
+        self.assertEqual(no_address.data["state"], "Enter the state or country.")
+        no_second_line = self.ask_for(user, {**MAYBANK, "addressLine2": ""})
+        self.assertEqual(no_second_line.status_code, status.HTTP_201_CREATED, no_second_line.data)
 
     def test_the_request_keeps_who_it_is_for(self):
         user = self.student("SCL003")
@@ -96,7 +113,17 @@ class AskingTests(ConfirmationLetterTestCase):
 
     def test_an_organisation_not_listed_can_be_typed_in(self):
         user = self.student("SCL004")
-        response = self.ask_for(user, {"purpose": "MOBILITY", "organisation": "  National   University of Singapore "})
+        response = self.ask_for(
+            user,
+            {
+                "purpose": "MOBILITY",
+                "organisation": "  National   University of Singapore ",
+                "addressLine1": "21 Lower Kent Ridge Road",
+                "postcode": "119077",
+                "city": "Singapore",
+                "state": "Singapore",
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data["requestDetails"]["organisation"], "National University of Singapore")
         self.assertTrue(response.data["requestDetails"]["typedIn"])

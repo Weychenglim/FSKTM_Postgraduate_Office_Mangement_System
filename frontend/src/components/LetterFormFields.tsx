@@ -19,12 +19,12 @@ const Compact = createContext(false);
 const LABEL = 'text-[13px] font-semibold text-slate-700 sm:text-right sm:pt-3';
 const TYPE_IT = '__type_it__';
 
-const ADDRESS_ROWS: ReadonlyArray<{ field: keyof LetterRequestDetails; label: string; hint: string; narrow?: boolean }> = [
-  { field: 'addressLine1', label: 'Address Line 1', hint: 'Enter recipient address' },
+const ADDRESS_ROWS: ReadonlyArray<{ field: keyof LetterRequestDetails; label: string; hint: string; missing?: string; narrow?: boolean }> = [
+  { field: 'addressLine1', label: 'Address Line 1', hint: 'Enter recipient address', missing: 'Enter the address.' },
   { field: 'addressLine2', label: 'Address Line 2', hint: 'Enter recipient address' },
-  { field: 'postcode', label: 'Postcode', hint: 'Enter recipient postcode', narrow: true },
-  { field: 'city', label: 'City', hint: 'Enter recipient city' },
-  { field: 'state', label: 'State/Country', hint: 'Enter recipient state or country' },
+  { field: 'postcode', label: 'Postcode', hint: 'Enter recipient postcode', missing: 'Enter the postcode.', narrow: true },
+  { field: 'city', label: 'City', hint: 'Enter recipient city', missing: 'Enter the city.' },
+  { field: 'state', label: 'State/Country', hint: 'Enter recipient state or country', missing: 'Enter the state or country.' },
 ];
 
 export const FormRow: React.FC<{
@@ -184,7 +184,7 @@ export const LetterFormFields: React.FC<LetterFormFieldsProps> = ({
         </FormRow>
         {question.askAddress !== false &&
           ADDRESS_ROWS.map((row) => (
-            <FormRow key={row.field} label={row.label} htmlFor={`letter-form-${row.field}`} hint={row.hint} error={errors[row.field]}>
+            <FormRow key={row.field} label={row.label} htmlFor={`letter-form-${row.field}`} required={Boolean(row.missing)} hint={row.hint} error={errors[row.field]}>
               <input
                 id={`letter-form-${row.field}`}
                 type="text"
@@ -192,6 +192,7 @@ export const LetterFormFields: React.FC<LetterFormFieldsProps> = ({
                 maxLength={120}
                 disabled={off}
                 onChange={(event) => change({ [row.field]: event.target.value })}
+                aria-required={row.missing ? true : undefined}
                 aria-invalid={errors[row.field] ? true : undefined}
                 aria-describedby={`letter-form-${row.field}-hint`}
                 className={`form-control form-control-md ${row.narrow ? 'sm:max-w-[10rem]' : ''} ${errors[row.field] ? 'form-control-error' : ''}`}
@@ -329,6 +330,11 @@ export function missingAnswers(questions: readonly LetterFormQuestion[], details
       const purpose = question.options.find((option) => option.code === details.purpose);
       if (!purpose) problems.purpose = 'Choose what the letter is for.';
       else if (!details.organisation.trim()) problems.organisation = `Choose or type the ${purpose.organisationLabel.toLowerCase() || 'organisation'}.`;
+      if (question.askAddress !== false) {
+        for (const row of ADDRESS_ROWS) {
+          if (row.missing && !String(details[row.field] ?? '').trim()) problems[row.field] = row.missing;
+        }
+      }
     } else if (question.kind !== 'extras' && question.kind !== 'yesno' && question.required && question.name) {
       const value = answers[question.name];
       if (typeof value !== 'string' || !value.trim()) problems[`answer:${question.name}`] = question.kind === 'choice' ? 'Choose one.' : 'Answer this question.';

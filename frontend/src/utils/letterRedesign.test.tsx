@@ -31,11 +31,19 @@ const questions: LetterFormQuestion[] = [
 // what the student must answer before the check step
 assert.deepEqual(missingAnswers(questions, EMPTY_REQUEST_DETAILS, {}), {
   purpose: 'Choose what the letter is for.',
+  addressLine1: 'Enter the address.',
+  postcode: 'Enter the postcode.',
+  city: 'Enter the city.',
+  state: 'Enter the state or country.',
   'answer:TRAVEL_DATE': 'Answer this question.',
 });
-assert.deepEqual(missingAnswers(questions, { ...EMPTY_REQUEST_DETAILS, purpose: 'TRANSPORTATION' }, { TRAVEL_DATE: '2026-12-01' }), {
+const ktmbAddress = { addressLine1: 'Stesen Sentral', postcode: '50470', city: 'Kuala Lumpur', state: 'Wilayah Persekutuan' };
+assert.deepEqual(missingAnswers(questions, { ...EMPTY_REQUEST_DETAILS, ...ktmbAddress, purpose: 'TRANSPORTATION' }, { TRAVEL_DATE: '2026-12-01' }), {
   organisation: 'Choose or type the company.',
 });
+// the second address line is the only one a student may leave out, and only when the letter asks for an address
+assert.deepEqual(missingAnswers(questions, { ...EMPTY_REQUEST_DETAILS, ...ktmbAddress, purpose: 'TRANSPORTATION', organisation: 'KTMB' }, { TRAVEL_DATE: '2026-12-01' }), {});
+assert.deepEqual(missingAnswers([{ ...questions[0], askAddress: false } as LetterFormQuestion], { ...EMPTY_REQUEST_DETAILS, purpose: 'TRANSPORTATION', organisation: 'KTMB' }, {}), {});
 // only the office's own questions are sent, and a yes or no is always sent
 assert.deepEqual(answersFor(questions, { TRAVEL_DATE: ' 2026-12-01 ', EMBASSY: '', stray: 'x' }), { TRAVEL_DATE: '2026-12-01', WITH_FAMILY: false });
 
@@ -56,6 +64,7 @@ for (const label of ['Programme', 'Purpose', 'Recipient', 'Address Line 1', 'Sta
 }
 assert.ok(html.indexOf('Purpose') < html.indexOf('Travel date') && html.indexOf('Travel date') < html.indexOf('Application Date'), 'rows follow the question order');
 assert.match(html, /type="date"/);
+assert.equal((html.match(/aria-required="true"/g) ?? []).length, 4, 'every address line but the second is required');
 const preview = renderToStaticMarkup(
   <LetterFormFields questions={questions} programme="" applicationDate="" details={EMPTY_REQUEST_DETAILS} onDetails={() => undefined} answers={{}} onAnswer={() => undefined} preview />,
 );

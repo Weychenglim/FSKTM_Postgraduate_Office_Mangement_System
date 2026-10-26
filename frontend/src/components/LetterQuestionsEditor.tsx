@@ -207,7 +207,10 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
                     </div>
                   </fieldset>
                   <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-3">
-                    <p id={`ask-address-${index}`} className="text-[12.5px] font-semibold text-slate-700">Ask for the address</p>
+                    <div>
+                      <p id={`ask-address-${index}`} className="text-[12.5px] font-semibold text-slate-700">Ask for the address</p>
+                      <p className="card-caption">Students must fill it in; only the second line is optional.</p>
+                    </div>
                     <ToggleSwitch id={`ask-address-switch-${index}`} checked={question.askAddress !== false} onChange={(on) => replace(index, { askAddress: on })} labelledBy={`ask-address-${index}`} className="py-0" />
                   </div>
                   <PortalButton size="sm" variant="ghost" onClick={onOpenLists}>Edit purposes and organisations in Lists</PortalButton>
