@@ -54,8 +54,13 @@ intake and category words.
 
 | Phase | Status | Commit |
 | --- | --- | --- |
-| 1 Automatic tags | | |
-| 2 Student File Submission | | |
-| 3 Staff upload and the file page | | |
-| 4 File Management list | | |
-| 5 Settings tidy and full check | | |
+| 1 Automatic tags | Done | `1efe446` |
+| 2 Student File Submission (and the upload page for every role) | Done | `fd4174b` |
+| 3 The file page | Done | `84d57c7` |
+| 4 File Management list | Done | `e5ba35d` |
+| 5 Settings tidy and full check | Done | the commit that adds this row |
+
+Built as planned, with two differences: the staff upload page was rebuilt in phase 2
+with the student one (one component), and the "From" tag names the uploader's role
+(Student, Lecturer, Programme coordinator, PG office) rather than supervisor or panel
+member, since a lecturer's relationship to each student can change.

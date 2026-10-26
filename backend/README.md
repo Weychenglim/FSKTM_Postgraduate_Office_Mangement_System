@@ -370,7 +370,7 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 
 | Method | Path | Actor |
 | ------ | ---- | ----- |
-| GET | `options/` | Everyone: the types they may choose, semesters, programmes |
+| GET | `options/` | Everyone: the types they may choose, semesters, programmes and intakes; a student also gets `me` (their programme, intake, supervisors, panel and coordinators) for the upload summary |
 | GET | `students/?search=`, `students/<matric>/` | Staff: students they may tag, and one student's header |
 | GET, POST | `/` (list with `view`, `q`, `type`, `group`, `semester`, `programme`, `intake`, `student`, `uploader`, `sender`, `required`, `status`, `kind`, `from`, `to`, `archived`; multipart upload) | Everyone, by the access rules below |
 | GET | `summary/` | Everyone (tab counts; the office and coordinators also get `studentsStillToHandIn`) |

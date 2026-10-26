@@ -16,6 +16,7 @@ import {
 import { ApiError, fieldErrors } from '../services/apiClient';
 import { APP_ROUTES, routeForDocument } from '../constants/routes';
 import { historyTime } from '../utils/documentDisplay';
+import { titleCase } from '../utils/programmeLabel';
 import {
   draftFromType,
   NEW_TYPE,
@@ -178,6 +179,16 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <input id="type-name" className="form-control form-control-md text-[14px]" maxLength={120} value={draft.label} placeholder="For example: AI Use Declaration" onChange={event => change({ label: event.target.value })} />
         {errors.label && <p className="text-[13px] font-semibold text-rose-700">{errors.label}</p>}
         {!isNew && <p className="text-[12px] text-slate-500">For {draft.kind === 'STAFF' ? 'staff files' : draft.kind === 'BOTH' ? 'files about students, or staff files' : 'files about students'}.</p>}
+        <div className="space-y-1.5 pt-3">
+          <span id="type-group-label" className="block text-[15px] font-extrabold text-brand-navy">Category</span>
+          <SelectMenu<string>
+            aria-label="Category"
+            value={draft.group}
+            options={(settings?.groups ?? []).map(group => ({ value: group.value, label: group.label }))}
+            onChange={group => change({ group })}
+          />
+          <p className="text-[12px] text-slate-500">Every file of this type is tagged with its category, so people can find them together.</p>
+        </div>
       </div>
 
       {isNew && (
@@ -244,7 +255,7 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 <div role="group" aria-labelledby="type-required-programmes" className="flex flex-wrap gap-2">
                   {(settings?.programmes ?? []).map(programme => (
                     <Pill key={programme} checked={draft.requiredProgrammes.includes(programme)} onChange={() => change({ requiredProgrammes: toggled(draft.requiredProgrammes, programme, settings?.programmes ?? []) })}>
-                      {programme}
+                      {titleCase(programme)}
                     </Pill>
                   ))}
                 </div>
@@ -271,15 +282,6 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             <input className="form-control form-control-md text-[14px]" maxLength={300} value={draft.description} placeholder="Shown under the name when choosing a type" onChange={event => change({ description: event.target.value })} />
             {errors.description && <span className="block text-[13px] font-semibold text-rose-700">{errors.description}</span>}
           </label>
-          <div className="space-y-1.5">
-            <span id="type-group-label" className="text-[13px] font-bold text-slate-700">Group</span>
-            <SelectMenu<string>
-              aria-label="Group"
-              value={draft.group}
-              options={(settings?.groups ?? []).map(group => ({ value: group.value, label: group.label }))}
-              onChange={group => change({ group })}
-            />
-          </div>
           {!staffKind && draft.uploaders.includes('STUDENT') && (
             <SwitchRow id="type-one" title="One file per student" hint="A student's next upload becomes a new version of their file." checked={draft.onePerStudent} onChange={onePerStudent => change({ onePerStudent })} />
           )}
