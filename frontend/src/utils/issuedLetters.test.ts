@@ -58,6 +58,7 @@ assert.deepEqual(letterDataFromIssued(issued), {
   studentName: 'Ali bin Abu',
   matricNumber: 'S2101234',
   disclaimer: LETTERHEAD.disclaimer,
+  malayDisclaimer: LETTERHEAD.malayDisclaimer,
   signatoryName: LETTERHEAD.signatoryName,
   signatoryOffice: LETTERHEAD.signatoryOffice,
 });
@@ -186,6 +187,7 @@ assert.deepEqual(pythonStrings('ADDRESS_LINES'), [...LETTERHEAD.addressLines]);
 assert.equal(pythonStrings('DISCLAIMER').join(''), LETTERHEAD.disclaimer);
 assert.equal(pythonStrings('APPOINTMENT_DISCLAIMER').join(''), LETTERHEAD.appointmentDisclaimer);
 assert.equal(pythonStrings('MALAY_DISCLAIMER').join(''), LETTERHEAD.malayDisclaimer);
+assert.equal(pythonStrings('MALAY_APPOINTMENT_DISCLAIMER').join(''), LETTERHEAD.malayAppointmentDisclaimer);
 assert.equal(pythonStrings('SIGNATORY_NAME').join(''), LETTERHEAD.signatoryName);
 assert.equal(pythonStrings('SIGNATORY_OFFICE').join(''), LETTERHEAD.signatoryOffice);
 

@@ -63,10 +63,8 @@ assert.deepEqual(findPlaceholderProblems('Panel {{PANEL_NAME}}'), { unknown: ['{
 assert.deepEqual(findPlaceholderProblems('Panel {{PANEL_NAME}}', [], 'SUPERVISOR_APPOINTMENT'), { unknown: ['{{PANEL_NAME}}'], malformed: [] });
 assert.deepEqual(findPlaceholderProblems('Panel {{PANEL_NAME}}, {{RESEARCH_TITLE}}', [], 'PANEL_APPOINTMENT'), { unknown: [], malformed: [] });
 assert.equal(placeholderPurposeHint('{{PANEL_NAME}}'), '{{PANEL_NAME}} works only in panel appointment letters.');
-assert.equal(
-  placeholderPurposeHint('{{RESEARCH_TITLE}}'),
-  '{{RESEARCH_TITLE}} works only in supervisor appointment letters and panel appointment letters.',
-);
+assert.equal(placeholderPurposeHint('{{RESEARCH_TITLE}}'), '{{RESEARCH_TITLE}} works only in appointment letters.');
+assert.equal(placeholderPurposeHint('{{CO_SUPERVISOR_NAME}}'), '{{CO_SUPERVISOR_NAME}} works only in supporting supervisor appointment letters.');
 assert.equal(placeholderPurposeHint('{{STUDENT_NAME}}'), null);
 const supervisorTags = placeholdersFor('SUPERVISOR_APPOINTMENT').map((p) => p.tag);
 assert.ok(supervisorTags.includes('{{SUPERVISOR_ACCEPTED_DATE}}'));
@@ -76,16 +74,18 @@ assert.ok(!placeholdersFor().some((p) => p.tag === '{{RESEARCH_TITLE}}'));
 
 // the server's hint wording is the same
 const views = readFileSync(resolve('../backend/letters/placeholders.py'), 'utf8');
-assert.match(views, /return f"\{tag\} works only in \{' and '\.join\(PURPOSE_LABELS\[purpose\] for purpose in purposes\)\}\."/);
+assert.match(views, /kinds = "appointment letters" if purposes == _APPOINTMENTS else " and "\.join\(PURPOSE_LABELS\[purpose\] for purpose in purposes\)\n\s+return f"\{tag\} works only in \{kinds\}\."/);
 
 // each letter closes with its own signatory, and appointment letters with the office wording
 assert.deepEqual(letterClosing({ purpose: 'REQUEST' }), {
   disclaimer: LETTERHEAD.disclaimer,
+  malayDisclaimer: LETTERHEAD.malayDisclaimer,
   signatoryName: LETTERHEAD.signatoryName,
   signatoryOffice: LETTERHEAD.signatoryOffice,
 });
 assert.deepEqual(letterClosing({ purpose: 'SUPERVISOR_APPOINTMENT', signatoryName: ' Prof Signer ', signatoryTitle: 'Deputy Dean' }), {
   disclaimer: LETTERHEAD.appointmentDisclaimer,
+  malayDisclaimer: LETTERHEAD.malayAppointmentDisclaimer,
   signatoryName: 'Prof Signer',
   signatoryOffice: 'Deputy Dean',
 });

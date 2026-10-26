@@ -167,7 +167,7 @@ export interface StudentFileHeader {
   required?: Array<{ label: string; state: RequiredState }> | null;
 }
 
-export type DocumentView = 'all' | 'check' | 'staff' | 'mine' | 'required';
+export type DocumentView = 'all' | 'check' | 'staff' | 'mine' | 'required' | 'letters';
 
 export interface DocumentFilters {
   view: DocumentView;

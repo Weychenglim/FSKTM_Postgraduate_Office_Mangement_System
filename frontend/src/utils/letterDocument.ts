@@ -39,6 +39,9 @@ export const LETTERHEAD = {
   malayDisclaimer:
     'Surat ini dikeluarkan atas permintaan pelajar untuk urusan rasmi sahaja. ' +
     'Sebarang pindaan pada dokumen ini menjadikannya tidak sah.',
+  malayAppointmentDisclaimer:
+    'Surat ini dikeluarkan oleh pejabat pascasiswazah untuk urusan rasmi sahaja. ' +
+    'Sebarang pindaan pada dokumen ini menjadikannya tidak sah.',
   signatoryName: 'Dean of Postgraduate Studies',
   signatoryOffice: 'FSKTM Office Executive Secretariat',
 } as const;
@@ -77,6 +80,7 @@ export interface LetterData {
   matricNumber: string;
   /** The closing lines; the faculty defaults when left out. */
   disclaimer?: string;
+  malayDisclaimer?: string;
   signatoryName?: string;
   signatoryOffice?: string;
 }
@@ -103,16 +107,17 @@ export const LETTER_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string }> 
   { tag: '{{EXPECTED_COMPLETION}}', label: 'Expected Completion' },
 ];
 
-const APPOINTMENT_LETTERS: ReadonlyArray<LetterPurpose> = ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT'];
+const APPOINTMENT_LETTERS: ReadonlyArray<LetterPurpose> = ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT', 'CO_SUPERVISOR_APPOINTMENT'];
 
 /** What each kind of template is called where its tags are explained. */
 const PURPOSE_PLURAL: Record<LetterPurpose, string> = {
   REQUEST: 'student request letters',
   SUPERVISOR_APPOINTMENT: 'supervisor appointment letters',
   PANEL_APPOINTMENT: 'panel appointment letters',
+  CO_SUPERVISOR_APPOINTMENT: 'supporting supervisor appointment letters',
 };
 
-export const isAppointmentLetter = (purpose: LetterPurpose | undefined) => purpose === 'SUPERVISOR_APPOINTMENT' || purpose === 'PANEL_APPOINTMENT';
+export const isAppointmentLetter = (purpose: LetterPurpose | undefined) => !!purpose && APPOINTMENT_LETTERS.includes(purpose);
 
 /**
  * Tags only some letter kinds may use: appointment letters' tags, filled from
@@ -128,6 +133,9 @@ export const APPOINTMENT_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: strin
   { tag: '{{PANEL_NAME}}', label: 'Panel Member', purposes: ['PANEL_APPOINTMENT'] },
   { tag: '{{PANEL_DEPARTMENT}}', label: 'Panel Department', purposes: ['PANEL_APPOINTMENT'] },
   { tag: '{{PANEL_ACCEPTED_DATE}}', label: 'Panel Accepted On', purposes: ['PANEL_APPOINTMENT'] },
+  { tag: '{{CO_SUPERVISOR_NAME}}', label: 'Supporting Supervisor', purposes: ['CO_SUPERVISOR_APPOINTMENT'] },
+  { tag: '{{CO_SUPERVISOR_DEPARTMENT}}', label: 'Supporting Supervisor Department', purposes: ['CO_SUPERVISOR_APPOINTMENT'] },
+  { tag: '{{CO_SUPERVISOR_ACCEPTED_DATE}}', label: 'Supporting Supervisor Accepted On', purposes: ['CO_SUPERVISOR_APPOINTMENT'] },
   { tag: '{{COORDINATOR_NAME}}', label: 'Approved By', purposes: APPOINTMENT_LETTERS },
   { tag: '{{APPROVED_DATE}}', label: 'Approved On', purposes: APPOINTMENT_LETTERS },
   { tag: '{{APPOINTMENT_DATE}}', label: 'Appointment Date', purposes: APPOINTMENT_LETTERS },
@@ -150,7 +158,9 @@ export function placeholdersFor(purpose: LetterPurpose = 'REQUEST') {
 /** For a tag only some letter kinds may use, which ones; else null. Same wording as the server. */
 export function placeholderPurposeHint(tag: string): string | null {
   const purposes = TAG_PURPOSES.get(tag);
-  return purposes ? `${tag} works only in ${purposes.map((p) => PURPOSE_PLURAL[p]).join(' and ')}.` : null;
+  if (!purposes) return null;
+  const kinds = purposes === APPOINTMENT_LETTERS ? 'appointment letters' : purposes.map((p) => PURPOSE_PLURAL[p]).join(' and ');
+  return `${tag} works only in ${kinds}.`;
 }
 const TOKEN_RE = /\{\{([^{}]*)\}\}/g;
 const TRIPLE_RE = /\{\{\{[^{}]*\}\}\}/g;
@@ -336,8 +346,10 @@ export const PENDING_REFERENCE = 'Assigned on approval';
 
 /** The closing lines of a letter: the template's own signatory, else the faculty default. */
 export function letterClosing(letter: Pick<GeneratedLetter, 'purpose' | 'signatoryName' | 'signatoryTitle'>) {
+  const appointment = isAppointmentLetter(letter.purpose);
   return {
-    disclaimer: isAppointmentLetter(letter.purpose) ? LETTERHEAD.appointmentDisclaimer : LETTERHEAD.disclaimer,
+    disclaimer: appointment ? LETTERHEAD.appointmentDisclaimer : LETTERHEAD.disclaimer,
+    malayDisclaimer: appointment ? LETTERHEAD.malayAppointmentDisclaimer : LETTERHEAD.malayDisclaimer,
     signatoryName: letter.signatoryName?.trim() || LETTERHEAD.signatoryName,
     signatoryOffice: letter.signatoryTitle?.trim() || LETTERHEAD.signatoryOffice,
   };
@@ -389,7 +401,7 @@ export function buildLetterHtml(data: LetterData): string {
   // matches the on-screen preview exactly.
   const sheet = (body: string, language: LetterLanguage) => {
     const words = LETTER_WORDS[language];
-    const disclaimer = language === 'ms' ? LETTERHEAD.malayDisclaimer : data.disclaimer ?? LETTERHEAD.disclaimer;
+    const disclaimer = language === 'ms' ? data.malayDisclaimer ?? LETTERHEAD.malayDisclaimer : data.disclaimer ?? LETTERHEAD.disclaimer;
     return `<div class="sheet">
     <div class="header">
       <div class="brand">

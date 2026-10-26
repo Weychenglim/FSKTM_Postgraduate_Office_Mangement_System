@@ -9,7 +9,7 @@
 // through the steps in order; an existing one can be opened at any step.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, FileSignature, Settings2, ShieldCheck, Trash2, UserCheck, UserRound, UsersRound, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, FileSignature, Settings2, ShieldCheck, Trash2, UserCheck, UserPlus, UserRound, UsersRound, type LucideIcon } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { SelectMenu } from './SelectMenu';
@@ -65,7 +65,7 @@ const FIELD_STEPS = {
 type EditorField = keyof typeof FIELD_STEPS;
 
 const RECIPIENT_LINE_RE = /^[ \t]*\{\{RECIPIENT\}\}[ \t]*\n(?:[ \t]*\n)*/gm;
-const PURPOSE_ICONS: Record<LetterPurpose, LucideIcon> = { REQUEST: UserRound, SUPERVISOR_APPOINTMENT: UserCheck, PANEL_APPOINTMENT: UsersRound };
+const PURPOSE_ICONS: Record<LetterPurpose, LucideIcon> = { REQUEST: UserRound, SUPERVISOR_APPOINTMENT: UserCheck, PANEL_APPOINTMENT: UsersRound, CO_SUPERVISOR_APPOINTMENT: UserPlus };
 
 const statusChoices = (request: boolean, isNew: boolean): ReadonlyArray<{ value: LetterTemplateStatus; description: string }> => [
   { value: 'Draft', description: 'Not in use yet. Nobody can ask for it or receive it.' },
@@ -389,7 +389,7 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
           <AppointmentSection title="When is this letter used?" description="This decides who gets the letter, and whether students fill in a form for it." icon={Settings2}>
             <fieldset>
               <legend className="sr-only">When is this letter used?</legend>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 {PURPOSE_OPTIONS.map((option) => {
                   const chosen = editorPurpose === option.value;
                   const Icon = PURPOSE_ICONS[option.value];

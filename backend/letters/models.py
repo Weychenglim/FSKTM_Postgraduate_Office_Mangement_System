@@ -28,9 +28,14 @@ class LetterPurpose(models.TextChoices):
     REQUEST = "REQUEST", "Student requests"
     SUPERVISOR_APPOINTMENT = "SUPERVISOR_APPOINTMENT", "Supervisor appointment letter"
     PANEL_APPOINTMENT = "PANEL_APPOINTMENT", "Panel appointment letter"
+    CO_SUPERVISOR_APPOINTMENT = "CO_SUPERVISOR_APPOINTMENT", "Supporting supervisor appointment letter"
 
 
-AUTOMATIC_PURPOSES = (LetterPurpose.SUPERVISOR_APPOINTMENT, LetterPurpose.PANEL_APPOINTMENT)
+AUTOMATIC_PURPOSES = (
+    LetterPurpose.SUPERVISOR_APPOINTMENT,
+    LetterPurpose.PANEL_APPOINTMENT,
+    LetterPurpose.CO_SUPERVISOR_APPOINTMENT,
+)
 
 
 class LetterTemplate(models.Model):
@@ -168,8 +173,9 @@ class GeneratedLetter(models.Model):
     Pending requests have no reference number, wording or date yet; those are
     set when the office approves. Issued letters are kept exactly as issued.
 
-    An appointment letter is linked to its supervisor or panel appointment and
-    lists its recipients, the lecturers who may open it besides the student.
+    An appointment letter is linked to its supervisor, panel or supporting
+    supervisor appointment and lists its recipients, the lecturers who may open
+    it besides the student.
     """
 
     class Status(models.TextChoices):
@@ -207,6 +213,13 @@ class GeneratedLetter(models.Model):
     )
     panel_appointment = models.ForeignKey(
         "appointments.PanelAppointment",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="letters",
+    )
+    co_supervisor_appointment = models.ForeignKey(
+        "appointments.CoSupervisorAppointment",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -287,8 +300,17 @@ class GeneratedLetter(models.Model):
                 condition=Q(panel_appointment__isnull=False, status__in=["Pending", "Issued"]),
                 name="one_live_letter_per_panel_appointment",
             ),
+            models.UniqueConstraint(
+                fields=["co_supervisor_appointment"],
+                condition=Q(co_supervisor_appointment__isnull=False, status__in=["Pending", "Issued"]),
+                name="one_live_letter_per_co_supervisor_appointment",
+            ),
             models.CheckConstraint(
-                condition=Q(supervisor_appointment__isnull=True) | Q(panel_appointment__isnull=True),
+                condition=(
+                    (Q(supervisor_appointment__isnull=True) & Q(panel_appointment__isnull=True))
+                    | (Q(supervisor_appointment__isnull=True) & Q(co_supervisor_appointment__isnull=True))
+                    | (Q(panel_appointment__isnull=True) & Q(co_supervisor_appointment__isnull=True))
+                ),
                 name="letter_links_one_appointment",
             ),
         ]
@@ -302,7 +324,7 @@ class GeneratedLetter(models.Model):
 
     @property
     def appointment(self):
-        return self.supervisor_appointment or self.panel_appointment
+        return self.supervisor_appointment or self.panel_appointment or self.co_supervisor_appointment
 
     def to_public_dict(self, *, include_content=True):
         snapshot = self.student_data or {}

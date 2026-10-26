@@ -58,6 +58,10 @@ MALAY_DISCLAIMER = (
     "Surat ini dikeluarkan atas permintaan pelajar untuk urusan rasmi sahaja. "
     "Sebarang pindaan pada dokumen ini menjadikannya tidak sah."
 )
+MALAY_APPOINTMENT_DISCLAIMER = (
+    "Surat ini dikeluarkan oleh pejabat pascasiswazah untuk urusan rasmi sahaja. "
+    "Sebarang pindaan pada dokumen ini menjadikannya tidak sah."
+)
 SIGNATORY_NAME = "Dean of Postgraduate Studies"
 SIGNATORY_OFFICE = "FSKTM Office Executive Secretariat"
 
@@ -177,7 +181,10 @@ def _body(content, width):
 
 
 def _closing(letter, words=ENGLISH):
-    disclaimer = MALAY_DISCLAIMER if words is MALAY else APPOINTMENT_DISCLAIMER if letter.is_automatic else DISCLAIMER
+    if words is MALAY:
+        disclaimer = MALAY_APPOINTMENT_DISCLAIMER if letter.is_automatic else MALAY_DISCLAIMER
+    else:
+        disclaimer = APPOINTMENT_DISCLAIMER if letter.is_automatic else DISCLAIMER
     name = letter.signatory_name or SIGNATORY_NAME
     office = letter.signatory_title or SIGNATORY_OFFICE
     return [

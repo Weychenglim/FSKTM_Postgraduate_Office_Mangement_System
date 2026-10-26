@@ -9,7 +9,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, ChevronRight, ClipboardCheck, FileStack, ListChecks, Plus, RotateCcw, Settings2, SlidersHorizontal, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ClipboardCheck, FileSignature, FileStack, ListChecks, Plus, RotateCcw, Settings2, SlidersHorizontal, UsersRound, X } from 'lucide-react';
 import type { DocumentAutoTag, DocumentFilters, DocumentOptions, DocumentSummary, GeneratedLetter, PortalDocument, StudentFileHeader } from '../types';
 import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
 import { getReceivedLetters } from '../services/lettersApi';
@@ -25,6 +25,7 @@ import { AppointmentIcon } from './AppointmentPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { AutoTagChips, DownloadIconButton, KindBadge } from './DocumentParts';
 import { RequiredDocuments } from './RequiredDocuments';
+import { ReceivedAppointmentLetters } from './ReceivedAppointmentLetters';
 import { WORKSPACE_PAGE_SIZE, WorkspaceFilterCard, WorkspacePagination, WorkspaceSectionHeader, workspacePageSize } from './RequestWorkspacePrimitives';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
@@ -99,7 +100,7 @@ export const FileRepository: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    if (filters.view === 'required') {
+    if (filters.view === 'required' || filters.view === 'letters') {
       setRows([]);
       setLoadedKey(listKey);
       return;
@@ -283,7 +284,7 @@ export const FileRepository: React.FC = () => {
                     <dt className="text-slate-500">Your appointment letters</dt>
                     <dd className="font-bold">
                       {appointmentLetters.map(letter => (
-                        <Link key={letter.id} to={routeForFileLetter(letter.id)} className="block text-blue-700 hover:underline">
+                        <Link key={letter.id} to={routeForFileLetter(letter.id)} state={{ from }} className="block text-blue-700 hover:underline">
                           {letter.templateName}{letter.status === 'Revoked' ? ' (revoked)' : ''}
                         </Link>
                       ))}
@@ -343,6 +344,7 @@ export const FileRepository: React.FC = () => {
               ...(isOffice ? [{ value: 'check' as const, label: `To check (${summary?.toCheck ?? 0})`, icon: ClipboardCheck }] : []),
               ...(options?.canSeeRequired ? [{ value: 'required' as const, label: 'Required documents', icon: ListChecks }] : []),
               { value: 'staff', label: 'Staff files', icon: UsersRound },
+              ...(lecturerView ? [{ value: 'letters' as const, label: 'Appointment letters', icon: FileSignature }] : []),
             ]}
           />
         </>
@@ -350,6 +352,8 @@ export const FileRepository: React.FC = () => {
 
       {filters.view === 'required' && !filters.student ? (
         <RequiredDocuments isOffice={isOffice} />
+      ) : filters.view === 'letters' && !filters.student ? (
+        lecturerView ? <ReceivedAppointmentLetters /> : null
       ) : (
         <section aria-label="Files" className="app-card appointment-workspace-card">
           <WorkspaceSectionHeader

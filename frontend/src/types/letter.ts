@@ -12,7 +12,7 @@ export type LetterTemplateStatus = 'Active' | 'Draft' | 'Archived';
  * appointment letters are made by themselves when a coordinator approves an
  * appointment (UC22).
  */
-export type LetterPurpose = 'REQUEST' | 'SUPERVISOR_APPOINTMENT' | 'PANEL_APPOINTMENT';
+export type LetterPurpose = 'REQUEST' | 'SUPERVISOR_APPOINTMENT' | 'PANEL_APPOINTMENT' | 'CO_SUPERVISOR_APPOINTMENT';
 
 /** One placeholder a template may use, from `GET /api/letter-templates/placeholders/`. */
 export interface LetterPlaceholder {
@@ -216,12 +216,14 @@ export interface LetterRequestDetails {
 /** Someone an appointment letter was sent to, besides the office. */
 export interface LetterRecipient {
   name: string;
-  relation: 'Student' | 'Supervisor' | 'Panel member';
+  relation: 'Student' | 'Supervisor' | 'Panel member' | 'Supporting supervisor';
 }
 
 /** An active appointment with no letter yet, and why it cannot be made now (or null). */
+export type AppointmentLetterKind = 'supervisor' | 'panel' | 'supporting';
+
 export interface MissingAppointmentLetter {
-  kind: 'supervisor' | 'panel';
+  kind: AppointmentLetterKind;
   appointmentId: string;
   studentName: string;
   matricNumber: string;
@@ -233,7 +235,7 @@ export interface MissingAppointmentLetter {
 export interface MadeAppointmentLetters {
   made: number;
   results: Array<{
-    kind: 'supervisor' | 'panel';
+    kind: AppointmentLetterKind;
     appointmentId: string;
     letterId: string | null;
     status: GeneratedLetterStatus | null;

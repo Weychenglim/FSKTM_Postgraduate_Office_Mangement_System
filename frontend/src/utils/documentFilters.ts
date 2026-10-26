@@ -19,7 +19,7 @@ export const EMPTY_DOCUMENT_FILTERS: DocumentFilters = {
   archived: '',
 };
 
-const VIEWS: DocumentView[] = ['all', 'check', 'staff', 'mine', 'required'];
+const VIEWS: DocumentView[] = ['all', 'check', 'staff', 'mine', 'required', 'letters'];
 const UPLOADERS = ['me', 'students', 'staff'] as const;
 const SENDERS: DocumentSender[] = ['student', 'lecturer', 'coordinator', 'office'];
 const STATUSES: DocumentCheckStatus[] = ['NONE', 'WAITING', 'ACCEPTED', 'RETURNED'];

@@ -22,14 +22,14 @@ interface LetterPagesProps {
   /** 1 fits the page to the width available; above 1 zooms in. */
   zoom?: number;
   /** The closing lines; the faculty defaults when left out. */
-  closing?: { disclaimer: string; signatoryName: string; signatoryOffice: string };
+  closing?: { disclaimer: string; malayDisclaimer?: string; signatoryName: string; signatoryOffice: string };
   /** The Malay page prints its labels, date and disclaimer in Malay. */
   language?: LetterLanguage;
   /** The Malay page's body, shown after the English pages when there is one. */
   malayBodyHtml?: string;
 }
 
-const DEFAULT_CLOSING = {
+const DEFAULT_CLOSING: NonNullable<LetterPagesProps['closing']> = {
   disclaimer: LETTERHEAD.disclaimer,
   signatoryName: LETTERHEAD.signatoryName,
   signatoryOffice: LETTERHEAD.signatoryOffice,
@@ -74,7 +74,7 @@ const LetterSheets: React.FC<Omit<LetterPagesProps, 'malayBodyHtml'>> = ({
 }) => {
   const words = LETTER_WORDS[language];
   const malay = language === 'ms';
-  const disclaimer = malay ? LETTERHEAD.malayDisclaimer : closing.disclaimer;
+  const disclaimer = malay ? closing.malayDisclaimer ?? LETTERHEAD.malayDisclaimer : closing.disclaimer;
   const frame = useRef<HTMLDivElement>(null);
   const measurer = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number>(A4_PAGE.width);
