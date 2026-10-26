@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { DocumentTypeOption, TaggableStudent } from '../types';
 import { APP_ROUTES, routeForNotificationTarget } from '../constants/routes';
-import { checkBadge, checkChip, formatFileSize, requiredBadge, historyTime, REQUIRED_STATES, requiredProgressLine, stillToHandIn, studentsLine, uploadedLine } from './documentDisplay';
+import { checkBadge, checkChip, checkSteps, formatFileSize, requiredBadge, historyTime, REQUIRED_STATES, requiredProgressLine, stillToHandIn, studentsLine, uploadedLine } from './documentDisplay';
 import { EMPTY_DOCUMENT_FILTERS, filtersFromParams, filtersToParams, moreFilterCount } from './documentFilters';
 import { defaultSharing, sharingNames, staffReach, staffTypeChoices, studentAudienceSentence, studentReach } from './documentSharing';
 import { suggestTypeForFile, tagText, uploadTags } from './documentTags';
@@ -136,6 +136,18 @@ assert.deepEqual(uploadTags({ type: null, semester: null, role: 'Student', progr
 
 // Status badges and who will see an upload
 assert.deepEqual(checkBadge('WAITING'), { label: 'Waiting for office', tone: 'warning' });
+const checked = {
+  checkReason: '', checkedBy: '', checkedAt: null, uploadedAt: '2026-10-26T01:00:00Z',
+  uploadedBy: { name: 'Ali Hassan', role: 'Student', roleLabel: 'Student', isMe: false },
+  file: { number: 2, name: 'form.pdf', kind: 'PDF' as const, size: 10, pageCount: 1, uploadedAt: '2026-10-26T02:00:00Z' },
+};
+assert.deepEqual(checkSteps({ ...checked, checkStatus: 'NONE' }), [], 'No steps when the office does not check the type');
+const waitingSteps = checkSteps({ ...checked, checkStatus: 'WAITING' });
+assert.deepEqual(waitingSteps.map(step => `${step.label}:${step.state}`), ['Version 2 uploaded:completed', 'Office check:current', 'Accepted:upcoming']);
+assert.equal(waitingSteps[0].occurredAt, '2026-10-26T02:00:00Z', 'The step dates the version being checked');
+const returnedSteps = checkSteps({ ...checked, checkStatus: 'RETURNED', checkReason: 'Sign page 2.', checkedBy: 'Siti', checkedAt: '2026-10-26T03:00:00Z' });
+assert.deepEqual([returnedSteps[1].state, returnedSteps[1].reason, returnedSteps[1].actorName, returnedSteps[2].state], ['rejected', 'Sign page 2.', 'Siti', 'not_reached']);
+assert.equal(checkSteps({ ...checked, checkStatus: 'ACCEPTED', checkedBy: 'Siti', checkedAt: '2026-10-26T03:00:00Z' })[2].state, 'completed');
 assert.equal(checkBadge('NONE'), null);
 assert.deepEqual(requiredBadge('MISSING'), { label: 'Not handed in', tone: 'danger' });
 assert.equal(requiredBadge('DONE', 'ACCEPTED').label, 'Accepted');
