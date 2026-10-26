@@ -821,6 +821,20 @@ Final validation: all 168 frontend test checks pass, including production demo/C
 
 Browser coverage: Office attention and exact pending recommendation were inspected locally. The user requested no further browser checks; cross-role desktop/mobile browser acceptance and new decision previews were not completed or claimed. Shared rendering, navigation, capability, privacy and outcome contracts have automated coverage. Temporary viewport override was reset. API restarted at 127.0.0.1:8000; portal remains localhost:3001. Implementation stays local and uncommitted; the earlier requested snapshot was already pushed separately.
 
+## Appointment Confirmation Letters: Samples, Supporting Supervisors, Ended Appointments (2026-10-26)
+
+Plan: `docs/superpowers/plans/2026-10-26-appointment-confirmation-letters.md`, approved by Xiang. Commits `f5b3c8a` (sample templates) and `b5ac50e` (the rest). Builds on UC22: nothing in `appointments/` changed.
+
+- **Sample templates.** Supervisor, panel and supporting supervisor confirmation letters, each with an English and a Malay page, are added as Active when the office has no template for that kind (`letters.0010`, `letters.0012`), so a coordinator's approval issues the letter straight away. They use only details the system always has. Their description says "Sample wording set up by the system"; the office replaces the wording when the faculty's own letter is ready. Appointment, approval and acceptance dates print in Malay on the Malay page.
+- **Supporting supervisors.** A third appointment letter (`CO_SUPERVISOR_APPOINTMENT`) goes to the student and the supporting supervisor, with the main supervisor in copy, each with a notice. New details for the wording: Supporting Supervisor, their department and the date they accepted. The office's "appointments without a letter" banner and Make letters cover it too.
+- **Ended or replaced appointments.** The letter is revoked with the reason (for example "The supporting supervisor appointment ended on 26 October 2026.") and everyone on it is told; it stays in history. A letter still waiting for the office is withdrawn instead.
+- **Lecturers.** File Management has an "Appointment letters" tab listing every confirmation letter sent to them, with search, a status filter, Open and Download. The letter page in Files now shows the Malay page and goes back to where it was opened from.
+- **Fixed along the way:** the Malay footer of appointment letters said the student asked for the letter (screen, print and PDF); the menus in the letter editor and in Files (Add question, Insert detail, More actions, the student picker) opened a second scrollbar near the bottom of a page, and now float over the page like `SelectMenu` (`b71e7fc`).
+- **Checks:**
+  - Backend: 1832 tests; the letters, documents and every migration test pass after pointing `letters.0011` at the appointments migration that creates supporting supervisors (it first pointed at the latest one, which broke two appointments migration tests).
+  - Frontend: type check, 217 of 217 test files, and the production build pass.
+  - Browser, on a private copy of the database with email off: the coordinator approved two supervisors, a panel member and a supporting supervisor for TG-STU-01 and TG-STU-02 on the real approval screens (the requests before that step were made through the same API the screens use). Each letter was issued at once with both pages filled and the right people told. Ending the supporting appointment revoked its letter and told all three people. Also checked: the lecturer's tab at 1440 and 390 px (search, status filter, Open, Download PDF, back), the revoked notice on the letter page, the office's letter types and issued letters, and the student's letters. The private copy and servers were removed afterwards.
+
 ## File Submission Redesign: Automatic Tags And New File Screens (2026-10-26)
 
 Plan: `docs/superpowers/plans/2026-10-26-file-submission-redesign.md`, approved by Xiang after the proposal page "File Submission Redesign" (research and wireframes). Screens follow Wey Cheng's workspace design, as Letter Generation does.

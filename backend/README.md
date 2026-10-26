@@ -196,21 +196,25 @@ The office's `GET requests/` also takes `madeBy=request|automatic`.
 - Migration `letters.0007` adds the Student Confirmation Letter and archives Confirmation of Enrolment where that template exists; a new database gets it from `seed_letters`.
 
 **Appointment letters (UC22).**
-- **Template purpose.** A template's `purpose` is `REQUEST` (students ask for it), `SUPERVISOR_APPOINTMENT` or `PANEL_APPOINTMENT`.
+- **Template purpose.** A template's `purpose` is `REQUEST` (students ask for it), `SUPERVISOR_APPOINTMENT`, `PANEL_APPOINTMENT` or `CO_SUPERVISOR_APPOINTMENT` (a supporting supervisor).
   - Only one Active template per appointment purpose is allowed (409 `appointment_template_already_active`).
   - Students never see appointment templates.
-  - Appointment templates may also use the appointment placeholders, each in the letter kinds listed in `letters/placeholders.py`. Examples: `{{RESEARCH_TITLE}}`, `{{COURSE_CODES}}`, `{{PANEL_NAME}}`, `{{COORDINATOR_NAME}}`, `{{SEMESTER}}`.
+  - Appointment templates may also use the appointment placeholders, each in the letter kinds listed in `letters/placeholders.py`. Examples: `{{RESEARCH_TITLE}}`, `{{COURSE_CODES}}`, `{{PANEL_NAME}}`, `{{CO_SUPERVISOR_NAME}}`, `{{COORDINATOR_NAME}}`, `{{SEMESTER}}`.
+  - **Sample templates.** Migrations `letters.0010` and `letters.0012` add an active sample template (English and Malay pages) for each appointment purpose that has none, marked "Sample wording set up by the system". They use only details the system always has, so each approval issues its letter at once. The office replaces the wording once the faculty's own letter is ready; the migrations never overwrite a template the office made.
 - **When a letter is made.**
-  - `letters/signals.py` hears a new active `SupervisorAppointment` or `PanelAppointment`, which the coordinator's final approval creates. Once that approval commits, it makes the letter (`letters/appointment_letters.py`).
+  - `letters/signals.py` hears a new active `SupervisorAppointment`, `PanelAppointment` or `CoSupervisorAppointment`, which the coordinator's final approval creates. Once that approval commits, it makes the letter (`letters/appointment_letters.py`).
   - The appointment code is not changed, and a failed letter never undoes an approval.
 - **Recipients.**
   - The student and the supervisor.
   - For a panel letter, also the panel member, with the current primary supervisor in copy.
+  - For a supporting supervisor letter, the student and the supporting supervisor, with the main supervisor in copy.
   - Each gets an in-app notice (`APPOINTMENT_LETTER`, opening `/files/letters/<id>`) and an email when "Email alerts" is on.
 - **Waiting letters.** If a value is blank, or the template has office-filled fields, the letter waits as `Pending` in the office's requests. The office issues it there, and students do not see it until then.
 - **No usable template.** The office gets one notice per appointment (`APPOINTMENT_LETTERS_MISSING`). `appointment-letters/missing/` lists active appointments with no letter, and `create/` makes them.
 - **Limits.** One live letter per appointment is guarded by the database.
 - **Reissue.** It issues a new letter with the current details and revokes the old one as "Replaced by <ref>.".
+- **Ended or replaced appointments.** When an appointment stops being active, its Issued letter is revoked with the reason ("Replaced on <date>: <name> is now the supervisor." or "The panel member appointment ended on <date>.") and everyone on it gets a notice; a Pending one is withdrawn. Revoked letters stay in history. The office's own revoke of an appointment letter tells the same people.
+- **Malay page.** Appointment, approval and acceptance dates print in Malay, and the footer reads as issued by the postgraduate office.
 - **Signatory.** Each template's `signatoryName` and `signatoryTitle` are printed on its letters, and every letter keeps its own copy.
 
 ## Staff account endpoints (`/api/registry/staff/`)
