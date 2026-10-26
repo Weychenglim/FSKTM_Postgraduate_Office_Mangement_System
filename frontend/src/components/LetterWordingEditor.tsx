@@ -13,6 +13,7 @@ import { PortalButton, SegmentedControl } from './PortalPrimitives';
 import { AlertMessage } from './AlertMessage';
 import { AppointmentSection } from './AppointmentPrimitives';
 import { LetterPages } from './LetterPages';
+import { FloatingMenu } from './FloatingMenu';
 import type { LetterCustomField, LetterPlaceholder } from '../types';
 import {
   APPOINTMENT_PLACEHOLDERS,
@@ -129,20 +130,6 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
     textareaRef.current?.focus();
     textareaRef.current?.setSelectionRange(cursor, cursor);
   }, [values.content, values.contentMs]);
-
-  useEffect(() => {
-    if (!insertOpen) return;
-    const onDown = (event: MouseEvent) => {
-      if (!insertMenuRef.current?.contains(event.target as Node)) setInsertOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setInsertOpen(false);
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [insertOpen]);
 
   const type = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const typed = event.target.value;
@@ -306,7 +293,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                   <ChevronDown aria-hidden="true" className="w-3.5 h-3.5 text-slate-400" />
                 </button>
                 {insertOpen && (
-                  <div className="absolute left-0 z-20 mt-2 w-80 max-w-[calc(100vw-3rem)] max-h-[26rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                  <FloatingMenu anchor={insertMenuRef} onClose={() => setInsertOpen(false)} width={320} className="rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
                     <p className="px-2 pb-2 card-caption">Goes in where the cursor is, and is filled in for each letter.</p>
                     {insertGroups.map((group) => (
                       <div key={group.title} className="py-1">
@@ -346,7 +333,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                     {request && studentQuestions.length === 0 && (
                       <p className="px-2 py-1 card-caption">To ask the student something, add a question in the Student form step.</p>
                     )}
-                  </div>
+                  </FloatingMenu>
                 )}
               </div>
             </div>

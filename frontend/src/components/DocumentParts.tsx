@@ -6,6 +6,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ChevronDown, Download, MoreHorizontal, Search, X } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
+import { FloatingMenu } from './FloatingMenu';
 import type { DocumentAutoTag, DocumentCheckStatus, DocumentKind, TaggableStudent } from '../types';
 import { searchTaggableStudents } from '../services/filesApi';
 import { checkChip, KIND_CLASSES, KIND_SHORT } from '../utils/documentDisplay';
@@ -45,28 +46,9 @@ export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; alig
   const wrapper = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (wrapper.current && !wrapper.current.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-        wrapper.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.focus();
-      }
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open]);
-
   if (!actions.length) return null;
   return (
-    <div ref={wrapper} className="relative shrink-0">
+    <div ref={wrapper} className="shrink-0">
       {triggerLabel ? <PortalButton size="sm" icon={ChevronDown} iconPosition="right" disabled={disabled} aria-label={label} aria-haspopup="menu" aria-expanded={open}
         aria-controls={open ? menuId : undefined} onClick={() => setOpen(value => !value)}>
         {triggerLabel}
@@ -75,7 +57,7 @@ export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; alig
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
       </button>}
       {open && (
-        <div id={menuId} role="menu" className={`absolute top-12 z-30 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg ${align === 'right' ? 'right-0' : 'left-0'}`}>
+        <FloatingMenu id={menuId} role="menu" anchor={wrapper} onClose={() => setOpen(false)} width={224} align={align} className="rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
           {actions.map(action => (
             <button
               key={action.label}
@@ -92,7 +74,7 @@ export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; alig
               {action.label}
             </button>
           ))}
-        </div>
+        </FloatingMenu>
       )}
     </div>
   );
@@ -144,15 +126,6 @@ export const StudentPicker: React.FC<{
     };
   }, [text, open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (wrapper.current && !wrapper.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-
   const choices = results.filter(result => !picked.some(student => student.matric === result.matric));
   const pick = (student: TaggableStudent) => {
     onChange([...picked, student]);
@@ -161,8 +134,8 @@ export const StudentPicker: React.FC<{
   };
 
   return (
-    <div ref={wrapper} className="relative">
-      <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 focus-within:border-brand-navy focus-within:ring-1 focus-within:ring-brand-navy">
+    <div>
+      <div ref={wrapper} className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 focus-within:border-brand-navy focus-within:ring-1 focus-within:ring-brand-navy">
         {picked.map(student => (
           <Chip key={student.matric} onRemove={() => onChange(picked.filter(item => item.matric !== student.matric))} removeLabel={`Remove ${student.name}`}>
             {student.name} <span className="font-semibold text-indigo-500">{student.matric}</span>
@@ -208,7 +181,7 @@ export const StudentPicker: React.FC<{
         </div>
       </div>
       {open && (
-        <div className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+        <FloatingMenu anchor={wrapper} onClose={() => setOpen(false)} maxHeight={288} className="rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
           <ul id={listId} role="listbox" aria-label="Students you can add">
             {choices.map((student, index) => (
               <li
@@ -234,7 +207,7 @@ export const StudentPicker: React.FC<{
               {loading ? 'Searching...' : problem ?? (text ? 'No students match.' : 'No more students you can add.')}
             </p>
           )}
-        </div>
+        </FloatingMenu>
       )}
     </div>
   );
