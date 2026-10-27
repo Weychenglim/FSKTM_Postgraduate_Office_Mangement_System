@@ -1,4 +1,119 @@
+## Final appointment consistency review (27 October 2026)
+
+Student supporting supervisors expose the same public department, email and appointment date as other appointed members. Existing module tabs, request/history partitions, permissions and nomination workflows remain intact. Registry programme-transfer relocation and Marks template work remain deferred.
+
+## Supervisee Panel student detail (27 October 2026)
+
+View student opens an independent Student Panel details page, with Back to My supervisees above the title. The page separates student overview, current Panel contact details, current research and a prominent nomination action/status section. Mobile places nomination controls before the Panel/research content. Existing nomination and replacement eligibility remain unchanged. Student-specific completed nomination history is collapsed and paginated; it has no list filters. Staff identifiers are not shown in this overview.
+
+## Nomination records consistency correction (27 October 2026)
+
+Nomination records must use the established Requests / History wording and keep all filters visible, matching the other appointment workspaces.
+
+## Panel supervisee list and nomination records (27 October 2026)
+
+Supersedes the earlier Students / My nominations switch. Lecturer My supervisees shows one roster with search, nomination status, pagination and View student actions. A secondary Nomination records button opens a dedicated page, retaining former-supervisee submissions and Ongoing / History. Its Back link appears above the title; module tabs remain on the workspace. Search/status remain visible while programme, semester, submitted date and sorting are under More filters. No repeated general guidance card on this workspace. Student detail redesign remains a separate phase.
+
+## Panel supervisee list workspace (27 October 2026)
+
+The Lecturer My supervisees page presents Students and My nominations as mutually exclusive views inside one workspace. Existing module tabs remain. Students retain search, nomination status and pagination; My nominations retains ongoing requests, final history and records for former supervisees. The roster action is labelled View student. Student detail redesign is a separate phase.
+
+## Lecturer Panel assignment academic team (27 October 2026)
+
+The Lecturer My Panel students assignment detail shares the Supervisor detail hierarchy: student overview, academic team, research and assignment sidebar. Show current primary/supporting public contacts and the member recorded for this Panel assignment. Omit internal staff numbers and supervision management controls. Retain lifecycle, nomination evidence, Marks navigation, Back and read/retry behaviour.
+
+## Supervisor team contact hierarchy (27 October 2026)
+
+Supervisor detail must treat primary and supporting supervisors as one supervision group, with equal public department/email/appointment-date fields. Panel evaluation is a separate subsection with one balanced divider. Preserve nomination, replacement, end-appointment and history capabilities for each authorised role. The standalone Panel assignment redesign remains a later phase.
+
+## Supervision team actions and nomination form (27 October 2026)
+
+Supervision detail actions belong beside their supporting-supervisor or Panel heading, with consistent icons and touch targets. Co-supervisor nomination must retain student context and readable form spacing while preserving validation, eligibility, recovery and workflow controls.
+
+## Stable appointment tab layouts (27 October 2026)
+
+Within appointment request workspaces, Requests/History must retain the same shared summaries, navigation, filter placement and guidance. Tabs continue to select different records and lifecycle information; list height may vary naturally. Preserve all existing role-specific navigation and capabilities.
+
+## Supervisor request empty action divider (27 October 2026)
+
+Completed Supervisor appointment requests must not display an empty decision section between approval progress and audit history. Preserve pending decisions and eligibility notices.
+
 # Project Requirements
+
+## Panel overview action removal (27 October 2026)
+
+Remove View approved nomination from the Student Panel appointment overview, as requested. Preserve the Supervisor approved-application action and existing appointment details.
+
+## Student Supervisor tabs preserved (27 October 2026)
+
+Retain My supervisors, Applications and Research changes as the existing workspace tabs above the content on every Student Supervisor workspace page. Appointment-card visual consistency must not remove or relocate these navigation tabs. Do not duplicate the tabs as links inside the overview card.
+
+## Revised Student appointment cards and approved Panel source (27 October 2026)
+
+Supersedes the earlier floating academic-context arrangement. Both Student appointment overviews use the same appointed-member card structure: header source action, name/status, department, email, appointment date, semester and programme. Keep metadata inside the card, remove the unmatched Panel refresh button and preserve automatic return-to-focus reload/retry. Supervisor must provide actual public contact/date/semester details from the active appointment rather than show only a name. Its application/history and research links remain available inside the card instead of a separate overview tab strip. Supporting supervisors and previous appointments remain available. Panel provides a View approved nomination action in the equivalent card-header position. The Student-only approved record exposes the current approved nomination reference, nominating supervisor and recorded submission/acceptance/approval dates; staff comments, reasons, pending identities and raw audit history remain private. A foreign or obsolete reference must not silently open another record. Source details retain back/retry controls on loading/failure and mobile presentation. Internal staff numbers remain withheld.
+
+## Student appointment overview consistency and application traceability (27 October 2026)
+
+Student Supervisor and Panel overviews must share academic-context, appointed-member, current-research and contextual next-step presentation, with consistent typography, spacing, accessible actions and responsive reading order. Retain Supervisor applications/research navigation, supporting-supervisor history and Panel prerequisite/FAQ navigation. Students must not receive the Panel member's internal staff number; the legacy student response key remains null while staff-facing records retain their existing identifiers. Only dual-confirmed Panel status/readiness releases the confirmed member's public information. Keep the current appointment visible during replacement review and preserve generic faculty-processing privacy. Place View approved application beside the current primary supervisor; it opens the active appointment's approved request even if a newer replacement is pending or older approvals exist. Do not invent an application link for legacy records without a source request. New-application document guidance belongs to students still preparing an application; pending students see progress guidance and appointed students see exceptional-change guidance. Display existing data without inventing absent Supervisor contact/semester metadata.
+
+## Panel nomination form/list consistency — Phase 4 (27 October 2026)
+
+Use the approved shared Student overview, nomination and research hierarchy for new/replacement Panel nominations, with readable regular-weight answers and optional full abstract. Clearly distinguish the current appointed member from a proposed replacement. Candidate selection must support pointer and keyboard use, expose associated option/selection semantics, skip unavailable candidates and never accidentally submit when Enter selects an option. Preserve authoritative capacity/eligibility, required notes/replacement reason, intake enforcement, exact payloads, busy guards, inline failure feedback and dirty-navigation confirmation. Common staff lists retain the shared automatic filter panel, request/history/current/past partitions, pagination, export and exact record destinations. Name repeated record actions accessibly and provide 44px action targets. No new academic fields, backend changes or permission expansion.
+
+## Student Panel overview consistency — Phase 3 (26 October 2026)
+
+Separate the Student Panel overview, confirmed member and current saved research into readable surfaces consistent with staff/Supervisor details. Keep a compact relevant next step beside the content on desktop and stack on smaller screens. Distinguish an unapproved proposed supervisor from an appointed primary supervisor. Pending Panel member identities and internal nomination/review/audit fields remain private; preserve the public readiness states, current-appointment continuity, existing prerequisite navigation, loading/error/retry and return-to-focus reload. Refresh and FAQ controls must retain clear accessible names and usable touch targets. Do not invent missing research from an application title or introduce new backend fields.
+
+## Panel appointment detail consistency — Phase 2 (26 October 2026)
+
+Staff Panel appointment/assignment pages must prioritise the appointed member and current research, with one student overview and a compact lifecycle side card. Preserve appointment status/date, ending date/outcome/reason/actor, existing lifecycle and nomination audits, and scoped Marks/ending/navigation controls. Nomination justification and review evidence remain available in a collapsed disclosure, including for legacy records lacking lifecycle metadata. Supervisor supervisee details separate the active member from any proposed replacement; existing nomination/replacement capability checks and continuity messaging remain. Office attention overviews distinguish current appointment status from an ongoing nomination using only the API-supplied state; an active appointment response alone must not claim that no concurrent request exists. Keep recommendation routes on the Phase 1 presentation; Coordinator assignment details must not offer request decisions. Student view, form and list redesigns remain later phases; no new data fields or role permissions.
+
+## Panel request detail consistency — Phase 1 (26 October 2026)
+
+Panel recommendation detail pages must follow the approved Supervisor visual hierarchy: independent student overview, nomination details/justification, current research reading area, and review/outcome. Keep 28px separation, muted 12px labels, regular answers of at least 14px, a desktop review side column and a phone stack. Reuse shared icon headings, dark positive/red rejection controls and the existing student-record action. The selected Panel member accepts, the scoped Coordinator approves, and Office/supervising Lecturer readers retain their existing capabilities; no new authority is introduced. Preserve replacement continuity, terminal reasons, cancellation confirmation, audit history, busy state, and current-profile provenance. Student privacy and title/abstract amendment scope remain unchanged. Assignment lifecycle redesign, Student Panel overview, nomination form and list polishing remain subsequent phases.
+
+## Phase 3 research-change UI (26 October 2026)
+
+Keep the existing title/abstract amendment scope and approval permissions. Present request overview, saved before/after comparison and review/outcome as independent surfaces across all existing roles. Preserve original snapshots, transfer retention evidence and recorded reasons. Tidy the existing form with clearer sections and an optional preview; retain automatic list filters. Research area/Research Intent amendment expansion and Registry transfer relocation remain separate pending work.
+
+## Phase 2 research profile and Registry handoff (26 October 2026)
+
+Phase 2 research profiles must separate student identity/programme, readable current title/abstract and visible compact saved-version history. Only exact current-version metadata may describe the current record. Preserve role capabilities, immutable revision comparisons, missing-data honesty and existing URLs. Programme transfer belongs in Registry; the current entry stays reachable until the replacement passes cutover acceptance. See docs/PROGRAMME_TRANSFER_REGISTRY_HANDOFF_2026-10-26.md.
+
+## Record navigation button consistency (26 October 2026)
+
+View approved application and View student record use the existing dark primary button with white text wherever those actions are available. Application navigation uses the document icon; student-record navigation uses the student icon. Keep existing role visibility, destinations, disabled states and responsive wrapping.
+
+## Approved application access from supervision (26 October 2026)
+
+Keep current supervision details concise while providing a clear View approved application action in the student overview for authorised staff. Target the approved application attached to the active primary appointment, never a newer pending replacement or another student's record. Application evidence retains its existing access rules: a supporting supervisor's team access alone does not grant access to the primary application. The Student counterpart uses its existing own active approved application with the same action label. Preserve the current research profile separately from the submitted snapshot and return to the originating supervision page with its query context.
+
+## Detail sidebar action polish (26 October 2026)
+
+Request review and Phase 1 compact appointment sidebars use equal-width, vertically stacked actions with a minimum 44px height, readable 12px semibold labels and consistent spacing. Positive decisions appear first with primary styling; rejection and ending retain a restrained danger treatment. Apply the shared layout to existing caller-supplied actions for all roles without adding permissions or changing confirmation, busy, eligibility or historical behaviour. Other portal buttons retain their existing presentation. Supervisor and Coordinator primary request decisions must use identical button markup, check/cross icons and complete request labels; only the positive workflow term differs (Accept request versus Approve request).
+
+## Phase 1 supervision detail layout (26 October 2026)
+
+Staff supervision details for Lecturer, Programme Coordinator and Office must separate the student overview, supervisory team and visible current research from appointment management and historical activity. Use the approved request-detail spacing, aligned section icons, muted 12px labels, regular 14px answers and a readable 18px research title. Appointment metadata belongs alongside the main content on desktop and follows it on smaller screens; it must retain approval/end dates, saved outcomes, history and authorized controls without duplicating student/supervisor identity rows. Research must remain readable without opening a disclosure. Histories and shared semester dates remain expandable and separately labelled.
+
+The Student My supervisors counterpart uses separate own-team and research cards with only Student-safe current members and historical summaries. Preserve all role/capability gates, pending replacements, read/error/retry handling, source data and historical-access boundaries. Default historical appointment summaries and the Panel overview profile retain their current presentation. Standalone research profile and research-change page redesigns are later phases.
+
+## Supervisor request detail spacing revision (26 October 2026)
+
+Replace the catch-all Application details card with independent student overview, research details, submitted Research Intent, and supporting documents/declaration surfaces. At desktop widths, put Review and outcome beside the research content; stack it after the evidence on smaller screens. Keep clear label/answer hierarchy, visible section spacing, all saved text and documents, secondary evidence disclosures, and role-owned capabilities for Student, Lecturer, Programme Coordinator and Office. This supersedes the earlier two-primary-card layout requirement below.
+
+The user also requested one persistent local development request with realistic fictional content for visual review. It must use the normal submission contract and configured local demo authentication, preserve existing records, include saved Section A/Research Intent and usable supporting PDFs, and remain clearly distinguishable from real student information.
+
+## Supervisor request detail reading order (26 October 2026)
+
+Student, Lecturer, Programme Coordinator and Office views of the primary Supervisor request must share a compact identity/semester/proposed-Supervisor overview, an Application details card and a Review and outcome card when request history or actions exist. Group submitted student evidence, research/project details and Research Intent, then supporting documents/declaration. Show title ownership beside the research title. Distinguish muted 12px labels from regular-weight 14px answers; reserve stronger weight for headings. Contact/identity, course results, declaration text and audit history expand on demand; Research Intent follows the form's three groups with individual and expand/collapse-all controls. Preserve full submitted text, historical gaps, retry states, document actions and existing role capabilities. Office replacements must not invent student-submitted evidence.
+
+
+## Consistent icon heading alignment (26 October 2026)
+
+Decorative header icons must share the vertical centre of their title, with supporting text beneath the title rather than shifting the icon. Preserve existing typography, colours, actions, heading semantics and role/workflow rules. Long titles must wrap without horizontal overflow at desktop, tablet and phone widths. This pass corrects alignment before any appointment request redesign.
+
+
 
 ## Acting delegation acceptance boundary (25 October 2026)
 

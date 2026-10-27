@@ -1,4 +1,137 @@
+## Final appointment consistency review (27 October 2026)
+
+StudentSupervisorsOverview reuses SupervisionPerson for active supporting appointments, consuming the existing public contact projection. No endpoint, dependency or permission changes in this final adjustment. Appointment presentation and scoped projection changes are committed separately from unrelated Office/admin and carryover work in the shared checkout.
+
+## Supervisee Panel detail presentation (27 October 2026)
+
+LecturerPanelAppointments hosts a selected supervisee in RecordPage independently of the module list/tabs. The student host is unmounted while the nomination form or exact submitted request occupies the record surface. PanelSuperviseeDetails reuses PanelStudentOverview, PanelResearchDetails and SupervisionPerson, with a consistent nomination aside and five-record completed-history pages. Pending requests appear once in the nomination aside, not in completed history. Existing shared authenticated list state preserves roster filters on return. StudentResearchProfileSerializer adds currentPanelDepartment, currentPanelEmail and currentPanelAppointmentDate from its already-cached active Panel appointment, using existing eager-loaded relations. Ended appointments return null for those fields; the eligible-supervisees authorization and active-primary-supervisor scope are unchanged. No database migration.
+
+## Nomination records consistency correction (27 October 2026)
+
+Removed the nomination-only compactFilters and ongoingLabel extensions. PanelNominationRecords uses the standard PanelBrowse filters and RequestViewSwitch without a disclosure or custom terminology.
+
+## Dedicated Lecturer nomination records (27 October 2026)
+
+PanelSuperviseesWorkspace now renders only the roster and a records navigation callback. LecturerPanelAppointments uses panelRecords=1 within the supervisees section to host PanelNominationRecords through RecordPage, hiding the workspace navigation while retaining authenticated ListState. Existing submitted routes open this page too. The records host is unmounted while a selected request occupies RecordPage, avoiding competing record pages; the request Back label identifies Nomination records. Loading/error/retry remain explicit. PanelBrowse's opt-in compactFilters and ongoingLabel preserve all standalone consumers' defaults. Compact filters retain active secondary controls and expose them in a disclosure. No backend or authorization changes.
+
+## Panel supervisee list workspace (27 October 2026)
+
+PanelSuperviseesWorkspace composes the existing roster and nomination browser in one card. Optional embedded presentation on PanelSuperviseeRoster and PanelBrowse avoids nested card shells without changing standalone consumers. The authenticated ListState context retains the selected view and each browser's filters/history/pagination when its sibling is displayed. No API, permissions or nomination workflow changes.
+
+## Lecturer Panel assignment academic team (27 October 2026)
+
+The exact authorised Panel appointment endpoint optionally serialises academicTeam with only current primary/supporting name, email, department and appointment date. List payloads remain unchanged and incur no new team queries. PanelAssignmentDetail fetches the exact appointment when list data lacks the projection, guards identity and stale responses, and preserves Retry/Back. It reuses SupervisionPerson/ContactDetails; shared staff recommendation and appointment hosts retain their current presentation. Historical Panel status is distinct from current supervisor context.
+
+## Supervisor team contact hierarchy (27 October 2026)
+
+SupervisionPerson and SupervisionContactDetails provide shared role/member and contact layouts inside the existing staff supervisory-team card. Primary/supporting members share an undivided group; Panel evaluation uses a single 24px-spaced boundary and an action row after its details. The authorised team response now includes primaryAppointmentDetails for staff as well as Students; supporting appointment supervisor projections include only public email and department in addition to existing identity. Related lecturer/semester data is selected with the parent query. No access checks, staff identifiers, workflow payloads or database schema changed.
+
+## Supervision team actions and nomination form (27 October 2026)
+
+SupervisionMember renders supplied actions beside its section label. Supporting nomination uses the same heading/action arrangement. The shared co-supervisor form uses a white surface, student/primary-supervisor context, normal-case field labels, larger justification and an explicit Cancel/Submit footer. Existing state, API payloads, draft protection and eligibility checks are unchanged.
+
+## Stable appointment tab layouts (27 October 2026)
+
+Lecturer Supervisor and Panel request summaries are independent of the Requests/History selection. Supervisor request/research guidance stays outside the view partition. Removed the history-only duplicate outcome count above Supervisor filters. Existing Student, Office and Coordinator list shells, research filters and separate Marks history navigation are retained. Mounted browser regressions compare filter/tab coordinates across Requests/History at desktop and phone widths.
+
+## Supervisor request empty action divider (27 October 2026)
+
+Lecturer and Coordinator request callers pass no action node when neither a decision nor an eligibility notice is available. This prevents the shared review card from reserving a bordered empty action section.
+
 # Architecture and Coding Design
+
+## Panel overview action removal (27 October 2026)
+
+StudentPanelAppointmentOverview no longer accepts or renders an approved-nomination action; remove its host callback. Existing saved public record links remain readable with their existing access and exact-record guards. No backend changes.
+
+## Student Supervisor navigation correction (27 October 2026)
+
+Restore SupervisorWorkspaceNavigation in the shared Student page header on overview, applications and research-list routes. Keep exact request/form/detail navigation behaviour unchanged. Remove the replacement relatedLinks node and prop from StudentSupervisorsOverview; preserve the shared appointment card, public metadata and header source actions. Regression checks assert all three tabs remain across workspace views and that the overview tabs precede the card without duplication.
+
+## Revised shared Student appointment card and safe source projection (27 October 2026)
+
+StudentAppointmentLayout now controls only the shared content/aside composition; it no longer renders floating academic context or actions. StudentAppointmentCard reuses SupervisionDetailSection/SupervisionMember for both overview cards with the same header action and department/email/date/semester/programme grid. StudentSupervisorsOverview consumes optional primaryAppointmentDetails; backend serialize_team adds this whitelisted field only for Student callers and derives it from the active primary appointment. Existing staff DTOs and authorization remain unchanged. Related application/research links move into the overview card; navigation on other Supervisor pages is preserved. Panel removes the manual-refresh control while keeping useReturnToFocusReload, loading, error and retry.
+
+StudentPanelAppointmentSerializer adds an explicitly typed approvedRequest projection containing only id, nominatedBy, submittedAt, panelAcceptedAt and approvedAt. It is populated only from the current active appointment's approved recommendation; pending/no-appointment responses return null. The Student component opens ?panelRequest=<id> through RecordPage, checks exact ID plus dual confirmation, and preserves other query state on open/back. Invalid/obsolete references show an unavailable state, and loading/failure retain the record header/back/retry. It never calls staff nomination endpoints or exposes justification, reasons, private workflow or staff numbers. Dates are genuine recorded values with honest missing-data presentation; no historical research snapshot is fabricated. Optional frontend types maintain compatibility with absent legacy metadata. No schema or dependency changes.
+
+## Shared Student appointment overview and source-request navigation (27 October 2026)
+
+StudentAppointmentLayout supplies a compact Academic context section, a main reading column and a 20rem next-step aside at xl, stacking with 28px gaps on smaller screens. StudentAppointmentNextStep reuses SupervisionDetailSection and the established 12px labels/14px regular answers/16px section headings; both overviews use SupervisionMember and the existing full current-research reader. StudentSupervisorsOverview receives optional pending-request/FAQ content through the existing workspace host, keeps supporting appointments/history and places the existing approved-request action next to the primary supervisor. The approved source remains selected by APPROVED plus ACTIVE appointment lifecycle; existing exact-record routing and return navigation are preserved. Panel retains dual confirmation, prerequisite links and refresh/error recovery. Supervisor guidance skips requirement API reads once appointed or awaiting a decision. Compact current-request, approved-application and New application actions use 44px minimum targets.
+
+Only the student_panel_appointment_payload projection changes in the backend: panelMemberId is always null, preserving response shape while withholding the internal staff number. Staff serializers, authorization, models and migrations remain unchanged. Regression coverage includes real student API privacy, existing authorization/waiting/link checks, full production-component browser navigation against controlled HTTP responses, all readiness states, replacement/legacy source requests and responsive geometry. Browser fixtures use actual components and production CSS; no live academic writes are required.
+
+## Panel nomination presentation/accessibility — Phase 4 (27 October 2026)
+
+RecommendPanelMemberDrawer remains the existing RecordPage-backed form and uses PortalCard, SupervisionDetailSection, PanelDetailFact, ResearchAbstract, PortalButton and StatusBadge. The form separates student identity from editable nomination details and a 20rem current-research aside at xl; smaller screens stack with 28px gaps. The full abstract is initially collapsed. Existing candidate/notes/replacement and operational-intake state/guards retain their payload contract. The input-focused combobox exposes a generated listbox/option ID pair, active descendant and selected/disabled state; arrow keys cycle selectable candidates, Enter chooses without submitting while expanded, Escape/Tab/outside click close, and Remove selection returns focus. Selected candidates refresh from authoritative props. Removed redundant candidate decoration/status panels and local motion without changing dependencies. PanelBrowse, PanelAssignmentsWorkspace and PanelSuperviseeRoster keep shared filter/list architecture and add exact named/touch-sized record actions; no global styling, API, backend or schema changes. Production-CSS mounted regressions cover real form events, public HTTP boundaries and responsive layout; existing feedback fixture uses semantic listbox selection instead of the former fixed popup ID.
+
+## Student Panel overview presentation — Phase 3 (26 October 2026)
+
+StudentPanelAppointmentOverview composes existing PortalCard, SupervisionDetailSection, PanelDetailFact and standalone StudentResearchProfileSection primitives. The public StudentPanelAppointmentView remains the only data contract; both CONFIRMED status and readiness are required before rendering member/contact/date fields. The page uses the shared 28px gap and xl main-plus-20rem guidance aside, regular 14px answers and 18px research title. Explicit fact rendering avoids spreading staff data into the Student view. The existing API loader, retry and focus reload remain; Refresh appointment now connects the existing optional callback and respects its busy prop. No backend, schema, API, dependencies, staff presentation or global styles change. Scoped mounted browser checks cover every readiness state, exact callbacks/navigation, loading/retry/refresh, missing data, full long research, geometry and private-field suppression.
+
+## Panel appointment detail presentation — Phase 2 (26 October 2026)
+
+PanelDetailLayout.tsx supplies small presentation-only student overview, member, research and fact components using existing PortalCard/SupervisionDetailSection typography. PanelAssignmentDetails.tsx composes these into an xl main-plus-20rem lifecycle aside and mobile stack, retaining nomination/review evidence in a disclosure. PanelAppointmentRecordCard adds an opt-in compact branch; its default request attachment remains unchanged. Lecturer PanelAssignmentDetail uses the appointment composition and existing Marks callback. Office selects it only for explicit appointment-* routes; recommendation-* stays on Phase 1, and profile-* uses the refreshed attention overview. Coordinator assignment-section records opt into the appointment presentation in the existing scoped review host, with request decisions disabled there. Supervisor PanelSuperviseeDetails reuses overview/member/research surfaces with a separate pending nomination aside; roster/list/query behaviour is preserved. No backend, schema, API, dependency or shared global-style change.
+
+## Panel request detail presentation — Phase 1 (26 October 2026)
+
+PanelRecommendationDetail in PanelRecordDetails.tsx now composes the existing PortalCard, SupervisionDetailSection/typography, ResearchAbstract, ApprovalProcess, RequestDetailActions and RequestAuditHistory primitives. Caller-owned context/decision/administration slots and existing presentation adapters remain unchanged. Nomination/replacement evidence precedes current profile research; review uses the same xl main-plus-20rem column and mobile stack as Supervisor details. PanelRecommendationReviewDrawer reuses PrimaryRequestDecisionButtons with Accept request / Approve request and Reject request, retaining its existing capability predicates and DecisionDialog callbacks. Read-only records do not render an empty decision strip. PanelAppointmentRecordCard is unchanged; its sibling attachment remains separate. No backend/API/schema/dependency or global typography changes. Regression coverage adds shared layout/role tests and production-CSS mounted browser scenarios for all staff callers, dialogs, replacement and historical states, long content and responsiveness.
+
+## Phase 3 research-change presentation (26 October 2026)
+
+ResearchChangeRequestDetail is a pure shared renderer fed saved ResearchAmendment evidence, derived approval steps and caller-owned actions/navigation. It reuses SupervisionDetailSection and existing sidebar decision primitives. RequestedChangesComparison distinguishes request proposals/approved snapshots while preserving revision-history labels. ResearchAmendmentForm retains API payloads/capabilities and uses an optional local preview; no backend/schema/dependency changes.
+
+## Phase 2 research profile and Registry handoff (26 October 2026)
+
+ResearchProfileDetail.tsx renders only current profile values using existing options/revisions, independent PortalCard surfaces, the Phase 1 section/typography primitives and unboxed ResearchAbstract text. Student identity is selected by the current profile student ID; programme appears once. Current-update metadata requires exact revision number, explicit matching student ID and matching saved programme/title/abstract; missing or unrelated metadata is omitted. ResearchProfileHistoryCard remains separate and exposes compact newest-first revision summaries, while individual ResearchRevisionCard disclosures preserve the existing immutable RequestedChangesComparison content. The profile host loses its outer catch-all card and duplicate identity row; other route presentations stay unchanged.
+
+ResearchCreationKind and a validated changeType query parameter select existing correction/transfer/research form intent. Office links preserve the selected Student User ID and query/state context; form initialization only accepts a permitted kind and includes intent in the reset key/draft baseline. No new authorization or mutation service is added. Existing old URLs/default creation continue working. Registry relocation is documented in docs/PROGRAMME_TRANSFER_REGISTRY_HANDOFF_2026-10-26.md and remains a later integration. Production-CSS browser fixtures exercise all four roles, responsive geometry, explicit action callbacks, saved disclosures, selection changes, metadata gaps, read failures/retry and long content.
+
+## Record navigation button presentation (26 October 2026)
+
+Reuse PortalButton's existing primary variant rather than adding a global style. ViewStudentRecordAction supplies the UserRound icon and small dark button for shared detail pages. Remaining direct student-record actions in Supervisor, supporting request, Panel, Marks and report surfaces use the same primary variant/icon, preserving caller-owned navigation, accessible labels and existing 44px mark-record touch targets. Staff and Student approved-application actions use the FileText icon. Existing production-component browser fixtures now exercise the real shared student action and check dark background classes, white computed text and icons across roles and responsive widths.
+
+## Supervision-to-application navigation (26 October 2026)
+
+Detailed staff team projections add an optional nullable approvedApplicationId, derived from the active primary appointment's approved application and existing application-read permission. Student-safe and roster projections do not gain private application evidence. The unchanged can_view_supervisor_application policy moves from views.py into request_visibility.py and is reused by the detail endpoint and navigation projection. No schema change is needed.
+
+SupervisoryTeamRouteContent renders the document action only when the projection grants it and navigation is available. The callback passes through the existing Lecturer, Coordinator and Office hosts; Office uses its request-ID route prefix. App.tsx records the exact supervision page, query and history index as the return target and supplies the Lecturer request back label. The Student overview retains its existing own-application lookup and navigation, with the clearer shared action label. No submitted evidence is duplicated or substituted for current research.
+
+Tests cover exact approved-record selection, pending replacements, supporting-supervisor privacy, ended/nonapproved/missing cases, current-student matching, busy actions and callback IDs. Authenticated browser checks exercise all four roles opening the application and returning to their original URL with query context.
+
+## Shared detail sidebar actions (26 October 2026)
+
+`RequestDetailActions` in `RequestDetailPrimitives.tsx` scopes full-width, 44px minimum-height, 12px normal-case button presentation and vertical action grouping to detail sidebars. `SupervisorRequestDetail` wraps caller-owned review actions; `SupervisorAppointmentRecordCard` opts in only for its compact Phase 1 presentation. The global `PortalButton`, default historical appointment layout, role gates and decision dialogs remain unchanged. Lecturer decisions gain check/cross icons and a danger rejection treatment; Coordinator approval precedes rejection with the appropriate approval icon. `PrimaryRequestDecisionButtons` owns the identical primary/danger pair for Lecturer and Coordinator. `CoordinatorPrimaryRequestActions` preserves caller-provided pending, eligibility and busy rules and delegates unchanged decision callbacks. Rejection keeps its accurate Reject request label while its dialog is open. Existing browser fixtures now measure action width, height, typography, spacing and overflow at desktop, tablet and phone widths, using actual action renderers for both roles rather than placeholder Coordinator buttons. A static render-parity regression allows only Accept request/Approve request wording to differ.
+
+## Phase 1 supervision detail composition (26 October 2026)
+
+`SupervisionDetailLayout.tsx` supplies presentational section, overview, team-member row and research-card components. Full staff detail in `SupervisoryStudentDetailCard` composes these with its existing capability-gated supporting/Panel controls and a desktop xl side column for appointment metadata and activity. The legacy collapsible team presentation remains supported. `SupervisoryTeamRouteContent` supplies the existing appointment renderer through a management slot and opts into its new `compact` presentation; default historical records retain identity and lifecycle facts. Primary replacement controls are only supplied when the existing Office/active/pending-replacement-or-change-capability conditions yield visible content. This prevents empty action strips and keeps equivalent-capability cards identical across staff roles.
+
+`StudentSupervisorsOverview` uses shared team/research surfaces and exposes only the existing sanitized own-team/past-supporting summary. Its previous catch-all outer section is removed to avoid cards inside cards. `StudentResearchProfileSection` gains an opt-in standalone card presentation; its default Panel overview path is unchanged. The `plain` supporting-member/Panel presentation flags affect layout only. Hooks, APIs, server capabilities, dialogs, workflow and data ownership remain unchanged; no dependencies or schema changes are introduced.
+
+Tests cover pure role-controlled layouts, preserved lifecycle details, Student privacy, desktop/mobile geometry, pending replacements, busy controls, saved histories, missing profiles/Panel records and long content. Authenticated local Chrome captures exercise the actual running portal for all four roles with existing approved demo records; no new academic record or decision is created for Phase 1.
+
+## Supervisor request detail surfaces and local preview (26 October 2026)
+
+`SupervisorRequestDetail` remains the shared renderer for all four role callers. A full-width student overview precedes a responsive grid: the main column contains separate research, grouped Research Intent, and documents/declaration cards; the other column contains Review and outcome. The grid switches to one column below the existing xl breakpoint. No catch-all Application details wrapper, global typography change, new dependency, API contract or permission change is introduced. Muted 12px labels and regular 14px answers remain; the research title receives its own regular 18px reading line.
+
+Submitted Research Intent accepts an optional semantic heading level so the separated card has an h2 while other consumers retain their defaults. Existing exact-application hooks, immutable submission identity/provenance, historical/error/retry states, Office replacement distinctions and caller-owned actions remain. Browser geometry checks now cover 1440/1024/390px, including the side column, stacked layout, no overflow, heading alignment, and all four role adapters.
+
+The explicitly requested persistent preview is local data rather than a runtime fixture or production seed feature: request #11, fictional Aina Sofea Rahman (Demo), DEMO-UX-2026-001. A guarded temporary script used the configured demo student password, normal JWT sign-in and the existing multipart submission endpoint/validation; there was no forced authentication, direct status override, security relaxation or existing-record rewrite. Two ReportLab PDFs were validated with pypdf and visually rendered with Poppler. An isolated Chrome profile used normal Student/Office sign-in to capture the running Vite/Django portal at 1536/390px; these sessions were logged out afterward. No credentials are written into repository files. Office detail links use `/supervisor-appointments/request-11`; Student/Lecturer use `/supervisor-appointments/11` under the existing route contract.
+
+## Shared Supervisor request detail composition (26 October 2026)
+
+SupervisorRequestDetail remains the single presentation used by StudentSupervisorAppointment, LecturerAppointmentRequests, CoordinatorSupervisorApprovals and SupervisorAppointmentManagement. Its overview resolves identity from the existing exact-application Section A snapshot when present and explicitly labels the submission-time source; NRIC and passport labels retain the saved identity type. Two primary PortalCards contain application evidence and review/outcome; caller-owned context, decision and administration slots retain authority. SupervisorRequestFields provides scoped read-only field and native disclosure styles. Submitted Section A courses and declaration are separate composable renderers so title ownership belongs with research rather than course evidence. Existing exact-application hooks, fallback provenance, read failures/retries and stale-response guards remain authoritative.
+
+SupervisorResearchIntentSection supports an embedded mode without an extra card, with three independently expandable groups and an expand/collapse-all action; the existing editor and flat review renderer retain their defaults. ApprovalProcess accepts a heading level for correct nested review/step semantics. No schema, API, permission, global typography or dependency change is required. Isolated production-component browser checks cover four role adapters, snapshot fidelity, disclosures, state/retry/stale-response cases and desktop/phone geometry; they do not replace backend authorization or full-shell acceptance.
+
+
+## Shared icon heading layout (26 October 2026)
+
+`frontend/src/components/IconHeading.tsx` provides a two-column CSS grid: decorative icon and semantic heading in row one, optional description in row two beneath the heading. It accepts the existing heading tag/id and typography classes, and handles icon-free headings without a spare column. RequestSection, AppointmentSection and OfficeToolSection use it, as do affected Registry import/registration, staff role, settings, letter editor, student dossier and Marks setup headers. Already centred single-row headers keep their existing composition. No global SVG offsets, font changes, dependencies or backend changes are introduced.
+
+A dedicated isolated browser harness bundles the production React components and compiles the production Tailwind styles, measures title/icon centres and checks subtitle/overflow/action placement at exact iframe widths. It uses synthetic content, static settings header rendering (no account API effects), an ephemeral loopback server and temporary Chrome profiles. Google font loading is omitted in this isolated test to use the declared system fallback deterministically; production fonts are unchanged.
+
+
 
 ## Acting delegation real HTTP acceptance (25 October 2026)
 
