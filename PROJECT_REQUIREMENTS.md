@@ -1,3 +1,7 @@
+## Workload detail reading hierarchy (27 October 2026)
+
+Supervisor and Panel workload detail pages use three distinct reading areas: Lecturer overview, Capacity usage and the existing workload records. Use consistent 28px card gaps, readable labels/values and an explicit empty state. Preserve capacity rules, authoritative counts, availability states, source navigation and Manage capacity. No new tabs or summary-card row.
+
 ## Final appointment consistency review (27 October 2026)
 
 Student supporting supervisors expose the same public department, email and appointment date as other appointed members. Existing module tabs, request/history partitions, permissions and nomination workflows remain intact. Registry programme-transfer relocation and Marks template work remain deferred.

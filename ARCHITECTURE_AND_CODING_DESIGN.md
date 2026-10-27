@@ -1,3 +1,7 @@
+## Shared workload detail presentation (27 October 2026)
+
+WorkloadDetailLayout provides shared section, lecturer metadata, fact and capacity presentation for SupervisorWorkloadDetails and PanelWorkloadDetails. Existing records, configured checks and utilization helpers remain authoritative; Panel reservations and Supervisor primary/supporting counts stay distinct. Missing plans do not render fabricated availability or utilization. Existing list filters, exports, API reads and RecordPage navigation are unchanged. Production-CSS browser verification covers populated/empty/missing/zero-capacity/long-content states at desktop and phone widths.
+
 ## Final appointment consistency review (27 October 2026)
 
 StudentSupervisorsOverview reuses SupervisionPerson for active supporting appointments, consuming the existing public contact projection. No endpoint, dependency or permission changes in this final adjustment. Appointment presentation and scoped projection changes are committed separately from unrelated Office/admin and carryover work in the shared checkout.
