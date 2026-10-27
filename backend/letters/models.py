@@ -431,6 +431,7 @@ class ChoiceItem(models.Model):
     postcode = models.CharField(max_length=20, blank=True, default="")
     city = models.CharField(max_length=80, blank=True, default="")
     state = models.CharField(max_length=80, blank=True, default="")
+    country = models.CharField(max_length=80, blank=True, default="")
     order = models.PositiveIntegerField(default=0)
     hidden = models.BooleanField(default=False)
     modified_by = models.CharField(max_length=255, blank=True, default="")
@@ -454,4 +455,5 @@ class ChoiceItem(models.Model):
             "postcode": self.postcode,
             "city": self.city,
             "state": self.state,
+            "country": self.country,
         }

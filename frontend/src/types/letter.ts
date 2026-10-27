@@ -97,6 +97,7 @@ export interface LetterOrganisation {
   postcode: string;
   city: string;
   state: string;
+  country: string;
 }
 
 /** One purpose a letter can be for, with the organisations listed under it. */
@@ -174,6 +175,7 @@ export interface ChoiceItem {
   postcode: string;
   city: string;
   state: string;
+  country: string;
   hidden: boolean;
   /** Letters that used this entry; only unused entries can be deleted. */
   usedCount: number;
@@ -206,7 +208,9 @@ export interface LetterRequestDetails {
   addressLine2: string;
   postcode: string;
   city: string;
+  /** One of Malaysia's states; blank for an address abroad. */
   state: string;
+  country: string;
   /** The optional details to show, e.g. MIN_PERIOD. */
   include: string[];
   /** Answers to the office's own questions, by tag name. */
