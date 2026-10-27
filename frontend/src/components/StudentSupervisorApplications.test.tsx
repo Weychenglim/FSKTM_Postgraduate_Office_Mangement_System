@@ -82,6 +82,8 @@ for (const routeView of ['overview', 'applications', 'research'] as const) {
   const page = renderToStaticMarkup(<MemoryRouter><StudentSupervisorAppointment routeView={routeView} /></MemoryRouter>);
   assert.equal((page.match(/>Refresh</g) ?? []).length, 0, `${routeView} has no manual refresh action`);
   assert.doesNotMatch(page, /Refresh teams|Refresh research changes/);
+  assert.match(page, /aria-label="Supervisor workspace"/, `${routeView} keeps the workspace tabs`);
+  for (const label of ['My supervisors', 'Applications', 'Research changes']) assert.ok(page.includes(`>${label}</a>`), `${routeView} retains ${label}`);
 }
 const detail = renderToStaticMarkup(<MemoryRouter><StudentSupervisorAppointment routeView="applications" initialApplicationId="1" onNavigateToList={() => {}} /></MemoryRouter>);
 assert.doesNotMatch(detail, /New application|>Refresh</);

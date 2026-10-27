@@ -10,7 +10,7 @@ import { useListState } from './ListState';
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { CheckSquare, Clock, FilePenLine, CheckCircle, Search, type LucideIcon } from 'lucide-react';
+import { UserRound, CheckSquare, Clock, FilePenLine, CheckCircle, Search, type LucideIcon } from 'lucide-react';
 import { MarkEntryDetail } from './MarkEntryDetail';
 import { MarksEntryHistory } from './MarksEntryHistory';
 import { LecturerMarkingNavigation } from './LecturerMarkingNavigation';
@@ -246,7 +246,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                           <td role="cell" className="data-td col-span-2 block px-0 py-2 sm:table-cell sm:px-5 sm:py-4">
                             <div className="flex flex-col items-start gap-2">
                               <PortalButton variant={task.canEdit === true && task.status !== 'SUBMITTED' ? 'primary' : 'secondary'} onClick={() => handleOpenForm(task)}>{action}</PortalButton>
-                              {onNavigateToDossier ? <button type="button" onClick={() => onNavigateToDossier(task.studentId)} className="card-description text-blue-700 hover:underline">View student record</button> : null}
+                              {onNavigateToDossier ? <PortalButton variant="primary" icon={UserRound} size="sm" onClick={() => onNavigateToDossier(task.studentId)}>View student record</PortalButton> : null}
                             </div>
                           </td>
                         </tr>;

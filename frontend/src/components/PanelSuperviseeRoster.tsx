@@ -1,11 +1,15 @@
-import React from 'react';
+import React, {useState} from 'react';
 import type { PanelRecommendationDraft, PanelRecommendationSupervisee } from '../types';
-import { panelRequestPending, panelStatusLabel } from '../utils/panelPresentation';
+import { panelRequestPending, panelStatusLabel, panelStatusTone } from '../utils/panelPresentation';
 import { CoordinatorDataTable } from './CoordinatorBrowsePrimitives';
 import { useListState } from './ListState';
 import { PortalButton, StatusBadge } from './PortalPrimitives';
 import { PortalSelect } from './PortalSelect';
 import { WorkspacePagination, WorkspaceSectionHeader, WorkspaceFilterCard } from './RequestWorkspacePrimitives';
+import {ClipboardList,Plus,ArrowRightLeft,UserRound,FileText} from 'lucide-react';
+import {PanelStudentOverview,PanelResearchDetails,PanelDetailFact} from './PanelDetailLayout';
+import {SupervisionDetailSection,SupervisionPerson,supervisionDetailBody} from './SupervisionDetailLayout';
+import {formatRequestDisplayDate} from './ApprovalProcess';
 
 type Stage = '' | 'needs-nomination' | 'awaiting-panel' | 'awaiting-coordinator' | 'active' | 'pending';
 const stageLabels: Record<Exclude<Stage, ''>, string> = {
@@ -31,8 +35,8 @@ export function filterPanelSupervisees(students: PanelRecommendationSupervisee[]
     .sort((a, b) => a.studentName.localeCompare(b.studentName) || a.studentId.localeCompare(b.studentId));
 }
 
-export function PanelSuperviseeRoster({ students, recommendations, onOpen }: {
-  students: PanelRecommendationSupervisee[]; recommendations: PanelRecommendationDraft[]; onOpen: (studentId: string) => void;
+export function PanelSuperviseeRoster({ students, recommendations, onOpen, embedded = false }: {
+  students: PanelRecommendationSupervisee[]; recommendations: PanelRecommendationDraft[]; onOpen: (studentId: string) => void; embedded?: boolean;
 }) {
   const [search, setSearch] = useListState('PanelSuperviseeRoster', 'search', '');
   const [stage, setStage] = useListState<Stage>('PanelSuperviseeRoster', 'stage', '');
@@ -41,8 +45,8 @@ export function PanelSuperviseeRoster({ students, recommendations, onOpen }: {
   const filtered = filterPanelSupervisees(students, recommendations, search, stage);
   const pageCount = Math.max(1, Math.ceil(filtered.length / size));
   const safePage = Math.min(page, pageCount);
-  return <section className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white">
-    <WorkspaceSectionHeader title="Panels for my supervisees" description="Students you supervise. View their appointed Panel member or manage a nomination." />
+  return <section className={embedded ? "space-y-5" : "appointment-workspace-card rounded-2xl border border-slate-200 bg-white"}>
+    {!embedded ? <WorkspaceSectionHeader title="Panels for my supervisees" description="Students you supervise. View their appointed Panel member or manage a nomination." /> : null}
     <WorkspaceFilterCard fieldsClassName="flex flex-wrap items-end gap-3" onReset={() => {setSearch('');setStage('');setPage(1);}}>
       <label className="form-label min-w-0 basis-64 flex-1">Find a supervisee<input type="search" className="form-control form-control-sm mt-1" placeholder="Student name, matric number or Panel member" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} /></label>
       <label className="form-label min-w-0 basis-56">Nomination status<PortalSelect className="form-control form-control-sm mt-1" value={stage} onChange={event => { setStage(event.target.value as Stage); setPage(1); }}><option value="">All students</option>{Object.entries(stageLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</PortalSelect></label>
@@ -53,34 +57,58 @@ export function PanelSuperviseeRoster({ students, recommendations, onOpen }: {
         <><p>{student.studentName}</p><p className="card-caption mt-1">{student.studentId}</p></>, student.programme || 'Not recorded',
         <><p>{student.panelAppointmentId ? student.currentPanelMember || 'Not recorded' : 'Not appointed'}</p>{student.panelAppointmentId && student.currentPanelMemberId ? <p className="card-caption mt-1">{student.currentPanelMemberId}</p> : null}</>,
         <StatusBadge tone={state === 'active' ? 'success' : 'warning'}>{stageLabels[state]}</StatusBadge>,
-        <PortalButton size="sm" aria-label={`View panel for ${student.studentName}`} onClick={() => onOpen(student.studentId)}>View panel</PortalButton>,
+        <PortalButton size="sm" className="min-h-11" aria-label={`View student ${student.studentName}`} onClick={() => onOpen(student.studentId)}>View student</PortalButton>,
       ] };
     })} /> : <p role="status" className="card-description py-6 text-center">{students.length ? 'No supervisees match these filters.' : 'No active primary supervisees are available for Panel nomination.'}</p>}
     <WorkspacePagination page={safePage} pageCount={pageCount} total={filtered.length} pageSize={size} noun="students" onPage={setPage} onPageSize={value => { setSize(value); setPage(1); }} />
   </section>;
 }
 
-export function PanelSuperviseeDetails({ student, pendingRequest, onRecommend, onOpenRequest }: {
+export function PanelSuperviseeDetails({ student, pendingRequest, recommendations = [], onRecommend, onOpenRequest }: {
   student: PanelRecommendationSupervisee; pendingRequest?: PanelRecommendationDraft;
+  recommendations?: PanelRecommendationDraft[];
   onRecommend: () => void; onOpenRequest: (request: PanelRecommendationDraft) => void;
 }) {
   const appointed = Boolean(student.panelAppointmentId);
-  return <section className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white" aria-label="Student Panel details">
-    <WorkspaceSectionHeader title={student.studentName} description={student.studentId} />
-    <dl className="grid gap-4 sm:grid-cols-2"><div><dt className="card-label">Programme</dt><dd className="card-description mt-1">{student.programme || 'Not recorded'}</dd></div><div><dt className="card-label">Intake semester</dt><dd className="card-description mt-1">{student.semester || 'Not recorded'}</dd></div><div className="sm:col-span-2"><dt className="card-label">Current research title</dt><dd className="card-value mt-1 break-words">{student.proposedTopic || 'Not recorded'}</dd></div></dl>
-    <div className="space-y-3 border-t border-slate-200 pt-5">
-      <h3 className="section-label">Current appointed panel member</h3>
-      <p className="card-value">{appointed ? student.currentPanelMember || 'Not recorded' : 'Not appointed'}</p>
-      {appointed && student.currentPanelMemberId ? <p className="card-description">{student.currentPanelMemberId}</p> : null}
-      {student.canRecommend && !pendingRequest ? <PortalButton size="sm" variant="primary" onClick={onRecommend}>{appointed ? 'Request replacement' : 'Nominate panel member'}</PortalButton> : null}
-      {!pendingRequest && !student.canRecommend ? <p role="status" className="card-description">A request is in progress. Another nomination cannot be submitted.</p> : null}
+  const [historyPage,setHistoryPage]=useState(1);
+  const history=recommendations.filter(row=>row.studentId===student.studentId&&!panelRequestPending(row.status))
+    .sort((a,b)=>(Date.parse(b.submittedAt||b.submittedDate)||0)-(Date.parse(a.submittedAt||a.submittedDate)||0));
+  const pages=Math.max(1,Math.ceil(history.length/5)),page=Math.min(historyPage,pages);
+  return <section className="space-y-7" aria-label="Student Panel details">
+    <PanelStudentOverview record={student}/>
+    <div data-panel-supervisee-columns className="grid min-w-0 items-start gap-7 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="order-last min-w-0 space-y-7 xl:order-first">
+        <SupervisionDetailSection title="Current appointed panel member" icon={UserRound} contentClassName="mt-4 min-w-0">
+          {appointed ? <SupervisionPerson role="Panel member" name={student.currentPanelMember||'Not recorded'} department={student.currentPanelDepartment} email={student.currentPanelEmail}
+            appointedOn={student.currentPanelAppointmentDate?formatRequestDisplayDate(student.currentPanelAppointmentDate):undefined}/> : <p className={supervisionDetailBody}>Not appointed</p>}
+        </SupervisionDetailSection>
+        <PanelResearchDetails record={student}/>
+      </div>
+      <aside className="order-first min-w-0 xl:order-last" aria-label="Panel nomination">
+        <SupervisionDetailSection title="Panel nomination" icon={ClipboardList} contentClassName="mt-4 min-w-0 space-y-5">
+          {pendingRequest ? <>
+            <StatusBadge tone="info">{panelStatusLabel(pendingRequest.status)}</StatusBadge>
+            <dl><PanelDetailFact title={appointed?'Proposed replacement':'Proposed panel member'} value={pendingRequest.recommendedMember}/></dl>
+            {appointed?<p className={supervisionDetailBody}>{student.currentPanelMember||'The current Panel member'} remains appointed until final approval of the replacement.</p>:null}
+            <PortalButton icon={FileText} variant="primary" className="min-h-11 w-full [&]:normal-case [&]:tracking-normal" onClick={()=>onOpenRequest(pendingRequest)}>View pending request</PortalButton>
+          </> : student.canRecommend ? <>
+            <p className={supervisionDetailBody}>{appointed?'A replacement takes effect after final approval.':'Select a Panel member for this student.'}</p>
+            <PortalButton variant="primary" icon={appointed?ArrowRightLeft:Plus} className="min-h-11 w-full [&]:normal-case [&]:tracking-normal" onClick={onRecommend}>{appointed?'Request replacement':'Nominate panel member'}</PortalButton>
+          </> : <p role="status" className={supervisionDetailBody}>A request is in progress. Another nomination cannot be submitted.</p>}
+          <details className="border-t border-slate-200 pt-5">
+            <summary className="cursor-pointer rounded text-sm font-medium text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">Nomination history · {history.length}</summary>
+            {history.length ? <div className="mt-4 space-y-4">
+              {history.slice((page-1)*5,page*5).map(row=><article key={row.id} className="space-y-3 border-b border-slate-100 pb-4">
+                <p className={supervisionDetailBody}>{row.recommendedMember||'Not recorded'}</p>
+                <StatusBadge tone={panelStatusTone(row.status)}>{panelStatusLabel(row.status)}</StatusBadge>
+                <p className="text-xs leading-5 text-slate-600">{formatRequestDisplayDate(row.submittedAt||row.submittedDate)}</p>
+                <PortalButton icon={FileText} className="min-h-11 [&]:normal-case [&]:tracking-normal" onClick={()=>onOpenRequest(row)}>View request</PortalButton>
+              </article>)}
+              <WorkspacePagination page={page} pageCount={pages} total={history.length} pageSize={5} noun="records" onPage={setHistoryPage}/>
+            </div> : <p className="mt-4 text-sm leading-6 text-slate-600">No completed nominations yet.</p>}
+          </details>
+        </SupervisionDetailSection>
+      </aside>
     </div>
-    {pendingRequest ? <div className="space-y-3 border-t border-slate-200 pt-5">
-      <h3 className="section-label">{appointed ? 'Proposed replacement' : 'Proposed panel member'}</h3>
-      <p className="card-value">{pendingRequest.recommendedMember}</p>
-      <StatusBadge tone="info">{panelStatusLabel(pendingRequest.status)}</StatusBadge>
-      {appointed ? <p className="card-description">{student.currentPanelMember || 'The current Panel member'} remains appointed until final approval of the replacement.</p> : null}
-      <div><PortalButton size="sm" onClick={() => onOpenRequest(pendingRequest)}>View pending request</PortalButton></div>
-    </div> : null}
   </section>;
 }

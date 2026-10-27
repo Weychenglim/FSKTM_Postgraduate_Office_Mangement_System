@@ -49,8 +49,8 @@ test('workload browse filters authoritative states and clamps retained paginatio
 
 test('nomination facts use common detail typography without fictional submitted progress', () => {
   const html = renderToStaticMarkup(<RecommendPanelMemberDrawer isOpen busy student={{ studentName: 'Student One', studentId: 'PG001', programme: 'Programme', intake: 'Semester One', supervisor: 'Dr Supervisor', initials: 'SO', proposedTopic: 'Research Title', area: 'Computing', abstract: 'First line\nSecond line' }} candidates={[]} replacementMember="Current Panel" onClose={() => {}} onSubmit={() => {}} />);
-  assert.ok(html.includes(`id="summary-student-name" class="${typography.name}`));
-  assert.ok(html.includes(`id="research-title-text" class="${typography.name}`));
+  assert.match(html,/id="summary-student-name" class="text-lg font-semibold/);
+  assert.match(html,/id="research-title-text" class="text-lg font-normal/);
   assert.match(html, /whitespace-pre-wrap/);
   assert.match(html, /The current appointment with Current Panel remains active/);
   assert.doesNotMatch(html, /Approval progress/);

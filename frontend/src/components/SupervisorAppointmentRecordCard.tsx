@@ -3,10 +3,12 @@ import type {AppointmentLifecycle,SupervisorApplicationRecord,SupervisorRecord} 
 import type {ApprovalEvent} from '../utils/approvalProcess';
 import {AppointmentEndControl} from './AppointmentEndControl';
 import {formatRequestDisplayDate} from './ApprovalProcess';
-import {RequestAuditHistory,RequestDetailCard,RequestSection,readableRecordStatus} from './RequestDetailPrimitives';
+import {RequestAuditHistory,RequestDetailCard,RequestDetailActions,RequestSection,readableRecordStatus} from './RequestDetailPrimitives';
 import {StatusBadge} from './PortalPrimitives';
 import {formatMalaysiaDate} from '../utils/malaysiaDateTime';
 import {appointmentDetailTypography} from './AppointmentPrimitives';
+import {CalendarClock} from 'lucide-react';
+import {supervisionDetailLabel, supervisionDetailBody} from './SupervisionDetailLayout';
 
 export interface SupervisorAppointmentPresentation {
   studentName:string;
@@ -50,17 +52,22 @@ function recordedDate(value?:string|null):string {
   return date==='Not recorded'?'Date unavailable':formatMalaysiaDate(value!);
 }
 
-export function SupervisorAppointmentRecordCard({record,onEnd,actions}:{record:SupervisorAppointmentPresentation;onEnd?:React.ComponentProps<typeof AppointmentEndControl>['onSubmit'];actions?:React.ReactNode}) {
+export function SupervisorAppointmentRecordCard({record,onEnd,actions,compact=false}:{record:SupervisorAppointmentPresentation;onEnd?:React.ComponentProps<typeof AppointmentEndControl>['onSubmit'];actions?:React.ReactNode;compact?:boolean}) {
   const active=record.status==='ACTIVE';
+  const label=compact ? supervisionDetailLabel : appointmentDetailTypography.label;
+  const body=compact ? supervisionDetailBody : appointmentDetailTypography.body;
+  const controls=actions||onEnd?<div className={`flex flex-wrap items-start ${compact?'gap-3':'gap-2'}`}>{actions}{onEnd?<AppointmentEndControl label="Supervisor appointment" context={<>{record.studentName} · {record.studentId}</>} decisionKey={record.studentId} disabled={!active} onSubmit={onEnd}/>:null}</div>:undefined;
   return <div data-supervisor-appointment-record className="[&_.section-label]:font-semibold [&_.card-value]:font-semibold [&_.card-description]:font-normal"><RequestDetailCard padding="lg"
-    actions={actions||onEnd?<div className="flex flex-wrap items-start gap-2">{actions}{onEnd?<AppointmentEndControl label="Supervisor appointment" context={<>{record.studentName} · {record.studentId}</>} decisionKey={record.studentId} disabled={!active} onSubmit={onEnd}/>:null}</div>:undefined}
+    actions={compact&&controls?<RequestDetailActions>{controls}</RequestDetailActions>:controls}
     audit={record.events.length?<RequestAuditHistory title="Appointment history" events={record.events}/>:undefined}>
-    <RequestSection title="Appointment record" headingClassName={appointmentDetailTypography.heading}><dl className="grid gap-x-10 gap-y-6 pt-3 sm:grid-cols-2">
+    <RequestSection title="Appointment record" icon={compact?CalendarClock:undefined} headingClassName={appointmentDetailTypography.heading}><dl className={`grid gap-x-10 gap-y-6 pt-3 ${compact?'':'sm:grid-cols-2'}`}>
+      {!compact ? <>
       <div><dt className={appointmentDetailTypography.label}>Student</dt><dd className={`${appointmentDetailTypography.name} mt-2`}>{record.studentName}</dd><dd className="card-caption mt-1">{record.studentId}</dd></div>
       <div><dt className={appointmentDetailTypography.label}>Primary supervisor</dt><dd className={`${appointmentDetailTypography.name} mt-2`}>{record.supervisor||'Supervisor unavailable'}</dd></div>
-      <div><dt className={appointmentDetailTypography.label}>Appointment status</dt><dd className="mt-2"><StatusBadge tone={active?'success':'neutral'}>{readableRecordStatus(record.status)}</StatusBadge></dd></div>
-      <div><dt className={appointmentDetailTypography.label}>Approved on</dt><dd className={`${appointmentDetailTypography.body} mt-2`}>{recordedDate(record.approvedAt)}</dd></div>
-      {!active?<div><dt className={appointmentDetailTypography.label}>Ended on</dt><dd className={`${appointmentDetailTypography.body} mt-2`}>{recordedDate(record.endedAt)}</dd></div>:null}
+      </> : null}
+      <div><dt className={label}>Appointment status</dt><dd className="mt-2"><StatusBadge tone={active?'success':'neutral'}>{readableRecordStatus(record.status)}</StatusBadge></dd></div>
+      <div><dt className={label}>Approved on</dt><dd className={`${body} mt-2`}>{recordedDate(record.approvedAt)}</dd></div>
+      {!active?<div><dt className={label}>Ended on</dt><dd className={`${body} mt-2`}>{recordedDate(record.endedAt)}</dd></div>:null}
     </dl></RequestSection>
     {!active&&(record.endOutcome||record.endReason)?<RequestSection title="Appointment outcome" headingClassName={appointmentDetailTypography.heading}>
       {record.endOutcome?<p className="card-value capitalize">{readableRecordStatus(record.endOutcome)}</p>:null}

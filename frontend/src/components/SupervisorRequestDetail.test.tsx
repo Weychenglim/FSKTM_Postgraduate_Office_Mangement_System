@@ -26,8 +26,8 @@ const render = (value = request, actions?: React.ReactNode) => renderToStaticMar
 const html = render(request, <button>Authorized decision</button>);
 for (const text of ['Actual applicant', 'PG001', 'MSc Computing', 'Semester I', 'Dr Selected', 'Immutable submitted title', 'Networks', 'Recorded abstract', 'CSE500', 'Original appointment ended', 'proposal.pdf', 'Authorized decision', 'Lifecycle record', 'Recorded reason', 'Lecturer']) assert.ok(html.includes(text), `Details preserve ${text}`);
 assert.doesNotMatch(html, /SV-REQ-00127|Copy reference/, 'Reference belongs in the RecordPage metadata slot');
-assert.ok(html.indexOf('Research details') >= 0 && html.indexOf('Research details') < html.indexOf('Documents'));
-assert.ok(html.indexOf('Documents') < html.indexOf('Approval progress'));
+assert.ok(html.indexOf('Research details') >= 0 && html.indexOf('Research details') < html.indexOf('Supporting documents'));
+assert.ok(html.indexOf('Supporting documents') < html.indexOf('Approval progress'));
 assert.ok(html.indexOf('Approval progress') < html.indexOf('Authorized decision'));
 assert.match(html, /<details/);
 assert.doesNotMatch(html, /<details[^>]*open/);

@@ -5,7 +5,8 @@ import { useReturnToFocusReload } from '../utils/returnToFocus';
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { 
+import {
+  UserRound,
   Users,
   Clock, 
   CheckCircle, 
@@ -57,7 +58,6 @@ import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
 import { LecturerResearchWorkspace } from './LecturerResearchWorkspace';
 import { LecturerAppointmentRequests } from './LecturerAppointmentRequests';
-import { useLocation } from 'react-router';
 import { AppointmentSection, AppointmentMemberCard, AppointmentSummaryCard } from './AppointmentPrimitives';
 import { LecturerAppointmentGuidance } from './LecturerAppointmentGuidance';
 import { RecordPage } from './RecordPage';
@@ -389,7 +389,7 @@ interface RequestCardProps {
 export const RequestCard: React.FC<RequestCardProps> = ({ request, onOpen, onViewDossier }) => (
   <div id={`request-card-${request.studentId}`}>
     <AppointmentMemberCard label="Applicant" name={request.studentName} status={request.status} tone="warning" actions={<>
-      <PortalButton size="sm" onClick={onViewDossier}>View student record</PortalButton>
+      <PortalButton variant="primary" icon={UserRound} size="sm" onClick={onViewDossier}>View student record</PortalButton>
       <PortalButton size="sm" variant="primary" onClick={onOpen}>Open Request</PortalButton>
     </>}>
       <dl className="grid gap-3 sm:grid-cols-2">
@@ -470,13 +470,9 @@ export const DataTable: React.FC<DataTableProps> = ({
                     </td>
                     <td className="data-td py-4 px-3 text-center">
                       <div className="flex flex-col items-center gap-1.5">
-                        <button
-                          type="button"
+                        <PortalButton variant="primary" icon={UserRound} size="sm"
                           onClick={() => onViewDossier(row.studentId)}
-                          className="text-[9px] font-black uppercase text-blue-700 hover:underline"
-                        >
-                          View student record
-                        </button>
+                        >View student record</PortalButton>
                         <button
                           onClick={() => onOpenRow(row)}
                         className="px-3.5 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
@@ -528,9 +524,6 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   onNavigateToPanelRequest, onNavigateToPanelRecommendation, onNavigateToSupervisees,
   researchView = 'list', researchRequestId, onNavigateToResearchRequest, onNavigateToResearchList, onNavigateToResearchProfile,
 }) => {
-  const { search: workspaceSearch } = useLocation();
-  const isHistoryView = new URLSearchParams(workspaceSearch).get('view') === 'history'
-    || (routeView === 'history' && !new URLSearchParams(workspaceSearch).has('view'));
   const [capacity, setCapacity] = useState<SupervisorWorkloadSummary | null>(null);
   const [requestsList, setRequestsList] = useState<SupervisorRequest[]>([]);
   const [supervisees, setSupervisees] = useState<ActiveSuperviseeRow[]>([]);
@@ -568,7 +561,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   </RecordPage>;
   if (isSupervisionDetail) return <RecordPage title="Supervision details" backLabel="Back to My supervisees" onBack={onNavigateToSupervisees ?? (() => {})}>
     {loading ? <LoadingState message="Loading supervision details…" /> : error ? <ErrorState message={error} onRetry={loadData} /> : <>
-      <SupervisoryTeamManagement key={routeSuperviseeStudentId} role="Lecturer" view="detail" routeStudentId={routeSuperviseeStudentId} detailContext={selectedSupervisee} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} onNavigateToPanelRecommendation={onNavigateToPanelRecommendation} showResearchChanges={false} showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={teamRefresh} onChanged={refresh} />
+      <SupervisoryTeamManagement key={routeSuperviseeStudentId} role="Lecturer" view="detail" routeStudentId={routeSuperviseeStudentId} detailContext={selectedSupervisee} onNavigateToApplication={onNavigateToRequest?id=>onNavigateToRequest(id,'primary'):undefined} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} onNavigateToPanelRecommendation={onNavigateToPanelRecommendation} showResearchChanges={false} showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={teamRefresh} onChanged={refresh} />
     </>}
   </RecordPage>;
   return <div id="lecturer-portal-workspace" className="space-y-6 text-left font-sans pb-12">
@@ -577,13 +570,13 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     <SupervisorWorkspaceNavigation role="Lecturer" />
     {(routeView === 'list' || routeView === 'history') && <div className="space-y-5">
       <LecturerAppointmentRequests primaryRequests={requestsList} primaryLoading={loading} primaryError={error} refreshVersion={teamRefresh} historyRoute={routeView === 'history'} onChanged={loadData} onNavigateToRequest={onNavigateToRequest} workload={capacity} onNavigateToDossier={onNavigateToDossier} onBusyChange={setWorkspaceBusy} />
-      {!isHistoryView && <LecturerAppointmentGuidance module="supervisor" section="requests" />}
+      <LecturerAppointmentGuidance module="supervisor" section="requests" />
     </div>}
     {routeView === 'supervisees' && <LecturerSuperviseesWorkspace key="roster" role="Lecturer" lecturerId={lecturerId} view="roster" showResearchChanges={false} showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={teamRefresh} onNavigateToStudent={onNavigateToSupervisee} />}
     {routeView === 'research' && <LecturerResearchWorkspace hideHeader={false} showRefresh={false} onBusyChange={setWorkspaceBusy} routeView={researchView} routeRequestId={researchRequestId}
       onNavigateToRequest={onNavigateToResearchRequest} onNavigateToList={onNavigateToResearchList} onNavigateToProfile={onNavigateToResearchProfile}
       refreshVersion={researchRefresh} onChanged={() => { void loadData(); setTeamRefresh(value => value + 1); }} />}
-    {routeView === 'research' && !isHistoryView && <LecturerAppointmentGuidance module="supervisor" section="research" />}
+    {routeView === 'research' && <LecturerAppointmentGuidance module="supervisor" section="research" />}
 
   </div>;
 };

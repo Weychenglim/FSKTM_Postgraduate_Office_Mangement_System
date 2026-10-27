@@ -29,9 +29,11 @@ const states = {
   unknown: { label: 'Not recorded', tone: 'border-slate-200 bg-slate-50 text-slate-500', icon: CircleHelp },
 } as const;
 
-export function ApprovalProcess({ steps, title = 'Approval progress', icon }: { steps: ApprovalStep[]; title?: string; icon?: LucideIcon }) {
+export function ApprovalProcess({ steps, title = 'Approval progress', icon, headingAs: Heading = 'h2' }: { steps: ApprovalStep[]; title?: string; icon?: LucideIcon; headingAs?: 'h2' | 'h3' }) {
   const titleId = useId();
-  const heading = icon ? <div className="flex min-w-0 items-center gap-3"><AppointmentIcon icon={icon} tone="info" /><h2 id={titleId} className={text.heading}>{title}</h2></div> : <h2 id={titleId} className={text.heading}>{title}</h2>;
+  const StepHeading = Heading === 'h3' ? 'h4' : 'h3';
+  const headingClass = Heading === 'h3' ? 'text-sm font-semibold text-brand-navy' : text.heading;
+  const heading = icon ? <div className="flex min-w-0 items-center gap-3"><AppointmentIcon icon={icon} tone="info" /><Heading id={titleId} className={headingClass}>{title}</Heading></div> : <Heading id={titleId} className={headingClass}>{title}</Heading>;
   const reviews = steps.filter(step=>!['submitted','outcome'].includes(step.id));
   const outcome = steps.find(step=>step.id==='outcome');
   const terminal = outcome && ['completed','rejected','cancelled'].includes(outcome.state);
@@ -48,7 +50,7 @@ export function ApprovalProcess({ steps, title = 'Approval progress', icon }: { 
         {index < steps.length - 1 ? <span aria-hidden="true" className="absolute bottom-0 left-4 top-8 w-px bg-slate-200" /> : null}
         <span aria-hidden="true" className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${tone}`}><Icon className="h-4 w-4" /></span>
         <div className="min-w-0 flex-1 pt-1 [overflow-wrap:anywhere]">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="card-value text-slate-800">{step.label}</h3><span className={`card-caption ${step.state === 'current' ? 'font-semibold text-brand-navy' : 'text-slate-500'}`}>{label}</span></div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><StepHeading className="card-value text-slate-800">{step.label}</StepHeading><span className={`card-caption ${step.state === 'current' ? 'font-semibold text-brand-navy' : 'text-slate-500'}`}>{label}</span></div>
           {!placeholder(step.description) ? <p className="card-description mt-1">{step.description}</p> : null}
           {step.showRecordedDetails !== false && (step.actorName || step.actorRole) ? <p className="card-description mt-1 text-slate-700">{[step.actorName,step.actorRole].filter(Boolean).join(' · ')}</p> : null}
           {step.showRecordedDetails !== false && formatRequestRecordedAt(step.occurredAt)!=='Not recorded' ? <p className="card-caption mt-1">{formatRequestDisplayDate(step.occurredAt)}</p> : null}

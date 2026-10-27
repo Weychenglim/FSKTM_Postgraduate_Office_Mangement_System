@@ -127,6 +127,10 @@ export async function getActiveSupervisees(): Promise<ActiveSuperviseeRow[]> {
 }
 
 // Lecturer-facing: students assigned to this lecturer as panel member.
+export async function getPanelAssignment(appointmentId: number): Promise<PanelAssignment> {
+  return request<PanelAssignment>(`/appointments/panel/appointments/${appointmentId}/`);
+}
+
 export async function getPanelAssignments(): Promise<PanelAssignment[]> {
   return request<PanelAssignment[]>('/appointments/panel/assignments/');
 }

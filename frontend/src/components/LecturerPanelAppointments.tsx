@@ -1,13 +1,14 @@
+import {PanelSuperviseesWorkspace,PanelNominationRecords} from "./PanelSuperviseesWorkspace";
 import { PortalSelect } from './PortalSelect';
 import {PanelBrowse} from './PanelBrowse';
 import {PanelLecturerSummaryCards} from './PanelLecturerSummaryCards';
 import {buildPanelReviewWorkspace} from '../utils/panelReviewWorkspace';
-import { PanelSuperviseeRoster, PanelSuperviseeDetails, pendingPanelRequest } from './PanelSuperviseeRoster';
+import { PanelSuperviseeDetails, pendingPanelRequest } from './PanelSuperviseeRoster';
 import {PanelWorkspaceNavigation,panelWorkspaceSection,panelSuperviseeDetailParams} from './PanelWorkspaceNavigation';
 import {RecommendationDetailsDrawer} from './RecommendationDetailsDrawer';
 import {toAssignmentPanelPresentation,panelRequestPending,canActOnPanelRecord,type PanelPresentation} from '../utils/panelPresentation';
 import {PanelRecommendationDetail,PanelAppointmentRecordCard,panelRecordMetadata} from './PanelRecordDetails';
-import {RequestMetadata,ViewStudentRecordAction} from './RequestDetailPrimitives';
+import {RequestMetadata,ViewStudentRecordAction,PrimaryRequestDecisionButtons} from './RequestDetailPrimitives';
 import { DecisionDialog } from './DecisionDialog';
 import { PanelAssignmentsWorkspace } from './PanelAssignmentsWorkspace';
 import { completeDecision, type DecisionOutcome } from '../utils/decisionSubmission';
@@ -61,6 +62,7 @@ import { LecturerAppointmentGuidance } from './LecturerAppointmentGuidance';
 import { RecommendPanelMemberDrawer } from './RecommendPanelMemberDrawer';
 import { SubmittedRecommendationsPage } from './SubmittedRecommendationsPage';
 import { PanelAssignmentDetail } from './PanelAssignmentDetail';
+import {PanelAssignmentDetails} from './PanelAssignmentDetails';
 import {
   DemoUser,
   CoordinatorPanelWorkspace,
@@ -292,6 +294,7 @@ const PanelRecommendationProgressTimeline: React.FC<{ items: PanelProgressItem[]
 );
 
 interface PanelRecommendationReviewDrawerProps {
+  presentation?: 'request' | 'appointment';
   backLabel?: string;
   isOpen: boolean;
   onClose: () => void;
@@ -318,6 +321,7 @@ export const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReview
   routed = false,
   busy = false,
   onOpenStudent, onAppointmentEnded, onReload, backLabel = 'Back to Panel Appointments',
+  presentation = 'request',
 }) => {
   const [rejecting, setRejecting] = useState(false);
   const [confirmingAcceptance, setConfirmingAcceptance] = useState(false);
@@ -333,18 +337,18 @@ export const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReview
 
   if (!isOpen || !recommendation) return null;
 
-  const canAct = !readOnly
+  const canAct = presentation!=='appointment' && !readOnly
     && recommendation.participantEligible !== false
     && canActOnPanelRecord(recommendation, reviewerRole);
   const lifecycle = recommendation.appointmentLifecycle;
   const lifecycleActions = recommendation.canEndAppointment && lifecycle?.status === 'ACTIVE'
     ? <AppointmentEndControl label="Panel appointment" context={<>{recommendation.studentName} · {recommendation.programme}</>} decisionKey={lifecycle.appointmentId} onReload={onAppointmentEnded} onSubmit={(outcome, reason) => completeDecision(() => endPanelAppointment(lifecycle.appointmentId, outcome, reason), onAppointmentEnded)}/>
     : undefined;
-  return <RecordPage title="Panel recommendation" metadata={<RequestMetadata {...panelRecordMetadata(recommendation)}/>} backLabel={backLabel} onBack={onClose} pageKey={routed ? undefined : `panel-review:${recommendation.id}`} dirty={!!rejectionReason.trim()} busy={busy}>
-    <PanelRecommendationDetail record={recommendation} contextAction={<ViewStudentRecordAction studentId={recommendation.studentId} onOpen={onOpenStudent} disabled={busy}/>} actions={<>
+  return <RecordPage title={presentation==='appointment'?'Panel appointment':'Panel recommendation'} metadata={presentation==='appointment'?undefined:<RequestMetadata {...panelRecordMetadata(recommendation)}/>} backLabel={backLabel} onBack={onClose} pageKey={routed ? undefined : `panel-review:${recommendation.id}`} dirty={!!rejectionReason.trim()} busy={busy}>
+    {presentation==='appointment'?<PanelAssignmentDetails record={recommendation} contextAction={<ViewStudentRecordAction studentId={recommendation.studentId} onOpen={onOpenStudent} disabled={busy}/>} actions={lifecycleActions}/>:<PanelRecommendationDetail record={recommendation} contextAction={<ViewStudentRecordAction studentId={recommendation.studentId} onOpen={onOpenStudent} disabled={busy}/>} actions={canAct||recommendation.participantEligible===false?<>
       {recommendation.participantEligible===false?<p className="card-description text-amber-800">This Student is {recommendation.participantLifecycleStatus?.toLowerCase()}; decisions require an eligible Student.</p>:null}
-      {canAct?<div className="flex flex-wrap gap-3"><PortalButton variant="primary" disabled={busy} onClick={()=>setConfirmingAcceptance(true)}>{reviewerRole==='SELECTED_PANEL'?'Accept Panel Nomination':'Approve Panel Recommendation'}</PortalButton><PortalButton variant="danger" disabled={busy} onClick={()=>setRejecting(true)}>{reviewerRole==='SELECTED_PANEL'?'Reject Panel Nomination':'Reject Recommendation'}</PortalButton></div>:<p className="card-description">{reviewerRole==='SUPERVISOR'?'Track the Panel and Programme Coordinator decisions here.':'This recommendation is read-only for your current role and stage.'}</p>}
-    </>} administration={<PanelAppointmentRecordCard record={recommendation} actions={lifecycleActions}/>}/>
+      {canAct?<PrimaryRequestDecisionButtons positiveLabel={reviewerRole==='SELECTED_PANEL'?'Accept request':'Approve request'} disabled={busy} onPositive={()=>setConfirmingAcceptance(true)} onReject={()=>setRejecting(true)}/>:null}
+    </>:undefined} administration={<PanelAppointmentRecordCard record={recommendation} actions={lifecycleActions}/>}/>}
             <DecisionDialog isOpen={rejecting || confirmingAcceptance} decisionKey={recommendation.id}
               title={rejecting ? 'Reject Panel recommendation?' : reviewerRole === 'SELECTED_PANEL' ? 'Accept Panel nomination?' : 'Approve Panel recommendation?'}
         context={<>{recommendation.studentName} · {recommendation.programme}</>}
@@ -443,6 +447,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const section=panelWorkspaceSection(workspaceRole,initialSuperviseeId&&!isCoordinator?'supervisees':listParams.get('panelSection'),routeView);
   const [selectedSubmittedId,setSelectedSubmittedId]=useState<string|null>(null);
   const changeSection=(value:string)=>setListParams(current=>{const next=new URLSearchParams(current);next.set('panelSection',value);next.delete('student');next.delete('panelStudent');next.delete('panelLecturer');return next;},{replace:true});
+  const nominationRecordsOpen=!isCoordinator&&section==='supervisees'&&!selectedSuperviseeId&&(listParams.get('panelRecords')==='1'||routeView==='submitted');
+  const openNominationRecords=()=>setListParams(current=>{const next=new URLSearchParams(current);next.set('panelRecords','1');return next;});
+  const closeNominationRecords=()=>{if(routeView==='submitted'){onNavigateToList?.();return;}setListParams(current=>{const next=new URLSearchParams(current);next.delete('panelRecords');return next;},{replace:true});};
   const openSupervisee=(studentId:string)=>setListParams(current=>panelSuperviseeDetailParams(current,studentId));
   const returnToSupervisees=()=>initialSuperviseeId?navigateToList():changeSection('supervisees');
 
@@ -776,23 +783,18 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
       <PortalToast message={toastText} />
 
-      {routeView!=='assignmentDetail'?<div id="main-panel-listing-view" className="space-y-6">
+      {selectedSuperviseeId&&!isCoordinator ? selectedSubmittedId!==null||isRecommendDrawerOpen ? null : <RecordPage title="Student Panel details" backLabel="Back to My supervisees" onBack={returnToSupervisees}>
+        {loading ? <LoadingState message="Loading student Panel details…"/> : error ? <ErrorState message={error} onRetry={()=>void loadData()}/> : selectedSupervisee ?
+          <PanelSuperviseeDetails key={selectedSupervisee.studentId} student={selectedSupervisee} pendingRequest={currentRecommendation??undefined} recommendations={submittedRecs} onRecommend={()=>setIsRecommendDrawerOpen(true)} onOpenRequest={row=>setSelectedSubmittedId(String(row.id))}/>
+          : <EmptyState title="Supervisee unavailable" description="This student is no longer available in your active primary supervisees."/>}
+      </RecordPage> : nominationRecordsOpen ? selectedSubmittedId===null?<PanelNominationRecords loading={loading} error={error} onRetry={()=>void loadData()} recommendations={submittedRecs} onBack={closeNominationRecords} onOpenRequest={row=>setSelectedSubmittedId(String(row.id))}/>:null : routeView!=='assignmentDetail'?<div id="main-panel-listing-view" className="space-y-6">
         <PageHeader title="Panel Appointments" subtitle={isCoordinator?(coordinatorProgrammeLabel?`Review and monitor Panel appointments for ${coordinatorProgrammeLabel}.`:'No managed programme is assigned to this account.'):'Manage nominations for your supervisees and view your own Panel assignments.'}/>
         <PanelWorkspaceNavigation role={workspaceRole} section={section} onChange={changeSection}/>
         {loading?<LoadingState message="Loading Panel appointments…"/>:error?<ErrorState message={error} onRetry={loadData}/>:<>
-          {section==='requests'&&routeView!=='reviewed'&&!isCoordinator&&ownPanelCapacity?<PanelLecturerSummaryCards workload={ownPanelCapacity} reviewCount={incomingReviews.reviewCount} awaitingCoordinatorCount={incomingReviews.awaitingCoordinatorCount}/>:null}
+          {section==='requests'&&!isCoordinator&&ownPanelCapacity?<PanelLecturerSummaryCards workload={ownPanelCapacity} reviewCount={incomingReviews.reviewCount} awaitingCoordinatorCount={incomingReviews.awaitingCoordinatorCount}/>:null}
           {section==='requests'?<PanelBrowse scope={isCoordinator?'coordinator-requests':'lecturer-reviews'} title="Appointment requests" description={isCoordinator?'Approve eligible nominations after Panel acceptance. Other ongoing programme requests remain available for monitoring.':'Review nominations asking you to serve as a Panel member. History includes your recorded reviews and cancelled requests, including accepted nominations awaiting Coordinator approval.'} records={isCoordinator?coordinatorWorkspace?.records??[]:incomingReviews.records} initialHistory={routeView==='reviewed'} view={isCoordinator?undefined:routeView==='reviewed'?'history':'requests'} onViewChange={isCoordinator?undefined:value=>{if(value==='history')onNavigateToReviewed?.();else onNavigateToList?.();}} requestViewForRecord={isCoordinator?undefined:incomingReviews.requestViewForRecord} canReview={row=>canActOnPanelRecord(row,activeReviewRole)} onOpen={row=>{setSelectedReviewerRole(activeReviewRole);setSelectedRecommendationReadOnly(!canActOnPanelRecord(row,activeReviewRole));setSelectedRecommendation(row as PanelRecommendationDraft);}}/>:null}
           {section==='supervisees'&&!isCoordinator?<>
-            {selectedSuperviseeId?<>
-              <PortalButton size="sm" icon={ArrowLeft} onClick={returnToSupervisees}>Back to supervisees</PortalButton>
-              {selectedSupervisee?<>
-                <PanelSuperviseeDetails student={selectedSupervisee} pendingRequest={currentRecommendation??undefined} onRecommend={()=>setIsRecommendDrawerOpen(true)} onOpenRequest={row=>setSelectedSubmittedId(String(row.id))}/>
-                <PanelBrowse key={selectedSupervisee.studentId} scope={`supervisor-nominations:${selectedSupervisee.studentId}`} title="Nominations for this student" description="Requests and final decisions for this student. An approved request is separate from the appointment it created." records={submittedRecs.filter(row=>row.studentId===selectedSupervisee.studentId)} onOpen={row=>setSelectedSubmittedId(String(row.id))}/>
-              </>:<EmptyState title="Supervisee unavailable" description="This student is no longer available in your active primary supervisees."/>}
-            </>:<>
-              <PanelSuperviseeRoster students={eligibleSupervisees} recommendations={submittedRecs} onOpen={openSupervisee}/>
-              <PanelSubmittedRecommendations records={submittedRecs} onOpen={row=>setSelectedSubmittedId(String(row.id))}/>
-            </>}
+            <PanelSuperviseesWorkspace students={eligibleSupervisees} recommendations={submittedRecs} onOpenStudent={openSupervisee} onOpenRecords={openNominationRecords}/>
           </>:null}
           {section==='appointments'?<>
             {!isCoordinator?<AppointmentSummaryCard icon={Users} title="Panel workload" value={activeAssignmentsCount} progress={ownPanelCapacity?.capacityState!=='NOT_CONFIGURED'&&workloadLimit>0?{current:activeAssignmentsCount,max:workloadLimit}:undefined} badge={ownPanelCapacity?.capacityState?capacityStateLabel(ownPanelCapacity.capacityState):'Not configured'} tone={ownPanelCapacity?.selectable?'success':'warning'} description={`${ownPanelCapacity?.semesterCode??'No active semester'} · Includes active assignments and reserved nominations.`}/>:null}
@@ -801,9 +803,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
               :<PanelBrowse scope="lecturer-appointments" title="My Panel students" appointments records={assignments.map(toAssignmentPanelPresentation)} onOpen={row=>onNavigateToAssignment?.(row.studentId,row.appointmentLifecycle?.appointmentId)}/>}
           </>:null}
         </>}
-        {!isCoordinator?<LecturerAppointmentGuidance module="panel" panelContext={section==='requests'?'reviews':section==='supervisees'?'supervisees':'appointments'}/>:null}
+        {!isCoordinator&&section!=='supervisees'?<LecturerAppointmentGuidance module="panel" panelContext={section==='requests'?'reviews':'appointments'}/>:null}
       </div>:loading?<RecordPage title="Panel assignment" backLabel={detailBackLabel} onBack={navigateToList}><LoadingState message="Loading Panel assignment…"/></RecordPage>:error?<RecordPage title="Panel assignment" backLabel={detailBackLabel} onBack={navigateToList}><ErrorState message={error} onRetry={loadData}/></RecordPage>:selectedAssignment?<PanelAssignmentDetail assignment={selectedAssignment} onBack={navigateToList} onOpenMarksEntry={onNavigateToMarks} onOpenStudent={onNavigateToDossier}/>:<RecordPage title="Panel assignment" backLabel={detailBackLabel} onBack={navigateToList}><EmptyState title="Panel assignment not found" description="The requested appointment does not exist or is outside your access."/></RecordPage>}
-      <RecommendationDetailsDrawer isOpen={selectedSubmittedId!==null} onClose={()=>setSelectedSubmittedId(null)} recommendation={combinedRecommendations.find(r=>String(r.recommendationId)===selectedSubmittedId)??null} onCancelRecommendation={handleCancelRecommendation} onOpenStudent={onNavigateToDossier}/>
+      <RecommendationDetailsDrawer backLabel={selectedSuperviseeId?'Back to student Panel details':nominationRecordsOpen?'Back to Nomination records':undefined} isOpen={selectedSubmittedId!==null} onClose={()=>setSelectedSubmittedId(null)} recommendation={combinedRecommendations.find(r=>String(r.recommendationId)===selectedSubmittedId)??null} onCancelRecommendation={handleCancelRecommendation} onOpenStudent={onNavigateToDossier}/>
 
       {/* RIGHT SLIDING DRAWER: RECOMMEND PANEL MEMBER DRAWER */}
       {recommendationStudent && (
@@ -825,6 +827,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       )}
 
       <PanelRecommendationReviewDrawer backLabel={!initialRecommendationId&&isCoordinator&&section==='appointments'?(listParams.has('panelLecturer')?'Back to Panel students':'Back to Panel assignments'):detailBackLabel} onOpenStudent={onNavigateToDossier}
+        presentation={!initialRecommendationId&&isCoordinator&&section==='appointments'?'appointment':'request'}
         isOpen={selectedRecommendation !== null}
         routed={!!initialRecommendationId}
         busy={mutationBusy}

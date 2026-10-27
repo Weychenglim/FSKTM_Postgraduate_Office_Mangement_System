@@ -4,7 +4,7 @@ import { requestBodyTextClass } from './RequestDetailPrimitives';
 import { ResearchAbstract } from './ResearchAbstract';
 
 /** Displays saved snapshots; never substitutes the student's live profile. */
-export function RequestedChangesComparison({ before, after, revision = false, initialRecord = false }: {
+export function RequestedChangesComparison({ before, after, applied = false, revision = false, initialRecord = false }: {
   before: ResearchSnapshot;
   after: ResearchSnapshot;
   applied?: boolean;
@@ -18,6 +18,17 @@ export function RequestedChangesComparison({ before, after, revision = false, in
     {field === 'abstract' ? <dd><ResearchAbstract value={after[field]} /></dd> : <dd className={`${requestBodyTextClass} rounded-lg bg-slate-50 p-3`}>{after[field] || 'Not recorded'}</dd>}
   </div>)}</dl>;
   const changed = fields.filter(field => before[field] !== after[field]);
+  if (!revision) return <div className="space-y-8" data-request-comparison>
+    {changed.length ? changed.map(field=><section key={field} aria-label={`${label(field)} comparison`} className="min-w-0 space-y-4">
+      <h3 className="text-sm font-semibold text-brand-navy">{field==='programme' ? 'Programme' : `Research ${field}`}</h3>
+      <dl className={`grid min-w-0 gap-5 ${field==='abstract' ? '' : 'sm:grid-cols-2'}`}>
+        {[before,after].map((snapshot,index)=><div key={index} className={`min-w-0 space-y-3 border-l-2 pl-4 ${index ? 'border-blue-200' : 'border-slate-200'}`}>
+          <dt className={`text-xs font-medium leading-6 ${index ? 'text-blue-700' : 'text-slate-600'}`}>{index ? `${applied ? 'Approved' : 'Proposed'} ${field}` : 'Before this request'}</dt>
+          <dd className="whitespace-pre-wrap text-sm font-normal leading-7 text-slate-900 [overflow-wrap:anywhere]">{field==='abstract' ? <ResearchAbstract value={snapshot[field]} inset={false}/> : snapshot[field] || 'Not recorded'}</dd>
+        </div>)}
+      </dl>
+    </section>) : <p className="card-description">No changed fields were recorded.</p>}
+  </div>;
   return <div className="space-y-4">
     {changed.length ? changed.map(field => <div key={field} className="space-y-2">
       {revision?<h4 className="card-value">{label(field)}</h4>:null}

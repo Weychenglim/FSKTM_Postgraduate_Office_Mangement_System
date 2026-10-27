@@ -40,14 +40,13 @@ test('Both request types render the shared summary and research cards with navig
     assert.match(html, /First paragraph\.\n\nSecond paragraph\./);
     assert.doesNotMatch(html, /line-clamp/);
   }
-  assert.match(supervisor, /Research submitted with this request/);
-  assert.match(supervisor, /Immutable submitted title/);
+  assert.match(supervisor, /<dt[^>]*>Research title<\/dt><dd[^>]*>Immutable submitted title<\/dd>/, 'Research title is the submitted answer, with its own label');
   assert.match(recommendation, /Current saved student research profile/);
   const summary = recommendation.split('data-research-details')[0];
   assert.match(summary, /<details[^>]*>[\s\S]*Contact details/);
   assert.ok(summary.indexOf('student@example.test') > summary.indexOf('<details'));
   assert.doesNotMatch(summary, /<details[^>]*open/);
-  assert.ok(recommendation.indexOf('Relevant expertise') > recommendation.indexOf('Second paragraph.'));
+  assert.ok(recommendation.indexOf('Relevant expertise') < recommendation.indexOf('Current research'), 'Nomination justification precedes current research');
 });
 
 test('Timeline labels describe recorded actions, pending stages and unknown history consistently', () => {

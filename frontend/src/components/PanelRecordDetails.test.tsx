@@ -8,7 +8,7 @@ const {PanelRecommendationDetail,PanelAppointmentRecordCard,panelRecordMetadata}
 const record:PanelRecommendationDraft={id:71,studentId:'PG71',studentName:'Same student',programme:'Computing',semester:'Semester I',proposedTopic:'Recorded title',researchArea:'Networks',abstract:'Recorded abstract',supervisorName:'Dr Supervisor',recommendedMember:'Dr Panel',recommendedMemberId:'LP71',status:'SUBMITTED_TO_PANEL',submittedDate:'15 Oct 2026',submittedAt:'2026-10-15T00:00:00Z',justification:'Recorded justification',workflow:[{id:1,action:'SUBMIT',actorName:'Actual submitter',actorRole:'Lecturer',reason:'',previousStatus:'',newStatus:'SUBMITTED_TO_PANEL',createdAt:'2026-10-15T00:00:00Z'}]};
 const html=renderToStaticMarkup(<PanelRecommendationDetail record={record} actions={<button>Authorised action</button>}/>);
 for(const text of ['Same student','PG71','Computing','Dr Supervisor','Dr Panel','Recorded title','Networks','Recorded abstract','Recorded justification','Approval progress','Authorised action','Audit history'])assert.ok(html.includes(text),text);
-assert.ok(html.indexOf('Research details')>=0 && html.indexOf('Research details')<html.indexOf('Approval progress'));
+assert.ok(html.indexOf('Nomination details')<html.indexOf('Current research') && html.indexOf('Current research')<html.indexOf('Approval progress'));
 assert.ok(html.indexOf('Approval progress')<html.indexOf('Authorised action'));
 assert.match(html,/<details/);assert.doesNotMatch(html,/<details[^>]*open/);
 assert.doesNotMatch(html,/REC-71|PENDING_COORDINATOR|SUBMITTED_TO_PANEL|2025\/2026|No related files|Evaluation Summary/);

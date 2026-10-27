@@ -19,7 +19,8 @@ assert.match(audit,/Request submitted|Awaiting Supervisor review|Requested clari
 assert.doesNotMatch(audit,/PENDING_SUPERVISOR|>SUBMIT<|Not recorded →|Team retention|UTC\+08/,'Readable audit omits raw codes and irrelevant transfer acknowledgement');
 const comparison=render(<RequestedChangesComparison before={{programme:'Computing',title:'Old',abstract:'Same'}} after={{programme:'Computing',title:'New',abstract:'Same'}}/>);
 assert.doesNotMatch(comparison,/Not applied|Saved values|Only changed fields/);
-assert.match(comparison,/Original title|Requested title/);
+assert.match(comparison,/Before this request/);
+assert.match(comparison,/Proposed title/);
 
 const record:SupervisorApplicationRecord={id:9,studentId:'PG009',studentName:'Student Nine',programme:'Computing',semester:'Semester I',proposedSupervisor:'Dr Nine',proposedSupervisorId:'L009',researchTitle:'Recorded title',researchArea:'Networks',researchAbstract:'Recorded abstract',researchProfileReady:true,status:'APPROVED',rejectionReason:'',submittedAt:'2026-10-13T18:00:00Z',coordinatorDecisionAt:'2026-10-13T18:30:00Z',workflow:[{id:1,action:'COORDINATOR_APPROVE',actorName:'Actual coordinator',actorRole:'Programme Coordinator',previousStatus:'PENDING_COORDINATOR',newStatus:'APPROVED',reason:'',createdAt:'2026-10-13T18:30:00Z'}],appointmentLifecycle:{appointmentId:5,status:'ACTIVE',endOutcome:null,endReason:null,endedAt:null,endedBy:null,supersedesAppointmentId:null,replacementAppointmentId:null,lifecycle:[{id:10,action:'ACTIVATED',actorName:'Actual coordinator',actorRole:'Programme Coordinator',previousStatus:'',newStatus:'ACTIVE',outcome:null,reason:null,createdAt:'2026-10-13T18:30:00Z'}]}};
 const office=render(<OfficeAppointmentAdministration record={officeApplicationRecord(record)} onEnd={async()=>{}}/>);

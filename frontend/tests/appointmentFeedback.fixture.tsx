@@ -47,8 +47,8 @@ await scenario('Failed Panel nomination keeps its selected member and notes with
   await mount(<LecturerPanelAppointments currentUser={{...user,role:'Lecturer',staffId:'SV1'}} initialSuperviseeId="PG007"/>);
   await until(()=>!!container.querySelector('#recommendation-notes-textarea'));
   container.querySelector<HTMLInputElement>('#panel-candidate-search')!.click();
-  await until(()=>!!container.querySelector('#panel-candidate-options button'));
-  container.querySelector<HTMLButtonElement>('#panel-candidate-options button')!.click();
+  await until(()=>!!container.querySelector('[role="listbox"][aria-label="Panel candidates"] [role="option"]'));
+  container.querySelector<HTMLButtonElement>('[role="listbox"][aria-label="Panel candidates"] [role="option"]')!.click();
   change(container.querySelector<HTMLTextAreaElement>('#recommendation-notes-textarea')!,'Keep my Panel recommendation notes');
   await until(()=>!container.querySelector<HTMLButtonElement>('#submit-recommendation-btn')!.disabled);
   container.querySelector<HTMLButtonElement>('#submit-recommendation-btn')!.click();

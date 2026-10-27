@@ -10,6 +10,7 @@ import { RecordPage } from './RecordPage';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
+  UserRound,
   Users,
   UserX,
   FileText, 
@@ -90,7 +91,7 @@ export function OfficeSupervisorRecordTable({ records, onOpen, onDossier }: { re
   return <table className="data-table block lg:table" aria-label="Appointment records"><thead className="hidden lg:table-header-group"><tr className="data-thead bg-slate-50">{columns.map(value => <th key={value} scope="col" className="data-th">{value}</th>)}</tr></thead><tbody className="block space-y-3 lg:table-row-group lg:space-y-0">{records.map(row => <tr key={row.applicationId != null ? `application-${row.applicationId}` : supervisorRecordRouteKey(row)} className="data-row grid grid-cols-2 rounded-xl border border-slate-200 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0">{[
     <><p>{row.studentName}</p><p className="card-caption mt-1">{row.studentId}</p></>, row.programme, row.supervisor || 'Not assigned', <RequestStatusBadge status={row.status === 'Ended' ? 'ENDED' : row.workflowStatus ?? row.workflow?.at(-1)?.newStatus ?? row.status} label={stage(row)}/>,
     formatRequestStageWaiting(row.status === 'Ended' ? row.status : row.workflow?.at(-1)?.newStatus ?? row.status, row.waitingDays, row.status === 'Pending'), row.updatedDate,
-    <div className="flex flex-wrap justify-end gap-2"><PortalButton size="sm" onClick={() => onDossier(row)}>View student record</PortalButton><PortalButton size="sm" onClick={() => onOpen(row)}>{row.status === 'Approved' || row.status === 'Ended' ? 'View supervision' : row.status === 'No Supervisor' ? 'View record' : 'View request'}</PortalButton></div>
+    <div className="flex flex-wrap justify-end gap-2"><PortalButton variant="primary" icon={UserRound} size="sm" onClick={() => onDossier(row)}>View student record</PortalButton><PortalButton size="sm" onClick={() => onOpen(row)}>{row.status === 'Approved' || row.status === 'Ended' ? 'View supervision' : row.status === 'No Supervisor' ? 'View record' : 'View request'}</PortalButton></div>
   ].map((cell,index) => <td key={columns[index]} className={`${index === 0 ? 'data-td-strong' : 'data-td'} block min-w-0 break-words lg:table-cell ${index === 0 || index === 6 ? 'col-span-2' : ''}`}>
     {index > 0 && index < 6 ? <span className="card-label block lg:hidden">{columns[index]}</span> : null}{cell}</td>)}</tr>)}</tbody></table>;
 }
@@ -298,7 +299,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   if (routeView === 'teamDetail' && primaryReplacement?.studentId===routeTeamStudentId) return <OfficeSupervisorReplacementForm appointmentId={primaryReplacement.appointmentId} onBack={()=>setPrimaryReplacement(null)} onSubmitted={()=>{setPrimaryReplacement(null);setReplacementNotice('Replacement requested. The proposed supervisor will review it next.');setTeamRefresh(value=>value+1);}}/>;
   if (routeView === 'teamDetail') return <RecordPage title="Supervision details" backLabel="Back to Supervisory teams" onBack={onNavigateToTeams ?? navigateToList}>
     {replacementNotice?<p role="status" className="card-description rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">{replacementNotice}</p>:null}
-    <SupervisoryTeamManagement role="Office Staff/Admin" view="detail" routeStudentId={routeTeamStudentId} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} showResearchChanges={false} showRefresh={false} refreshVersion={teamRefresh}
+    <SupervisoryTeamManagement role="Office Staff/Admin" view="detail" routeStudentId={routeTeamStudentId} onNavigateToApplication={onNavigateToRecord?id=>onNavigateToRecord(`request-${id}`):undefined} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} showResearchChanges={false} showRefresh={false} refreshVersion={teamRefresh}
       onChangePrimarySupervisor={routeTeamStudentId?appointmentId=>{setReplacementNotice(null);setPrimaryReplacement({appointmentId,studentId:routeTeamStudentId});}:undefined}/>
   </RecordPage>;
   const programmes = [...new Set(records.map(row => row.programme).filter(Boolean))];

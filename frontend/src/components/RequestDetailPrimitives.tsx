@@ -1,5 +1,6 @@
 import React, { useId } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import { UserRound, Check, X, type LucideIcon } from 'lucide-react';
+import { IconHeading } from './IconHeading';
 import { AppointmentIcon } from './AppointmentPrimitives';
 import { orderApprovalEvents, type ApprovalEvent } from '../utils/approvalProcess';
 import { PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
@@ -51,15 +52,30 @@ export function RequestDetailCard({ children, progress, actions, audit, padding 
 
 export const requestBodyTextClass = 'font-sans text-xs font-normal leading-relaxed text-slate-700 whitespace-pre-wrap break-words';
 
+/** Readable, equal-width actions for narrow detail sidebars; caller owns capabilities. */
+export function RequestDetailActions({ children }: { children: React.ReactNode }) {
+  return <div data-detail-actions className="space-y-3 [&_.flex]:flex-col [&_.flex]:items-stretch [&_.flex]:gap-3 [&_button]:min-h-11 [&_button]:w-full [&_button]:rounded-xl [&_button]:text-xs [&_button]:font-semibold [&_button]:normal-case [&_button]:tracking-normal">{children}</div>;
+}
+
+export function PrimaryRequestDecisionButtons({ positiveLabel, disabled, positiveDisabled = false, onPositive, onReject }: {
+  positiveLabel: 'Accept request' | 'Approve request'; disabled: boolean; positiveDisabled?: boolean;
+  onPositive: () => void; onReject: () => void;
+}) {
+  return <div className="flex flex-wrap gap-3">
+    <PortalButton icon={Check} variant="primary" disabled={disabled || positiveDisabled} onClick={onPositive}>{positiveLabel}</PortalButton>
+    <PortalButton icon={X} variant="danger" disabled={disabled} onClick={onReject}>Reject request</PortalButton>
+  </div>;
+}
+
 export function RequestField({ label, value, narrative = false }: { label: string; value?: string | null; narrative?: boolean }) {
   return <div><dt className="card-label">{label}</dt><dd className={`${narrative ? requestBodyTextClass : 'card-value whitespace-pre-wrap break-words'} mt-1`}>{value?.trim() || 'Not recorded'}</dd></div>;
 }
 
 export function RequestSection({ title, description, actions, children, headingClassName = 'section-label', icon }: { title: string; description?: string; actions?: React.ReactNode; children: React.ReactNode; headingClassName?: string; icon?: LucideIcon }) {
   const titleId = useId();
-  return <section aria-labelledby={titleId} className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-start gap-3">{icon ? <AppointmentIcon icon={icon} tone="info" /> : null}<div className="min-w-0"><h2 id={titleId} className={headingClassName}>{title}</h2>{description ? <p className="card-description mt-1">{description}</p> : null}</div></div>{actions}</div>{children}</section>;
+  return <section aria-labelledby={titleId} className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-3"><IconHeading titleId={titleId} title={title} description={description} titleClassName={headingClassName} icon={icon ? <AppointmentIcon icon={icon} tone="info" /> : undefined} />{actions}</div>{children}</section>;
 }
 
 export function ViewStudentRecordAction({studentId,onOpen,disabled=false}:{studentId:string;onOpen?: (studentId:string)=>void;disabled?:boolean}) {
-  return onOpen?<PortalButton size="sm" variant="secondary" disabled={disabled} onClick={()=>onOpen(studentId)}>View student record</PortalButton>:null;
+  return onOpen?<PortalButton variant="primary" icon={UserRound} size="sm" disabled={disabled} onClick={()=>onOpen(studentId)}>View student record</PortalButton>:null;
 }

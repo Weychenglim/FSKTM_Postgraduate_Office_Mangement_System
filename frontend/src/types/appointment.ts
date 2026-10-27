@@ -218,7 +218,11 @@ export interface SupervisorWorkloadRecord extends AppointmentCapacityMetadata {
 
 // Lecturer-facing panel appointment views (UC20-UC23)
 // A student assigned to a lecturer acting as panel member.
+export interface AcademicTeamContact {name:string;email:string;department:string;appointmentDate:string|null}
+export interface PanelAcademicTeam {primary:AcademicTeamContact|null;supporting:AcademicTeamContact[]}
+
 export interface PanelAssignment extends WorkflowAgeingMetadata {
+  academicTeam?: PanelAcademicTeam | null;
   recommendation?: PanelRecommendationDraft;
   appointmentLifecycle?: AppointmentLifecycle | null;
   panelMemberName?: string;
@@ -323,6 +327,9 @@ export interface PanelRecommendationSupervisee {
   panelAppointmentId: number | null;
   currentPanelMember: string | null;
   currentPanelMemberId: string | null;
+  currentPanelDepartment?: string | null;
+  currentPanelEmail?: string | null;
+  currentPanelAppointmentDate?: string | null;
   canRecommend: boolean;
 }
 
@@ -366,6 +373,7 @@ export interface StudentResearchProfileSummary {
 }
 
 export interface StudentPanelAppointmentView extends WorkflowAgeingMetadata {
+  approvedRequest?: {id: number; nominatedBy: string; submittedAt: string | null; panelAcceptedAt: string | null; approvedAt: string | null} | null;
   status: 'PENDING' | 'CONFIRMED';
   readinessState:
     | 'SUPERVISOR_REQUIRED'

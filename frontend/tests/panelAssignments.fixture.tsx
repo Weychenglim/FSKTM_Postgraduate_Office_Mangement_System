@@ -46,6 +46,15 @@ window.fetch = async (input,init) => {
   check(!init?.method||init.method==='GET','No academic mutations are permitted');
   const url=new URL(String(input),location.origin),path=url.pathname; calls.push(path);
   if(failedRead)return Response.json({error:'Fixture unavailable'},{status:500});
+  if(path==='/api/appointments/panel/my-workload/') return Response.json({workloadCount:1,workloadLimit:3,currentStudents:1,confirmedAppointments:1,pendingNominations:0,capacityState:'AVAILABLE',selectable:true,records:[]});
+  if(path==='/api/appointments/panel/eligible-supervisees/') return Response.json([{
+    studentId:'PG001',studentName:'Aisha',programme:'Cyber Security',semester:'S1',proposedTopic:'Research security',researchArea:'Security',abstract:'Research abstract',
+    supervisorName:'Dr Supervisor',supervisorId:'SUP001',supervisorAppointmentId:1,panelAppointmentId:11,currentPanelMember:'Dr Aisha Panel',currentPanelMemberId:'L001',canRecommend:true,currentPanelDepartment:'Computing',currentPanelEmail:'panel@example.test',currentPanelAppointmentDate:'2026-10-02',
+  }]);
+  if(path==='/api/appointments/panel/recommendations/') return Response.json([pending,past,{...active,id:21}]);
+  if(path==='/api/appointments/panel/recommendations/21/') return Response.json({...active,id:21});
+  if(path==='/api/appointments/panel/recommendations/3/') return Response.json(past);
+  if(path.startsWith('/api/appointments/panel/') && path!=='/api/appointments/panel/' && !path.endsWith('/coordinator-workspace/') && !path.includes('/records/')) return Response.json([]);
   if(path==='/api/appointments/supervisor/request-history/') return Response.json([]);
   if(path==='/api/appointments/co-supervisor/') return Response.json({teams:[],nominations:[],appointments:[]});
   if (/\/appointments\/(office|coordinator)-workspace\/requests\/$/.test(path)) {
@@ -70,7 +79,8 @@ window.fetch = async (input,init) => {
 function Host({role}: {role:'office'|'coordinator'}) {
   const current=useLocation(), navigate=useNavigate();
   if(current.pathname==='/personal-student') return <StudentSupervisorApplications applications={[]}/>;
-  if(current.pathname==='/personal-lecturer') return <LecturerAppointmentRequests primaryRequests={[]} primaryLoading={false} primaryError={null} refreshVersion={0} onChanged={async()=>{}}/>;
+  if(current.pathname==='/personal-lecturer') return <LecturerAppointmentRequests primaryRequests={[]} primaryLoading={false} primaryError={null} refreshVersion={0} onChanged={async()=>{}} workload={{currentStudents:1,workloadLimit:3,availableSlots:2,selectable:true,capacityState:'AVAILABLE'}}/>;
+  if(current.pathname==='/personal-panel') return <LecturerPanelAppointments currentUser={{id:'L1',staffId:'L1',role:'Lecturer',fullName:'Lecturer',email:'lecturer@example.test',department:'Computing'}} routeView={current.search.includes('view=history')?'reviewed':'list'} onNavigateToReviewed={()=>navigate('/personal-panel?view=history')} onNavigateToList={()=>navigate('/personal-panel?view=requests')}/>;
   if(current.pathname==='/personal-roster') return <PanelSuperviseeRoster students={[]} recommendations={[]} onOpen={()=>{}}/>;
   const supervisorView=current.pathname.endsWith('/requests')?'requests':'teams';
   if(activeModule==='supervisor')return role==='office'
@@ -89,11 +99,10 @@ const button = (label:string) => visible<HTMLButtonElement>('button').find(node=
 const table = (label:string) => visible<HTMLTableElement>('table').find(node=>node.getAttribute('aria-label')===label);
 const search = () => visible<HTMLInputElement>('input[type="search"]')[0];
 async function selectAppointments(label: 'Current assignments' | 'Past assignments') {
-  const control=visible<HTMLButtonElement>('[role="combobox"]').find(node=>node.getAttribute('aria-label')==='Appointments')!;
-  check(!!control,'Missing Appointments filter');
-  control.click();await until(()=>visible('[role="option"]').some(node=>node.textContent?.trim()===label));
-  visible<HTMLElement>('[role="option"]').find(node=>node.textContent?.trim()===label)!.click();
-  await until(()=>control.textContent?.includes(label));
+  const text=label==='Past assignments'?'Past':'Current';
+  const control=visible<HTMLButtonElement>('[role="group"][aria-label="Appointment views"] button').find(node=>node.textContent?.trim()===text)!;
+  check(!!control,'Missing appointment view switch');
+  control.click();await until(()=>control.getAttribute('aria-pressed')==='true');
 }
 async function typeSearch(value:string) {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(search(),value);
@@ -121,7 +130,7 @@ for(const role of ['office','coordinator'] as const) {
     check(filterCard.querySelectorAll('input[type="date"]').length===1,'Only the start cutoff should remain');
     check(!button('By lecturer')&&!button('By student'),'Redundant browsing-mode buttons returned');
     check(!visible('[role="group"][aria-label="Assignment period"]').length,'Obsolete Current/Past switch remains');
-    check(visible('[role="combobox"][aria-label="Appointments"]').length===1,'Expected one Appointments filter');
+    check(visible('[role="group"][aria-label="Appointment views"]').length===1&&button('Current').getAttribute('aria-pressed')==='true','Expected one current/past switch');
     if(role==='office') {
       button('Tools').click();await until(()=>visible('[aria-label="Office Panel tools"]').length===1);
       const tools=visible('[aria-label="Office Panel tools"]')[0];
@@ -136,7 +145,7 @@ for(const role of ['office','coordinator'] as const) {
     check(search().value==='PG002','Search was not carried to lecturer students');
     check(table('Panel student assignments')!.textContent?.includes('Ben')&&!table('Panel student assignments')!.textContent?.includes('PG001'),'Wrong filtered students');
     button('View appointment').click(); await until(()=>visible('[data-panel-appointment-record]').length===1);
-    check(visible('[data-panel-appointment-record]')[0].textContent?.includes('Ben'),'Wrong appointment opened');
+    check(visible('[data-panel-assignment-detail]')[0].textContent?.includes('Ben'),'Wrong appointment opened');
     check(visible('[data-record-page]').length===1,'Nested record hosts compete for the page');
     button('Back to Panel students').click(); await until(()=>!!table('Panel student assignments'));
     check(search().value==='PG002','Appointment return lost student filter');
@@ -148,8 +157,8 @@ for(const role of ['office','coordinator'] as const) {
     await mount(role);
     check(!table('Panel student assignments'),'Current students must be inside a selected lecturer');
     await selectAppointments('Past assignments');await until(()=>table('Panel lecturers and their students')?.querySelectorAll('tbody tr').length===1);
-    button('Clear filters').click();await until(()=>visible('[role="combobox"][aria-label="Appointments"]')[0]?.textContent?.includes('Current assignments'));
-    check(!table('Panel lecturers and their students')!.textContent?.includes('Past assignments'),'Clear filters did not restore current assignments');
+    button('Clear filters').click();await until(()=>button('Past').getAttribute('aria-pressed')==='true');
+    check(table('Panel lecturers and their students')!.textContent?.includes('Past assignments'),'Clear filters lost the selected past-assignment view');
     await selectAppointments('Past assignments');await until(()=>table('Panel lecturers and their students')?.querySelectorAll('tbody tr').length===1);
     const cells=table('Panel lecturers and their students')!.querySelector('tbody tr')!.querySelectorAll('td');
     check(cells[1].textContent?.endsWith('1')&&cells[2].textContent?.endsWith('2'),'Past student and appointment counts became conflated');
@@ -175,21 +184,23 @@ for(const role of ['office','coordinator'] as const) {
     visible<HTMLElement>('[role="option"]').find(node=>node.textContent?.trim()==='Newest first')!.click();
     await until(()=>requestQueries.at(-1)?.get('sort')==='newest');
     check(requestQueries.at(-1)?.get('focus')===(role==='office'?'all':'decision'),'Role scope changed');
+    const filterTop=search().getBoundingClientRect().top;
     button('History').click();await until(()=>search().closest('.bg-slate-50')?.textContent?.includes('Outcome on or after'));
+    check(Math.abs(search().getBoundingClientRect().top-filterTop)<2,'History moved the shared request filters');
     check(document.documentElement.scrollWidth<=innerWidth,'Request filters exceed viewport');
   });
   await scenario(`${role}: Supervisor retains its switch, relationship counts and student drilldown`,async()=>{
     await mount(role,'/supervisor-appointments/supervisees','supervisor');
-    check(button('Current teams').getAttribute('aria-pressed')==='true','Supervisor default current state changed');
+    check(button('Current').getAttribute('aria-pressed')==='true','Supervisor default current state changed');
     check(!button('By lecturer')&&!button('By student'),'Supervisor gained a redundant mode');
     const counts=table('Supervisors and their students')!.querySelector('tbody tr')!.querySelectorAll('td');
     check(counts[1].textContent?.endsWith('2')&&counts[2].textContent?.endsWith('1'),'Primary/supporting counts changed');
-    button('Past appointments').click();await until(()=>!!table('Past appointments'));
-    check(button('Past appointments').getAttribute('aria-pressed')==='true','Supervisor past switch did not update');
+    button('Past').click();await until(()=>!!table('Past appointments'));
+    check(button('Past').getAttribute('aria-pressed')==='true','Supervisor past switch did not update');
     check(!search().closest('.bg-slate-50')?.textContent?.includes('Status'),'Ended lifecycle is redundant');
     check(search().closest('.bg-slate-50')?.textContent?.includes('Ended on or after'),'Ending-date meaning lost');
     check(table('Past appointments')!.textContent?.includes('Former supervisee'),'Supervisor ended history disappeared');
-    button('Current teams').click();await until(()=>!!table('Supervisors and their students'));
+    button('Current').click();await until(()=>!!table('Supervisors and their students'));
     await typeSearch('PG002');await until(()=>!!table('Supervisors and their students'));
     button('View students').click();await until(()=>!!table('Current supervisory teams'));
     check(!search().closest('.bg-slate-50')?.textContent?.includes('Sort by'),'Single-choice student sort remains');
@@ -269,9 +280,92 @@ for(const kind of ['student','lecturer','roster'] as const) {
       check(query.get('view')==='history'&&query.get('size')==='25'&&query.get('source')==='inbox','Clear changed browsing context');
     }
     check(button('Clear filters'),'Clear filters disappears on an unfiltered list');
+    if(kind==='student'){
+      const top=search().getBoundingClientRect().top;
+      button('Requests').click();await until(()=>router.state.location.search.includes('view=requests'));
+      check(Math.abs(search().getBoundingClientRect().top-top)<2,'Student requests/history moved the shared filters');
+    }
     check(document.documentElement.scrollWidth<=innerWidth,'Personal filter exceeds viewport');
+  });
+}
+for(const kind of ['lecturer','panel']) {
+  await scenario(`${kind} requests/history preserve summary and filter positions`,async()=>{
+    root.unmount();root=createRoot(document.getElementById('root')!);
+    router=createMemoryRouter([{path:'*',element:<ListState.Provider value={new Map()}><RecordPageProvider><Host role="office"/></RecordPageProvider></ListState.Provider>}],{initialEntries:[`/personal-${kind}?view=requests`]});
+    root.render(<RouterProvider router={router}/>);
+    await until(()=>!!button('History')&&!!search()&&document.body.textContent?.includes(kind==='lecturer'?'Supervisory load':'Awaiting Coordinator'));
+    const positions=()=>({history:button('History').getBoundingClientRect().top,search:search().getBoundingClientRect().top});
+    const before=positions();
+    button('History').click();await until(()=>router.state.location.search.includes('view=history'));
+    await new Promise(resolve=>setTimeout(resolve,30));
+    const after=positions();
+    check(document.body.textContent?.includes(kind==='lecturer'?'Supervisory load':'Awaiting Coordinator'),'Summary disappeared on History');
+    check(Math.abs(before.history-after.history)<2,'Tab switch moved vertically');
+    check(Math.abs(before.search-after.search)<2,'Filters moved vertically');
+    button('Requests').click();await until(()=>router.state.location.search.includes('view=requests'));
+    check(document.documentElement.scrollWidth<=innerWidth,'Workspace exceeds viewport');
   });
 }
 await mount('office');
 check(document.documentElement.scrollWidth<=innerWidth,'Assignment workspace exceeds viewport');
+await scenario('supervisees: dedicated nomination records retain history, filters and exact return navigation',async()=>{
+  root.unmount();router?.dispose();root=createRoot(document.getElementById('root')!);
+  router=createMemoryRouter([{path:'*',element:<ListState.Provider value={new Map()}><RecordPageProvider><Host role="office"/></RecordPageProvider></ListState.Provider>}],{initialEntries:['/personal-panel?panelSection=supervisees']});
+  root.render(<RouterProvider router={router}/>);
+  await until(()=>!!table('Supervisees and their Panel members'));
+  check(!button('Students')&&!button('My nominations')&&!button('History'),'Nested navigation remains');
+  check(!document.body.textContent?.includes('Appointment guidance'),'Guidance competes with roster');
+  await typeSearch('Aisha');
+  button('Nomination records').click();await until(()=>visible('[data-record-page]').length===1&&!!table('Your nominations'));
+  check(!visible('[aria-label="Panel workspace"]').length,'Module tabs visible inside record page');
+  check(visible('[data-record-page] h1')[0].textContent==='Nomination records','Dedicated title missing');
+  check(button('Back to My supervisees').getBoundingClientRect().top<visible('[data-record-page] h1')[0].getBoundingClientRect().top,'Back link is below title');
+  check(button('Requests').getAttribute('aria-pressed')==='true','Standard Requests switch missing');
+  check(!button('Ongoing'),'Inconsistent Ongoing label remains');
+  const filters=visible('[data-workspace-filter-card]')[0];
+  check(!filters.querySelector('details'),'Filters must remain visible');
+  check(filters.textContent?.includes('Programme')&&filters.textContent?.includes('Semester')&&filters.textContent?.includes('Sort by'),'Standard filter fields missing');
+  button('History').click();await until(()=>table('Your nominations')?.textContent?.includes('Former student'));
+  button('View request').click();await until(()=>!!button('Back to Nomination records'));
+  check(visible('[data-record-page]').length===1,'Nested record pages compete');
+  check(visible('[data-record-page]')[0].textContent?.includes('Former student'),'Wrong request opened');
+  button('Back to Nomination records').click();await until(()=>!!table('Your nominations')&&!!button('History'));
+  check(button('History').getAttribute('aria-pressed')==='true','History selection lost after request');
+  button('Back to My supervisees').click();await until(()=>!!table('Supervisees and their Panel members'));
+  check(search().value==='Aisha','Roster filter lost');
+  button('Nomination records').click();await until(()=>!!table('Your nominations'));
+  check(button('History').getAttribute('aria-pressed')==='true','History lost after revisiting records');
+  await router.navigate(-1);await until(()=>!!table('Supervisees and their Panel members'));
+  check(search().value==='Aisha','Browser Back lost the roster filter');
+  button('Nomination records').click();await until(()=>!!table('Your nominations'));
+  check(document.documentElement.scrollWidth<=innerWidth,'Workspace exceeds viewport');
+});
+await scenario('student Panel details: distinct page, contact fields, nomination action and compact exact history',async()=>{
+  root.unmount();router?.dispose();root=createRoot(document.getElementById('root')!);
+  router=createMemoryRouter([{path:'*',element:<ListState.Provider value={new Map()}><RecordPageProvider><Host role="office"/></RecordPageProvider></ListState.Provider>}],{initialEntries:['/personal-panel?panelSection=supervisees']});
+  root.render(<RouterProvider router={router}/>);
+  await until(()=>!!button('View student'));await typeSearch('Aisha');
+  button('View student').click();await until(()=>visible('[data-record-page] h1')[0]?.textContent==='Student Panel details');
+  check(!visible('[aria-label="Panel workspace"]').length,'List tabs remain on detail page');
+  check(button('Back to My supervisees').getBoundingClientRect().top<visible('[data-record-page] h1')[0].getBoundingClientRect().top,'Back must precede title');
+  const page=visible('[data-record-page]')[0];
+  check(page.textContent?.includes('Computing')&&page.textContent?.includes('panel@example.test')&&page.textContent?.includes('02 Oct 2026'),'Current contact details missing');
+  check(!page.textContent?.includes('Staff number')&&!visible('[data-workspace-filter-card]').length,'Detail page retains staff IDs or request filters');
+  const action=button('Request replacement');check(action.getBoundingClientRect().height>=44,'Main nomination action too small');
+  const sidebar=visible('aside[aria-label="Panel nomination"]')[0];
+  if(innerWidth<1280)check(sidebar.getBoundingClientRect().top<visible('[data-research-details]')[0].getBoundingClientRect().top,'Nomination action buried below research on mobile');
+  action.click();await until(()=>!!button('Back to student Panel details'));
+  check(visible('[data-record-page]').length===1,'Nomination form competes with student detail');
+  button('Back to student Panel details').click();await until(()=>visible('[data-record-page] h1')[0]?.textContent==='Student Panel details');
+  const history=visible<HTMLDetailsElement>('details').find(node=>node.querySelector('summary')?.textContent?.includes('Nomination history'))!;
+  check(!!history&&!history.open,'Nomination history should start collapsed');
+  history.querySelector('summary')!.click();await until(()=>!!button('View request'));
+  button('View request').click();await until(()=>!!button('Back to student Panel details'));
+  check(visible('[data-record-page]').length===1,'History record competes with student details');
+  button('Back to student Panel details').click();await until(()=>visible('[data-record-page] h1')[0]?.textContent==='Student Panel details');
+  button('Back to My supervisees').click();await until(()=>!!table('Supervisees and their Panel members'));
+  check(search().value==='Aisha','Detail return lost roster filter');
+  button('View student').click();await until(()=>visible('[data-record-page] h1')[0]?.textContent==='Student Panel details');
+  check(document.documentElement.scrollWidth<=innerWidth,'Student details overflow viewport');
+});
 parent.postMessage({type:'panel-assignment-results',width:innerWidth,results},location.origin);

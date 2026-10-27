@@ -11,12 +11,13 @@ import { useListState } from './ListState';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
+  UserRound,
   Search,
   Files,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { PageHeader } from './PortalPrimitives';
+import { PageHeader, PortalButton } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { MarkRecord } from '../types';
 import { getMarkRecords } from '../services';
@@ -342,13 +343,10 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                     {/* Row inspection trigger button */}
                     <td className="data-td py-4 px-5 text-right whitespace-nowrap">
                       <div className="flex flex-col items-end gap-1.5">
-                        {onNavigateToDossier && <button
+                        {onNavigateToDossier && <PortalButton variant="primary" icon={UserRound} className="min-h-11" size="sm"
                           aria-label={`View student record for ${rec.studentName}`}
                           onClick={() => onNavigateToDossier(rec.studentId)}
-                          className="min-h-11 text-xs font-semibold text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600"
-                        >
-                          View student record
-                        </button>}
+                        >View student record</PortalButton>}
                         <button
                           aria-label={`Open mark record ${rec.id}`}
                           onClick={() => onViewRecordDetail(rec.id)}

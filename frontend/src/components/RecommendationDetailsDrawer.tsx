@@ -20,6 +20,7 @@ import type {DecisionOutcome} from '../utils/decisionSubmission';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 
 interface RecommendationDetailsDrawerProps {
+  backLabel?: string;
   isOpen: boolean;
   onClose: () => void;
   onOpenStudent?: (id: string) => void;
@@ -174,7 +175,7 @@ const TimelineMarker: React.FC<{ state: TimelineItemState }> = ({ state }) => {
   );
 };
 
-export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerProps> = ({isOpen,onClose,recommendation,onCancelRecommendation,onOpenStudent}) => {
+export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerProps> = ({isOpen,onClose,recommendation,onCancelRecommendation,onOpenStudent,backLabel="Back to Submitted recommendations"}) => {
   const [cancellationReason,setCancellationReason]=useState('');
   const [isCancelling,setIsCancelling]=useState(false);
   const [isCancelConfirmOpen,setIsCancelConfirmOpen]=useState(false);
@@ -184,7 +185,7 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
   const record=fresh??toSubmittedPanelPresentation(recommendation);
   const reload=async()=>{if(recommendation.recommendationId==null)throw new Error('Exact recommendation identity is unavailable.');setFresh(await getPanelRecommendation(recommendation.recommendationId));};
   const canCancel=!!onCancelRecommendation&&record.status==='SUBMITTED_TO_PANEL';
-  return <RecordPage title="Panel recommendation" metadata={<RequestMetadata {...panelRecordMetadata(record)}/>} backLabel="Back to Submitted recommendations" onBack={onClose} pageKey={`panel-history:${recommendation.id}`} dirty={!!cancellationReason.trim()} busy={isCancelling}>
+  return <RecordPage title="Panel recommendation" metadata={<RequestMetadata {...panelRecordMetadata(record)}/>} backLabel={backLabel} onBack={onClose} pageKey={`panel-history:${recommendation.id}`} dirty={!!cancellationReason.trim()} busy={isCancelling}>
     <PanelRecommendationDetail record={record} contextAction={<ViewStudentRecordAction studentId={record.studentId} onOpen={onOpenStudent} disabled={isCancelling}/>} actions={canCancel?<PortalButton variant="danger" disabled={isCancelling} onClick={()=>setIsCancelConfirmOpen(true)}>Cancel recommendation</PortalButton>:undefined} administration={<PanelAppointmentRecordCard record={record}/>}/>
     <DecisionDialog isOpen={isCancelConfirmOpen} decisionKey={recommendation.id} title="Cancel Panel recommendation?" context={<>{record.studentName} · {record.programme}</>} kind="confirmation" tone="danger" message="This closes the pending recommendation and releases its reserved Panel workload. Its history remains available." confirmLabel="Cancel recommendation" cancelLabel="Keep recommendation" busy={isCancelling} dirty={!!cancellationReason.trim()} canConfirm={canCancel&&!!cancellationReason.trim()} successMessage="Panel recommendation cancelled." onReload={reload} onConfirm={async()=>{if(!onCancelRecommendation||!canCancel||!cancellationReason.trim())return false;setIsCancelling(true);try{return await onCancelRecommendation(recommendation,cancellationReason.trim());}finally{setIsCancelling(false);}}} onClose={()=>{setIsCancelConfirmOpen(false);setCancellationReason('');}}>
       <label className="form-label block">Cancellation reason<textarea required className="form-control form-control-md mt-2 min-h-28" value={cancellationReason} onChange={event=>setCancellationReason(event.target.value)}/></label>

@@ -85,7 +85,7 @@ export function StudentSupervisorApplications({ applications, onViewApplication,
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-3">
         <StatusBadge tone={getStatusBadgeTone(app.status)} dot>{requestStatusLabel(app.workflowStatus ?? app.status)}</StatusBadge>
-        <PortalButton size="sm" icon={Eye} disabled={app.applicationId === undefined || !onViewApplication} onClick={() => app.applicationId !== undefined && onViewApplication?.(String(app.applicationId))}>View request</PortalButton>
+        <PortalButton size="sm" className="min-h-11" icon={Eye} disabled={app.applicationId === undefined || !onViewApplication} onClick={() => app.applicationId !== undefined && onViewApplication?.(String(app.applicationId))}>View request</PortalButton>
       </div>
     </article>)}</div> : <p className="card-description">No ongoing supervisor request.</p>}
   </AppointmentSection>;

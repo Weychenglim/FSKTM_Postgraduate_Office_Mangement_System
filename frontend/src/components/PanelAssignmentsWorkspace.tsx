@@ -63,13 +63,13 @@ function AssignmentList({scope, role, records, lecturer, initial = {}, onLecture
         ? 'No matching assignments. Adjust the filters to see more records.' : view === 'current' ? 'No current Panel assignments.' : 'No past Panel assignments.'}</p>
         : grouped ? <CoordinatorDataTable label="Panel lecturers and their students" columns={['Panel lecturer', view === 'current' ? 'Active students' : 'Students', ...(view === 'past' ? ['Past assignments'] : []), 'Action']}
           rows={groups.slice((page - 1) * size, page * size).map(group => ({key: group.key, cells: [identity(group.name, group.staffNo), group.studentCount,
-            ...(view === 'past' ? [group.assignmentCount] : []), <PortalButton size="sm" aria-label={`View students for ${group.name}`}
+            ...(view === 'past' ? [group.assignmentCount] : []), <PortalButton size="sm" className="min-h-11" aria-label={`View students for ${group.name}`}
               onClick={() => onLecturer(group.key, {...assignmentParams, view})}>View students</PortalButton>]}))}/>
         : <CoordinatorDataTable label="Panel student assignments" columns={['Student', 'Programme', 'Panel lecturer', 'Appointment status', 'Started on', ...(view === 'past' ? ['Ended on', 'Outcome'] : []), 'Action']}
           rows={matching.slice((page - 1) * size, page * size).map(row => ({key: row.appointmentLifecycle!.appointmentId, cells: [identity(row.studentName, row.studentId), row.programme || 'Not recorded',
             identity(row.recommendedMember, row.recommendedMemberId), <StatusBadge tone={panelStatusTone(row.appointmentLifecycle!.status)}>{panelStatusLabel(row.appointmentLifecycle!.status)}</StatusBadge>,
             displayDate(row.appointmentDate || row.coordinatorDecisionAt), ...(view === 'past' ? [displayDate(row.appointmentLifecycle!.endedAt), row.appointmentLifecycle!.endOutcome ? panelStatusLabel(row.appointmentLifecycle!.endOutcome!) : 'Not recorded'] : []),
-            <PortalButton size="sm" onClick={() => onOpen(row)}>View appointment</PortalButton>]}))}/>}
+            <PortalButton size="sm" className="min-h-11" aria-label={`View appointment for ${row.studentName}`} onClick={() => onOpen(row)}>View appointment</PortalButton>]}))}/>}
       <WorkspacePagination page={page} pageCount={pageCount} total={total} pageSize={size} noun={grouped ? 'lecturers' : 'assignments'}
         onPage={filters.setPage} onPageSize={value => {filters.setSize(value); filters.setPage(1);}}/>
     </section>

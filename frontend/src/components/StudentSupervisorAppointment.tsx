@@ -8,8 +8,8 @@ import { RecordPage } from './RecordPage';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { 
-  Eye, 
+import {
+  FileText,
   Plus, 
 } from 'lucide-react';
 import { SupervisorAppointmentApplicationPage } from './SupervisorAppointmentApplicationPage';
@@ -27,7 +27,6 @@ import { canStudentCancelSupervisorApplication } from '../utils/workflowTracking
 import { SupervisorApplicationWorkflowStatus, SupervisorWorkflowEvent } from '../types';
 import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
 import { LecturerResearchWorkspace } from './LecturerResearchWorkspace';
-import { SupervisorAppointmentGuidance } from './StudentAppointmentGuidance';
 import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { StudentSupervisorApplications } from './StudentSupervisorApplications';
 import { partitionSupervisorApplications, supervisorResearchPage } from '../utils/supervisorWorkspace';
@@ -203,7 +202,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
         {routeView !== 'research' && !approvedApplication && workflowEligible ? <div className="flex min-w-0 flex-col items-start gap-3 sm:items-end">
           {showApplicationAvailability && !loadingApplications && !applicationsError ? <OperationalIntakeFeedback {...intake} onRetry={() => void intake.refresh()} /> : null}
-          <PortalButton variant="primary" icon={Plus} disabled={loadingApplications || workspaceBusy || pending.length > 0} onClick={handleCreateNewApplication}>New application</PortalButton>
+          <PortalButton variant="primary" className="min-h-11" icon={Plus} disabled={loadingApplications || workspaceBusy || pending.length > 0} onClick={handleCreateNewApplication}>New application</PortalButton>
         </div> : null}
       </> : undefined} />
     {!researchPage && !initialApplicationId ? <SupervisorWorkspaceNavigation role="Student" /> : null}
@@ -239,11 +238,9 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
       {!activeDetailAp ? pageHeader : null}
       {routeView === 'overview' && <>
-        <SupervisoryTeamManagement role="Student" view="studentOverview" showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={researchRefreshVersion} studentActions={approvedApplication ? <>
-          <PortalButton size="sm" variant="primary" icon={Eye} onClick={() => onNavigateToApplication?.(String(approvedApplication.id))}>View request</PortalButton>
-        </> : undefined} />
-        {pending.length > 0 && <StudentSupervisorApplications applications={applications} compact onViewApplication={onNavigateToApplication} />}
-        <SupervisorAppointmentGuidance hasSupervisor={!!approvedApplication} onShowFAQChatbot={onShowFAQChatbot} />
+        <SupervisoryTeamManagement role="Student" view="studentOverview" showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={researchRefreshVersion} studentActions={approvedApplication && onNavigateToApplication ? <>
+          <PortalButton size="sm" className="min-h-11" variant="primary" icon={FileText} onClick={() => onNavigateToApplication(String(approvedApplication.id))}>View approved application</PortalButton>
+        </> : undefined} studentContent={{onShowFAQChatbot, requests: pending.length > 0 ? <StudentSupervisorApplications applications={applications} compact onViewApplication={onNavigateToApplication}/> : undefined}} />
       </>}
       {routeView === 'applications' && !initialApplicationId && <>
         <StudentSupervisorApplications applications={applications} onViewApplication={onNavigateToApplication} />
