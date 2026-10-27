@@ -7,7 +7,7 @@
 // with the details it fills in shown as [Student Name] rather than as tags, and
 // the printed letter previewed beside it as it is typed.
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Bold, ChevronDown, Italic, List, ListChecks, Pencil, Plus, Trash2, Underline } from 'lucide-react';
 import { PortalButton, SegmentedControl } from './PortalPrimitives';
 import { AlertMessage } from './AlertMessage';
@@ -121,6 +121,25 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
     onChange(language === 'ms' ? { contentMs: next } : { content: next });
     onEdited(language === 'ms' ? 'contentMs' : 'content');
   };
+
+  // The text box grows with the letter, so the page never gets a second scrollbar.
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    let width = 0;
+    const fit = () => {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    };
+    fit();
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width === width) return;
+      width = entry.contentRect.width;
+      fit();
+    });
+    observer.observe(textarea);
+    return () => observer.disconnect();
+  }, [shown]);
 
   // After a change the text box did not make itself, put the caret back where it belongs.
   useEffect(() => {
@@ -350,7 +369,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
               onChange={type}
               aria-label={language === 'ms' ? 'Malay letter content' : 'Letter content'}
               aria-invalid={(language === 'ms' ? malayIssue : englishIssue) ? true : undefined}
-              className="block w-full resize-y border-0 bg-white px-6 py-5 text-[14px] leading-7 text-slate-800 placeholder:text-slate-400 focus:outline-none"
+              className="block w-full resize-none overflow-hidden border-0 bg-white px-6 py-5 text-[14px] leading-7 text-slate-800 placeholder:text-slate-400 focus:outline-none"
               placeholder={language === 'ms' ? 'Tulis surat dalam Bahasa Melayu. Insert detail works here too.' : "Write the letter. Use Insert detail for the student's name, matric number and other details."}
             />
             <div className="space-y-3 border-t border-slate-100 px-5 py-4">

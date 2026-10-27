@@ -19,8 +19,6 @@ interface LetterPagesProps {
   date: string;
   /** Letter body already rendered with renderLetterBodyHtml. */
   bodyHtml: string;
-  /** 1 fits the page to the width available; above 1 zooms in. */
-  zoom?: number;
   /** The closing lines; the faculty defaults when left out. */
   closing?: { disclaimer: string; malayDisclaimer?: string; signatoryName: string; signatoryOffice: string };
   /** The Malay page prints its labels, date and disclaimer in Malay. */
@@ -68,7 +66,6 @@ const LetterSheets: React.FC<Omit<LetterPagesProps, 'malayBodyHtml'>> = ({
   referenceText,
   date,
   bodyHtml,
-  zoom = 1,
   closing = DEFAULT_CLOSING,
   language = 'en',
 }) => {
@@ -110,14 +107,16 @@ const LetterSheets: React.FC<Omit<LetterPagesProps, 'malayBodyHtml'>> = ({
   useLayoutEffect(() => {
     const element = frame.current;
     if (!element) return;
-    const update = () => setWidth(element.clientWidth);
+    const update = () => setWidth(Math.floor(element.clientWidth));
     update();
     const observer = new ResizeObserver(update);
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
 
-  const scale = Math.min(1, width / A4_PAGE.width) * zoom;
+  const scale = Math.min(1, width / A4_PAGE.width);
+  const pageWidth = Math.floor(A4_PAGE.width * scale);
+  const pageHeight = Math.floor(A4_PAGE.height * scale);
   const pageGroups = pages ?? [blocks.map((_, index) => index)];
   const contentClass = 'font-sans text-[14px] leading-[1.6] text-slate-700 text-left';
 
@@ -133,15 +132,14 @@ const LetterSheets: React.FC<Omit<LetterPagesProps, 'malayBodyHtml'>> = ({
         </div>
       </div>
 
-      {/* Scrolls sideways only when zoomed in past the available width. */}
-      <div ref={frame} className="w-full overflow-x-auto overflow-y-hidden">
-      <div className="flex flex-col items-center gap-4" style={{ minWidth: A4_PAGE.width * scale }}>
+      <div ref={frame} className="w-full">
+      <div className="flex flex-col items-center gap-4">
         {pageGroups.map((group, pageIndex) => (
           <section
             key={pageIndex}
             aria-label={`${malay ? 'Malay page' : 'Page'} ${pageIndex + 1} of ${pageGroups.length}`}
-            className="relative shrink-0 bg-white border border-slate-200 shadow-sm"
-            style={{ width: A4_PAGE.width * scale, height: A4_PAGE.height * scale }}
+            className="relative shrink-0 overflow-hidden bg-white border border-slate-200 shadow-sm"
+            style={{ width: pageWidth, height: pageHeight }}
           >
             <div
               className={`absolute left-0 top-0 ${contentClass}`}
