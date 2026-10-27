@@ -1,3 +1,7 @@
+## Coordinator dashboard programme context (27 October 2026)
+
+Replace the technical coordinator scope panel with a compact regular-programme summary. Show assigned active/scheduled temporary programme cover with dates and keep past access in a collapsed Access history disclosure. Avoid duplicate programme labels and empty delegation messaging; preserve Office management and authorization.
+
 ## Workload detail reading hierarchy (27 October 2026)
 
 Supervisor and Panel workload detail pages use three distinct reading areas: Lecturer overview, Capacity usage and the existing workload records. Use consistent 28px card gaps, readable labels/values and an explicit empty state. Preserve capacity rules, authoritative counts, availability states, source navigation and Manage capacity. No new tabs or summary-card row.

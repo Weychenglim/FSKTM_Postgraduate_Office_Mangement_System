@@ -1,3 +1,7 @@
+## Coordinator dashboard access presentation (27 October 2026)
+
+CoordinatorDelegations retains its existing data loading, refresh and Office management behavior. A separate read-only CoordinatorProgrammeSummary renders regular programme context, conditional active/scheduled cover and collapsed expired/revoked history. Additional effective access remains visible if grant metadata is unavailable; no authorization or API changes.
+
 ## Shared workload detail presentation (27 October 2026)
 
 WorkloadDetailLayout provides shared section, lecturer metadata, fact and capacity presentation for SupervisorWorkloadDetails and PanelWorkloadDetails. Existing records, configured checks and utilization helpers remain authoritative; Panel reservations and Supervisor primary/supporting counts stay distinct. Missing plans do not render fabricated availability or utilization. Existing list filters, exports, API reads and RecordPage navigation are unchanged. Production-CSS browser verification covers populated/empty/missing/zero-capacity/long-content states at desktop and phone widths.

@@ -19,6 +19,34 @@ export function CoordinatorDelegationCard({ grant, office, onRevoke }: { grant: 
   </article>;
 }
 
+/** Read-only dashboard context; Office keeps the full delegation management view. */
+export function CoordinatorProgrammeSummary({ regularProgramme, effectiveProgrammes, rows, loading = false, error, onRetry }: {
+  regularProgramme: string; effectiveProgrammes: string[]; rows: CoordinatorDelegation[];
+  loading?: boolean; error?: string | null; onRetry?: () => void;
+}) {
+  const cover = rows.filter(row => row.status === 'ACTIVE' || row.status === 'SCHEDULED');
+  const history = rows.filter(row => row.status === 'EXPIRED' || row.status === 'REVOKED');
+  const additionalAccess = effectiveProgrammes.filter(programme => programme !== regularProgramme && !cover.some(row => row.programme === programme));
+  return <section aria-label="Your programme" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h2 className="section-label">Your programme</h2>
+    <p className="mt-2 text-sm font-normal leading-6 text-slate-800 [overflow-wrap:anywhere]">{regularProgramme || 'No regular programme assigned.'}</p>
+    {additionalAccess.length > 0 && <div className="mt-4 border-t border-slate-100 pt-4"><h3 className="section-label">Additional programme access</h3><ul className="mt-2 space-y-2 text-sm leading-6 text-slate-700 [overflow-wrap:anywhere]">{additionalAccess.map(programme => <li key={programme}>{programme}</li>)}</ul></div>}
+    {loading && <p role="status" className="mt-3 card-description">Checking temporary programme cover…</p>}
+    {error && <div className="mt-4"><ErrorState message={error} onRetry={onRetry} /></div>}
+    {!loading && !error && cover.length > 0 && <div className="mt-4 border-t border-slate-100 pt-4">
+      <h3 className="section-label">Temporary programme cover</h3>
+      <ul className="mt-3 space-y-4">{cover.map(grant => <li key={grant.id} className="min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-normal leading-6 text-slate-800 [overflow-wrap:anywhere]">{grant.programme}</p><StatusBadge tone={grant.status === 'ACTIVE' ? 'success' : 'neutral'}>{grant.status === 'ACTIVE' ? 'Active' : 'Scheduled'}</StatusBadge></div>
+        <p className="mt-1 card-description">{grant.startsOn} to {grant.endsOn} (Malaysia)</p>
+      </li>)}</ul>
+    </div>}
+    {!loading && !error && history.length > 0 && <details className="mt-4 border-t border-slate-100 pt-4">
+      <summary className="cursor-pointer rounded-sm text-xs font-semibold leading-6 text-slate-700 focus-visible:outline-2 focus-visible:outline-blue-600">Access history ({history.length})</summary>
+      <div className="mt-3 space-y-3">{history.map(grant => <CoordinatorDelegationCard key={grant.id} grant={grant} office={false} onRevoke={() => {}} />)}</div>
+    </details>}
+  </section>;
+}
+
 const blank = (): CoordinatorDelegationInput => ({ programme: '', coordinatorId: 0, startsOn: malaysiaToday(), endsOn: '', justification: '' });
 const fieldClass = 'text-xs font-bold font-sans normal-case tracking-normal mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-800';
 export function CoordinatorDelegations({ office = false, regularProgramme = '', effectiveProgrammes = [], onRefreshScope }: { office?: boolean; regularProgramme?: string; effectiveProgrammes?: string[]; onRefreshScope?: () => void }) {
@@ -65,9 +93,10 @@ export function CoordinatorDelegations({ office = false, regularProgramme = '', 
       if (failure instanceof ApiError && failure.status === 409) { cancel(); await load(); }
     } finally { setSaving(false); }
   };
+  if (!office) return <CoordinatorProgrammeSummary regularProgramme={regularProgramme} effectiveProgrammes={effectiveProgrammes} rows={rows} loading={loading} error={error} onRetry={() => void load()} />;
   return <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4 text-xs" aria-label="Acting coordinator delegations">
-    <div className="flex flex-wrap justify-between gap-3"><h3 className="section-label">{office ? 'Acting coordinator delegations' : 'My coordinator scope'}</h3><div className="flex gap-2">{office && !creating && !revoking && <PortalButton disabled={loading || saving} onClick={() => { setCreating(true); setError(null); }}>Grant acting access</PortalButton>}</div></div>
-    {office ? <p className="card-description">Grant full coordinator access to an additional programme while retaining the coordinator’s regular programme. Only one acting coordinator may cover a programme at a time. Dates are inclusive in Malaysia time. To correct a grant, revoke it and create a new one.</p> : <><p className="card-description">Regular programme: <strong className="card-value">{regularProgramme || 'None assigned'}</strong></p><p className="card-description">Current access: <strong className="card-value">{effectiveProgrammes.join(', ') || 'None assigned'}</strong></p><p className="card-description">Acting access covers the full coordinator workflow during the dates below. Your regular programme is retained.</p></>}
+    <div className="flex flex-wrap justify-between gap-3"><h3 className="section-label">Acting coordinator delegations</h3><div className="flex gap-2">{office && !creating && !revoking && <PortalButton disabled={loading || saving} onClick={() => { setCreating(true); setError(null); }}>Grant acting access</PortalButton>}</div></div>
+    <p className="card-description">Grant full coordinator access to an additional programme while retaining the coordinator’s regular programme. Only one acting coordinator may cover a programme at a time. Dates are inclusive in Malaysia time. To correct a grant, revoke it and create a new one.</p>
     {error && <ErrorState message={error} onRetry={!saving && !creating && !revoking ? () => void load() : undefined} />}{message && <p role="status" className="card-description text-emerald-700">{message}</p>}
     {office && (creating || revoking) && <form onSubmit={submit} className="space-y-3 rounded-xl bg-white p-4 border border-slate-200">
       {revoking ? <><h4 className="section-label">Revoke access to {revoking.programme} for {revoking.coordinator.name}</h4><label className="form-label block">Revocation reason<textarea required className={fieldClass} value={reason} onChange={e => setReason(e.target.value)} disabled={saving} /></label></> : <>

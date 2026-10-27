@@ -1,3 +1,7 @@
+## Coordinator dashboard scope cleanup (27 October 2026)
+
+Implemented compact Your programme summary, conditional temporary cover and collapsed access history. Office delegation controls preserved. Verified: coordinator delegation rendering/date checks, programme-summary state coverage and API contract checks passed; TypeScript and production build passed. Existing ExcelJS bundle-size advisory remains. Included in the coordinator dashboard UI commit; unrelated shared-checkout work is excluded.
+
 ## Workload detail redesign (27 October 2026)
 
 Implemented shared three-card hierarchy for Supervisor and Panel workload details, regular readable answers, prominent used/available totals, role-specific breakdowns and compact capacity explanations. Existing metadata and workload tables retained; no backend or academic-data changes. Verified: five focused workload checks, 12 production-CSS browser scenarios at 1440px/390px, TypeScript and production build passed. Populated desktop/mobile fixture screenshots visually inspected; research titles span the mobile record width. Independent review found no actionable issues. Existing ExcelJS bundle-size advisory remains. Development server is listening on port 3001. Included in the workload UI commit; unrelated shared-checkout work is excluded.
