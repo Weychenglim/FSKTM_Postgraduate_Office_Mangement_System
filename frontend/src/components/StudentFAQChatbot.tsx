@@ -5,14 +5,15 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ArrowRight, BookOpen, Bot, ChevronRight, FileText, LifeBuoy, MessageCircleQuestion, RotateCcw, Send } from 'lucide-react';
+import { ArrowRight, BookOpen, Bot, CalendarDays, ChevronRight, ClipboardList, FileText, GraduationCap, MailOpen, MessageCircleQuestion, Microscope, RotateCcw, Send, type LucideIcon } from 'lucide-react';
 import type { FaqLink, FaqReply, FaqStart } from '../types';
 import { ApiError } from '../services/apiClient';
 import { askFaq, downloadFaqDocument, getFaqStart, openFaqAnswer, sendFaqFeedback } from '../services/faqApi';
 import { FAQ_PORTAL_LINKS, askedDifferently } from '../utils/faqText';
 import { passageSource } from '../utils/faqOffice';
 import { PageHeader, PortalButton } from './PortalPrimitives';
-import { AppointmentIcon, AppointmentSection } from './AppointmentPrimitives';
+import { AppointmentIcon } from './AppointmentPrimitives';
+import { FloatingMenu } from './FloatingMenu';
 import { AlertMessage } from './AlertMessage';
 import { FaqText } from './FaqText';
 
@@ -29,6 +30,16 @@ type NewItem = ChatItem extends infer Item ? (Item extends ChatItem ? Omit<Item,
 const PASSED_ON = 'Your question has been passed to the office, without your name, so they can add an answer.';
 const OPTION = 'flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-left text-[13px] font-semibold text-brand-navy transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer';
 const SMALL_NOTE = 'text-[12px] font-medium text-slate-500';
+const CARD = 'flex h-full w-full items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30 cursor-pointer';
+const TOPIC_ICONS: ReadonlyArray<[RegExp, LucideIcon]> = [
+  [/research|thesis|dissertation/i, Microscope],
+  [/graduat|complet/i, GraduationCap],
+  [/admission|offer/i, MailOpen],
+  [/registration|course/i, ClipboardList],
+  [/semester/i, CalendarDays],
+  [/application|apply/i, FileText],
+];
+const topicIcon = (name: string) => TOPIC_ICONS.find(([pattern]) => pattern.test(name))?.[1] ?? BookOpen;
 
 const problemText = (err: unknown) =>
   err instanceof ApiError && err.status === 429
@@ -79,6 +90,8 @@ export const StudentFAQChatbot: React.FC = () => {
   const nextId = useRef(1);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLFormElement>(null);
+  const topicsButton = useRef<HTMLDivElement>(null);
+  const [topicsOpen, setTopicsOpen] = useState(false);
   const hasAsked = items.length > 0;
 
   const loadStart = useCallback(() => {
@@ -87,6 +100,14 @@ export const StudentFAQChatbot: React.FC = () => {
   }, []);
 
   useEffect(loadStart, [loadStart]);
+
+  // The question box moves between the welcome card and the chat, so typing carries on there.
+  const shown = useRef(hasAsked);
+  useEffect(() => {
+    if (shown.current === hasAsked) return;
+    shown.current = hasAsked;
+    inputRef.current?.focus({ preventScroll: true });
+  }, [hasAsked]);
 
   // The newest message and the question box stay in view as the page grows.
   useEffect(() => {
@@ -141,7 +162,7 @@ export const StudentFAQChatbot: React.FC = () => {
   const startOver = () => {
     setItems([]);
     setInput('');
-    inputRef.current?.focus();
+    setTopicsOpen(false);
   };
 
   const feedback = async (item: Extract<ChatItem, { kind: 'reply' }>, helpful: boolean) => {
@@ -242,30 +263,146 @@ export const StudentFAQChatbot: React.FC = () => {
     );
   };
 
+  const composer = (
+    <form
+      ref={composerRef}
+      className="space-y-2"
+      onSubmit={event => {
+        event.preventDefault();
+        ask(input);
+      }}
+    >
+      <label htmlFor="faq-question" className="sr-only">Your question</label>
+      <div className="flex items-end gap-2">
+        <textarea
+          id="faq-question"
+          ref={inputRef}
+          rows={1}
+          maxLength={300}
+          placeholder="Type your question"
+          value={input}
+          onChange={event => setInput(event.target.value)}
+          onKeyDown={event => {
+            // Enter while an IME is composing picks a candidate; it must not send.
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              ask(input);
+            }
+          }}
+          className="form-control form-control-md flex-1 resize-none overflow-hidden text-[13px] font-medium leading-relaxed"
+        />
+        <PortalButton type="submit" variant="primary" icon={Send} disabled={!input.trim() || busy}>
+          Send
+        </PortalButton>
+      </div>
+      <p className="card-caption">Press Enter to send, or Shift and Enter for a new line.</p>
+    </form>
+  );
+
+  const contact = start?.contactText || 'For anything about your own application, records or results, contact the PG Office.';
+
   return (
-    <div id="student-faq-chatbot-view" className="space-y-6 text-left font-sans animate-fade-in">
+    <div id="student-faq-chatbot-view" className="mx-auto max-w-4xl space-y-6 text-left font-sans animate-fade-in">
       <PageHeader
         title="FAQ Chatbot"
         subtitle="Ask about postgraduate procedures. Answers come from the PG Office FAQ."
         actions={hasAsked ? <PortalButton icon={RotateCcw} onClick={startOver}>Start over</PortalButton> : undefined}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-        <section aria-label="Chat" className="app-card overflow-hidden shadow-sm">
-          <header className="flex items-start gap-3 border-b border-slate-200 px-5 py-4">
-            <AppointmentIcon icon={MessageCircleQuestion} tone="info" />
-            <div className="min-w-0">
-              <h2 className="section-label">Ask a question</h2>
-              <p className="card-description mt-1">Type it in your own words, or pick a topic. The chatbot can't see your own records.</p>
+      {!hasAsked ? (
+        <>
+          <section aria-label="Ask a question" className="app-card space-y-5 p-5 shadow-sm sm:p-7">
+            <div className="flex items-start gap-3">
+              <AppointmentIcon icon={Bot} tone="brand" />
+              <div className="min-w-0">
+                <h2 className="text-base font-extrabold text-brand-navy">Hi! What would you like to know?</h2>
+                <p className="card-description mt-1">Ask in your own words. I answer from the PG Office FAQ and can't see your own records.</p>
+              </div>
             </div>
+            {composer}
+          </section>
+
+          {start && start.commonQuestions.length > 0 && (
+            <section aria-labelledby="faq-popular" className="space-y-3">
+              <h2 id="faq-popular" className="section-label">Popular questions</h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {start.commonQuestions.map(question => (
+                  <button key={question} type="button" className={CARD} onClick={() => ask(question)}>
+                    <AppointmentIcon icon={MessageCircleQuestion} tone="info" />
+                    <span className="min-w-0 flex-1 pt-2 text-[13px] font-semibold text-brand-navy [overflow-wrap:anywhere]">{question}</span>
+                    <ArrowRight aria-hidden="true" className="mt-2.5 h-4 w-4 shrink-0 text-slate-400" />
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section aria-labelledby="faq-topics" className="space-y-3">
+            <h2 id="faq-topics" className="section-label">Browse by topic</h2>
+            {start ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {start.categories.map(topic => (
+                  <button key={topic.id} type="button" className={CARD} onClick={() => showTopic(topic)}>
+                    <AppointmentIcon icon={topicIcon(topic.name)} tone="brand" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-semibold text-brand-navy">{topic.name}</span>
+                      <span className="card-caption">{topic.questions.length} question{topic.questions.length === 1 ? '' : 's'}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : startProblem ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="card-description">The topics could not be loaded.</p>
+                <PortalButton size="sm" icon={RotateCcw} onClick={loadStart}>Try again</PortalButton>
+              </div>
+            ) : (
+              <p className="card-description">Loading topics…</p>
+            )}
+          </section>
+
+          <AlertMessage type="info" title="About your own case" message={<p className="whitespace-pre-line">{contact}</p>} />
+        </>
+      ) : (
+        <section aria-label="Chat" className="app-card overflow-hidden shadow-sm">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <AppointmentIcon icon={Bot} tone="brand" />
+              <div className="min-w-0">
+                <h2 className="section-label">FAQ Chatbot</h2>
+                <p className="card-description">Answers from the PG Office FAQ</p>
+              </div>
+            </div>
+            {start && start.categories.length > 0 && (
+              <div ref={topicsButton} className="shrink-0">
+                <PortalButton size="sm" icon={BookOpen} aria-haspopup="menu" aria-expanded={topicsOpen} onClick={() => setTopicsOpen(open => !open)}>
+                  Topics
+                </PortalButton>
+                {topicsOpen && (
+                  <FloatingMenu anchor={topicsButton} onClose={() => setTopicsOpen(false)} width={300} align="right" role="menu" className="rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                    {start.categories.map(topic => (
+                      <button
+                        key={topic.id}
+                        type="button"
+                        role="menuitem"
+                        disabled={busy}
+                        className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
+                        onClick={() => {
+                          setTopicsOpen(false);
+                          showTopic(topic);
+                        }}
+                      >
+                        <span className="min-w-0">{topic.name}</span>
+                        <span className="card-caption shrink-0">{topic.questions.length}</span>
+                      </button>
+                    ))}
+                  </FloatingMenu>
+                )}
+              </div>
+            )}
           </header>
 
           <div role="log" aria-live="polite" aria-label="Conversation" className="space-y-5 px-5 py-6">
-            <AssistantRow>
-              <p>Hi! I answer questions about postgraduate procedures using the PG Office FAQ.</p>
-              <p>Type your question below, or choose a topic to see its questions.</p>
-            </AssistantRow>
-
             {items.map(item => {
               if (item.kind === 'you') {
                 return (
@@ -311,85 +448,9 @@ export const StudentFAQChatbot: React.FC = () => {
             )}
           </div>
 
-          <form
-            ref={composerRef}
-            className="space-y-2 border-t border-slate-200 bg-slate-50/70 px-5 py-4"
-            onSubmit={event => {
-              event.preventDefault();
-              ask(input);
-            }}
-          >
-            <label htmlFor="faq-question" className="sr-only">Your question</label>
-            <div className="flex items-end gap-2">
-              <textarea
-                id="faq-question"
-                ref={inputRef}
-                rows={1}
-                maxLength={300}
-                placeholder="Type your question"
-                value={input}
-                onChange={event => setInput(event.target.value)}
-                onKeyDown={event => {
-                  // Enter while an IME is composing picks a candidate; it must not send.
-                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                    event.preventDefault();
-                    ask(input);
-                  }
-                }}
-                className="form-control form-control-md flex-1 resize-none overflow-hidden text-[13px] font-medium leading-relaxed"
-              />
-              <PortalButton type="submit" variant="primary" icon={Send} disabled={!input.trim() || busy}>
-                Send
-              </PortalButton>
-            </div>
-            <p className="card-caption">Press Enter to send, or Shift and Enter for a new line.</p>
-          </form>
+          <div className="border-t border-slate-200 bg-slate-50/70 px-5 py-4">{composer}</div>
         </section>
-
-        <div className="space-y-6">
-          <AppointmentSection title="Browse by topic" description="See the questions for each part of your studies." icon={BookOpen}>
-            {start ? (
-              <div className="space-y-2">
-                {start.categories.map(topic => (
-                  <button key={topic.id} type="button" disabled={busy} className={OPTION} onClick={() => showTopic(topic)}>
-                    <span className="min-w-0">
-                      <span className="block">{topic.name}</span>
-                      <span className="card-caption">{topic.questions.length} question{topic.questions.length === 1 ? '' : 's'}</span>
-                    </span>
-                    <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400" />
-                  </button>
-                ))}
-              </div>
-            ) : startProblem ? (
-              <div className="space-y-2">
-                <p className="card-description">The topics could not be loaded.</p>
-                <PortalButton size="sm" icon={RotateCcw} onClick={loadStart}>Try again</PortalButton>
-              </div>
-            ) : (
-              <p className="card-description">Loading topics…</p>
-            )}
-          </AppointmentSection>
-
-          {start && start.commonQuestions.length > 0 && (
-            <AppointmentSection title="Common questions" description="What students ask most." icon={MessageCircleQuestion}>
-              <div className="space-y-2">
-                {start.commonQuestions.map(question => (
-                  <button key={question} type="button" disabled={busy} className={OPTION} onClick={() => ask(question)}>
-                    <span className="min-w-0 [overflow-wrap:anywhere]">{question}</span>
-                    <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400" />
-                  </button>
-                ))}
-              </div>
-            </AppointmentSection>
-          )}
-
-          <AppointmentSection title="About your own case" description="The chatbot answers general questions only." icon={LifeBuoy}>
-            <p className="whitespace-pre-line text-[13px] leading-relaxed text-slate-700">
-              {start?.contactText || 'For anything about your own application, records or results, contact the PG Office.'}
-            </p>
-          </AppointmentSection>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
