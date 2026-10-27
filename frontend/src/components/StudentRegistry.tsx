@@ -1,3 +1,4 @@
+import { IconHeading } from './IconHeading';
 import { useListState } from './ListState';
 import { RecordPage } from './RecordPage';
 /**
@@ -1598,17 +1599,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               {/* TAB 2: MANUAL SINGLE CANDIDATE ENTRY FORM MATCHING MOCKUP */}
               {registerActiveTab === 'single' && (
                 <div id="single-candidate-register-container" className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 shadow-3xs space-y-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
-                      <UserPlus className="w-5 h-5 text-brand-navy" />
-                    </div>
-                    <div>
-                      <h2 className="section-label">New Student Registration</h2>
-                      <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                        Enter the student's personal and academic details.
-                      </p>
-                    </div>
-                  </div>
+                  <IconHeading title="New Student Registration" description="Enter the student's personal and academic details."
+                    descriptionClassName="text-[11px] text-slate-500 font-semibold mt-0.5"
+                    icon={<span className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0"><UserPlus className="w-5 h-5 text-brand-navy" /></span>}
+                  />
 
                   <form onSubmit={handleRegisterManualSubmit} className="space-y-6">
                     

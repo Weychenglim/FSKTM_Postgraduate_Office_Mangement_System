@@ -9,6 +9,7 @@
  *
  * Authenticated settings are loaded and saved through the account API.
  */
+import { IconHeading } from './IconHeading';
 import React, { useEffect, useRef, useState } from 'react';
 import * as settingsApi from '../services/settingsApi';
 import {
@@ -374,15 +375,11 @@ const SectionTitle: React.FC<{ icon: React.ElementType; title: string; subtitle:
   title,
   subtitle,
 }) => (
-  <div className="flex items-center gap-3">
-    <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+  <IconHeading as="h3" title={title} description={subtitle} icon={
+    <span className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
       <Icon className="w-4.5 h-4.5 text-brand-navy" />
-    </div>
-    <div className="min-w-0">
-      <h3 className="section-label">{title}</h3>
-      <p className="card-description">{subtitle}</p>
-    </div>
-  </div>
+    </span>
+  } />
 );
 
 const PrefRow: React.FC<{

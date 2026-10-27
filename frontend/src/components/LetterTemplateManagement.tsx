@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IconHeading } from './IconHeading';
 import { PortalSelect } from './PortalSelect';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -604,17 +605,11 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
               {/* Core editor forms wrapper container */}
               <div className="p-6 md:p-8 space-y-6">
 
-                <div className="flex items-center gap-3 select-none">
-                  <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
-                    <FileText className="w-5 h-5 text-brand-navy" />
-                  </div>
-                  <div>
-                    <h2 className="section-label">Template Editor</h2>
-                    <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                      Edit the wording, placeholders and status of the selected template.
-                    </p>
-                  </div>
-                </div>
+                <IconHeading className="select-none" title="Template Editor"
+                  description="Edit the wording, placeholders and status of the selected template."
+                  descriptionClassName="text-[11px] text-slate-500 font-semibold mt-0.5"
+                  icon={<span className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0"><FileText className="w-5 h-5 text-brand-navy" /></span>}
+                />
               
                 {/* Row 1: Template Name & Letter Type drop downs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

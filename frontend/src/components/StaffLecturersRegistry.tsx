@@ -1,3 +1,4 @@
+import { IconHeading } from './IconHeading';
 import { PortalSelect } from './PortalSelect';
 import { useListState } from './ListState';
 import { RecordPage } from './RecordPage';
@@ -119,19 +120,16 @@ export const AccountTypeSelector: React.FC<AccountTypeSelectorProps> = ({ select
             : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
         }`}
       >
-        <div className={`p-3 rounded-xl ${
+        <IconHeading as="h3" className="gap-x-4 w-full" title="Register Office Staff"
+          titleClassName="font-extrabold text-sm tracking-tight font-sans"
+          description="Administrative & Support Roles"
+          descriptionClassName={`text-[10px] font-bold mt-1 ${selectedType === 'Office Staff' ? 'text-indigo-200/90' : 'text-slate-400'}`}
+          icon={<div className={`p-3 rounded-xl ${
           selectedType === 'Office Staff' ? 'bg-white/10 text-indigo-300' : 'bg-slate-50 text-slate-400 border border-slate-200'
         }`}>
           <Briefcase className="w-6 h-6" />
-        </div>
-        <div className="space-y-1">
-          <h3 className="font-extrabold text-sm tracking-tight font-sans">Register Office Staff</h3>
-          <p className={`text-[10px] font-bold ${
-            selectedType === 'Office Staff' ? 'text-indigo-200/90' : 'text-slate-400'
-          }`}>
-            Administrative & Support Roles
-          </p>
-        </div>
+        </div>}
+        />
       </button>
 
       <button
@@ -143,19 +141,16 @@ export const AccountTypeSelector: React.FC<AccountTypeSelectorProps> = ({ select
             : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
         }`}
       >
-        <div className={`p-3 rounded-xl ${
+        <IconHeading as="h3" className="gap-x-4 w-full" title="Register Lecturer"
+          titleClassName="font-extrabold text-sm tracking-tight font-sans"
+          description="Academic & Supervisory Roles"
+          descriptionClassName={`text-[10px] font-bold mt-1 ${selectedType === 'Lecturer' ? 'text-slate-200' : 'text-slate-400'}`}
+          icon={<div className={`p-3 rounded-xl ${
           selectedType === 'Lecturer' ? 'bg-white/10 text-emerald-300' : 'bg-slate-50 text-slate-400 border border-slate-200'
         }`}>
           <GraduationCap className="w-6 h-6" />
-        </div>
-        <div className="space-y-1 font-sans">
-          <h3 className="font-extrabold text-sm tracking-tight">Register Lecturer</h3>
-          <p className={`text-[10px] font-bold ${
-            selectedType === 'Lecturer' ? 'text-slate-200' : 'text-slate-400'
-          }`}>
-            Academic & Supervisory Roles
-          </p>
-        </div>
+        </div>}
+        />
       </button>
     </div>
   );
@@ -275,26 +270,19 @@ export const RoleAssignmentCard: React.FC<RoleAssignmentCardProps> = ({ title, d
           : 'bg-white border-slate-100 hover:bg-slate-50/50'
       }`}
     >
-      <div className={`p-3 rounded-xl border shrink-0 ${
+      <IconHeading as="h4" className="flex-1 gap-x-4 pr-12 text-left" title={<>
+        <span>{title}</span>
+        {isLocked && <span className="font-black text-[8px] uppercase tracking-wider text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded-md font-sans">Base Role</span>}
+      </>} titleClassName="section-label flex flex-wrap items-center gap-2 font-sans"
+        description={description} descriptionClassName="card-description font-sans mt-1.5"
+        icon={<div className={`p-3 rounded-xl border shrink-0 ${
         isChecked 
           ? 'bg-blue-50 border-blue-100 text-blue-600' 
           : 'bg-slate-50 border-slate-200 text-slate-400'
       }`}>
         <Icon className="w-5 h-5 stroke-[2]" />
-      </div>
-      <div className="space-y-1.5 pr-12 text-left">
-        <h4 className="section-label flex items-center gap-2 font-sans">
-          <span>{title}</span>
-          {isLocked && (
-            <span className="font-black text-[8px] uppercase tracking-wider text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded-md font-sans">
-              Base Role
-            </span>
-          )}
-        </h4>
-        <p className="card-description font-sans">
-          {description}
-        </p>
-      </div>
+      </div>}
+      />
       <div className="absolute right-5 top-5">
         {isLocked ? (
           <div className="w-5.5 h-5.5 rounded-full bg-blue-105 text-[#00a15c] border border-blue-200 flex items-center justify-center">
