@@ -1,4 +1,4 @@
-from .request_visibility import routine_supervisor_requests
+from .request_visibility import can_view_supervisor_application, routine_supervisor_requests
 from .section_a import validate_section_a_proposal
 from .supervisor_replacement import is_office_replacement, assert_current_predecessor
 from .capacity_reassessment import lock_request, assert_not_archived, ReassessmentConflict
@@ -1447,19 +1447,6 @@ def get_supervisor_application(pk):
         return None
 
 
-def can_view_supervisor_application(user, application):
-    if user.role == User.Role.OFFICE_ADMIN:
-        return True
-    if user.pk in [
-        application.student.user_id,
-        application.proposed_supervisor_id,
-    ]:
-        return True
-    return user.role == User.Role.COORDINATOR and supervisor_programme_access(
-        user, application
-    )
-
-
 def _django_validation_error_response(exc):
     messages = getattr(exc, "messages", None) or [str(exc)]
     return error_response(messages[0], status.HTTP_400_BAD_REQUEST)
@@ -2399,7 +2386,7 @@ def panel_appointment_detail_view(request, pk):
         return error_response("Panel appointment was not found.", status.HTTP_404_NOT_FOUND)
     if request.user.role == User.Role.STUDENT or not can_view_panel_recommendation(request.user, appointment.recommendation):
         return error_response("You do not have permission to view this appointment.", status.HTTP_403_FORBIDDEN)
-    return Response(PanelAssignmentSerializer(appointment).data)
+    return Response(PanelAssignmentSerializer(appointment, context={"include_academic_team": True}).data)
 
 
 @api_view(["GET"])

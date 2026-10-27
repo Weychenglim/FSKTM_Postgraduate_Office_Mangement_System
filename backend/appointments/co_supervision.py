@@ -35,7 +35,7 @@ from .models import (
     AppointmentLifecycleEvent,
 )
 from .notifications import publish_workflow_notification
-from .request_visibility import routine_supervisor_requests
+from .request_visibility import can_view_supervisor_application, routine_supervisor_requests
 from .student_panel import student_panel_timeline
 
 
@@ -61,7 +61,7 @@ def active_primary(student):
         SupervisorAppointment.objects.filter(
             student=student, status=SupervisorAppointment.Status.ACTIVE
         )
-        .select_related("supervisor", "application")
+        .select_related("supervisor__lecturer", "application__academic_semester")
         .first()
     )
 
@@ -122,7 +122,7 @@ def nominations_queryset():
 
 def appointments_queryset():
     return CoSupervisorAppointment.objects.select_related(
-        "student__user", "supervisor", "nomination__academic_semester"
+        "student__user", "supervisor__lecturer", "nomination__academic_semester"
     ).prefetch_related("lifecycle_events__actor")
 
 
@@ -686,7 +686,7 @@ def serialize_appointment(row, actor):
         "matricNo": row.student.matric_no,
         "studentName": row.student.user.full_name,
         "programme": row.student.programme,
-        "supervisor": person(row.supervisor),
+        "supervisor": {**person(row.supervisor), "email": row.supervisor.email, "department": getattr(getattr(row.supervisor, "lecturer", None), "department", "")},
         "status": row.status,
         "appointmentDate": iso(row.appointment_date),
         "endOutcome": row.end_outcome,
@@ -817,6 +817,12 @@ def serialize_team(student, actor, *, include_details=False):
         "canNominate": can_nominate(actor, student),
         "timeline": timeline,
     }
+    result["primaryAppointmentDetails"] = {
+        "email": primary.supervisor.email,
+        "department": getattr(getattr(primary.supervisor, "lecturer", None), "department", ""),
+        "appointmentDate": iso(primary.appointment_date),
+        "semester": primary.application.academic_semester.label if primary.application.academic_semester_id else "Legacy / Unassigned",
+    } if primary else None
     from .research_amendments import assert_no_pending_transfer, AmendmentConflict
     pending_primary = student.supervisor_applications.filter(status__in=[
         "SUBMITTED_TO_SUPERVISOR", "PENDING_COORDINATOR"
@@ -834,6 +840,12 @@ def serialize_team(student, actor, *, include_details=False):
         "supervisorName": pending_primary.proposed_supervisor.full_name,
     } if pending_primary and pending_primary.replaces_appointment_id else None
     if include_details and actor.role in {User.Role.OFFICE_ADMIN, User.Role.COORDINATOR, User.Role.LECTURER}:
+        application = primary.application if primary else None
+        result["approvedApplicationId"] = application.pk if (
+            application and application.student_id == student.pk
+            and application.status == SupervisorApplication.Status.APPROVED
+            and can_view_supervisor_application(actor, application)
+        ) else None
         result["studentEmail"] = student.user.email
         result["panel"] = supervision_panel_summary(student, actor, profile, primary)
     return result

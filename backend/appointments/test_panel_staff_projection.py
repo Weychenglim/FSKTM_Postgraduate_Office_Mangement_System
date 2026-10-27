@@ -7,6 +7,9 @@ class PanelStaffProjectionTests(APITestCase):
     setUp = fixture.DelegatedAppointmentTests.setUp
     _lecturer = fixture.DelegatedAppointmentTests._lecturer
     _panel_appointment = fixture.DelegatedAppointmentTests._panel_appointment
+    nominate = fixture.DelegatedAppointmentTests.nominate
+    decide = fixture.DelegatedAppointmentTests.decide
+    activate = fixture.DelegatedAppointmentTests.activate
 
     def test_same_recommendation_facts_are_available_to_authorised_staff_hosts(self):
         appointment=self._panel_appointment()
@@ -74,3 +77,52 @@ class PanelStaffProjectionTests(APITestCase):
         self.assertNotIn(row.pk,[item['id'] for item in response.data['queue']])
         self.assertIs(record.get('canReview'),False)
         self.assertIs(record['canEndAppointment'],False)
+
+    def test_assignment_detail_has_only_public_current_supervision_contacts(self):
+        appointment = self._panel_appointment()
+        self.client.force_authenticate(self.panel)
+        response = self.client.get(f'/api/appointments/panel/appointments/{appointment.pk}/')
+        self.assertEqual(response.status_code, 200)
+        team = response.data['academicTeam']
+        self.assertEqual(team['primary']['name'], self.supervisor.full_name)
+        self.assertEqual(team['primary']['email'], self.supervisor.email)
+        self.assertTrue(team['primary']['appointmentDate'])
+        self.assertEqual(team['supporting'], [])
+        self.assertEqual(set(team['primary']), {'name', 'email', 'department', 'appointmentDate'})
+        self.assertNotIn('academicTeam', self.client.get('/api/appointments/panel/assignments/').data[0])
+        self.supervisor_appointment.status = 'ENDED'
+        self.supervisor_appointment.save(update_fields=['status'])
+        historical = self.client.get(f'/api/appointments/panel/appointments/{appointment.pk}/').data
+        self.assertIsNone(historical['academicTeam']['primary'])
+
+    def test_assignment_team_includes_only_active_supporting_public_contacts(self):
+        supporting = self.activate()
+        appointment = self._panel_appointment()
+        self.client.force_authenticate(self.panel)
+        url = f'/api/appointments/panel/appointments/{appointment.pk}/'
+        contacts = self.client.get(url).data['academicTeam']['supporting']
+        self.assertEqual(len(contacts), 1)
+        self.assertEqual(contacts[0]['email'], self.new_supervisor.email)
+        self.assertEqual(set(contacts[0]), {'name', 'email', 'department', 'appointmentDate'})
+        supporting.status = 'ENDED'
+        supporting.save(update_fields=['status'])
+        self.assertEqual(self.client.get(url).data['academicTeam']['supporting'], [])
+
+    def test_primary_supervisor_roster_exposes_only_current_panel_contacts(self):
+        appointment = self._panel_appointment()
+        self.client.force_authenticate(self.supervisor)
+        response = self.client.get('/api/appointments/panel/eligible-supervisees/')
+        self.assertEqual(response.status_code, 200)
+        row = response.data[0]
+        self.assertEqual(row['currentPanelEmail'], self.panel.email)
+        self.assertEqual(row['currentPanelDepartment'], self.panel.lecturer.department)
+        self.assertEqual(row['currentPanelAppointmentDate'], appointment.appointment_date.isoformat())
+        appointment.status = 'ENDED'
+        appointment.save(update_fields=['status'])
+        row = self.client.get('/api/appointments/panel/eligible-supervisees/').data[0]
+        for field in ['currentPanelEmail', 'currentPanelDepartment', 'currentPanelAppointmentDate']:
+            self.assertIsNone(row[field])
+        self.client.force_authenticate(self.panel)
+        self.assertEqual(self.client.get('/api/appointments/panel/eligible-supervisees/').data, [])
+        self.client.force_authenticate(self.student_user)
+        self.assertEqual(self.client.get('/api/appointments/panel/eligible-supervisees/').status_code, 403)
