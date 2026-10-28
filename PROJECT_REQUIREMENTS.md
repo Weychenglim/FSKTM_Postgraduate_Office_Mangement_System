@@ -1,3 +1,43 @@
+## Branch integration and release (28 October 2026)
+
+Commit all pending session changes in reviewable groups, merge the latest origin/main into codex/portal-consistency-and-toast, preserve both branches' features and permission boundaries, verify the integrated result and push without rewriting remote history. No production deployment or account conversion is included.
+
+## Office approved request supervisor change (28 October 2026)
+
+- Eligible active primary supervisor appointments expose **Request supervisor change** under **Appointment record → Manage appointment** on the Office approved request page, as well as supervision details.
+- Eligibility comes from the existing Office replacement endpoint. Pending replacements and ended appointments must not allow another request; failed eligibility reads must offer retry.
+- Reuse the existing replacement form and approval workflow, returning to the source request after cancellation or successful submission. Coordinator permissions remain unchanged.
+
+## Panel nomination history action placement (28 October 2026)
+
+Student Panel details in the Lecturer supervisee workspace keep current nomination/replacement controls in the sidebar. Completed nomination history appears in a separate full-width, initially collapsed section below the content when records exist. Each request has its Panel member, outcome, submitted date and its own View request action aligned to the row end on desktop and below its information on phones. Exact student scoping, terminal-request filtering, newest-first order, five-record pagination and existing return navigation are preserved.
+
+## Labelled appointment management controls (28 October 2026)
+
+Compact Supervisor and Panel appointment cards put occasional management controls in a clearly labelled Manage appointment disclosure, collapsed initially. Source application and Lecturer marking navigation remain directly visible. No management disclosure appears when the host supplies no management controls. Supervisor-change initiation is labelled Request supervisor change; compact end controls explicitly name the Supervisor or Panel appointment. Existing confirmation, required reasons, busy state and role permissions are preserved.
+
+## Staff appointment details and contextual marking (28 October 2026)
+
+- Supervision and Panel assignment detail pages have one concise Appointment record sidebar. Student-record navigation remains in the overview, source-application navigation in the record, and permitted management actions in a separated footer. Team-specific nominations/replacement controls stay with the affected member; pending supporting nominations are compact and expandable.
+- Approval timelines/audits are reached through the existing source request, not repeated in appointment sidebars. Shared semester/calendar dates and summary application-status activity are omitted from these detail pages. Real post-creation lifecycle changes and previous supporting appointments remain available in a full-width, initially collapsed section below the main content.
+- Lecturer details provide equivalent contextual marking for Supervisor and Panel responsibilities. A matching editable task offers Enter marks or Continue marking; submitted work offers View submitted marks; a noneditable task offers View marking task. Multiple matching tasks offer a filtered list; no matching task produces no marking button. Office/Coordinator detail hosts do not fetch personal Lecturer tasks.
+- Marking navigation preserves exact student/evaluator-role/task identity. Existing period, rubric, edit/submit and write-conflict permissions remain authoritative. Unavailable targets cannot open unrelated tasks, and the Marks page offers Show all tasks to leave the contextual scope. Student appointment overview privacy/tabs remain unchanged.
+
+## Request history simplification (28 October 2026)
+
+Supervisor and Panel request pages show the approval timeline once, with recorded decision reasons. They do not repeat it in a separate Audit history disclosure. Appointment record history excludes the initial ACTIVATED event, which duplicates approval; subsequent changes remain available as Appointment changes. Persisted workflow/audit data, role permissions and required-reason controls are unchanged.
+
+## Appointment sidebar consistency phase (28 October 2026)
+
+- Supervisor and Panel requests retain a visible Review and outcome card with approval progress, permitted decisions and audit. Opening an approved nomination from the Office request list must retain the request view, rather than silently open the resulting appointment.
+- Staff appointment details use consistent Appointment record and History cards. Appointment status, recorded dates and permitted management/source-request actions belong in the first card; approval evidence and appointment changes belong in History. Supporting-supervisor history remains available where relevant.
+- Supervisor semester dates are shared academic schedule information and appear separately below the appointment workspace. Student appointment tabs, privacy and the explicitly removed Student Panel source button remain unchanged.
+- Approval evidence must match the source application, student and appointment. Missing or inaccessible historical evidence must not be reconstructed from summary activity. End/replacement permissions and reason validation remain unchanged.
+
+## Request appointment record placement (27 October 2026)
+
+Supervisor and Panel appointment request pages keep any existing appointment lifecycle record directly beneath Review and outcome within the shared desktop sidebar. Use compact single-column facts, equal sidebar widths and consistent spacing; stack the sidebar after request content on smaller screens. Preserve role-specific lifecycle controls, dates, history and request content. Routed Coordinator pages must pass their lifecycle record through the shared sidebar slot exactly once, without a second page-level render.
+
 ## Supervisor accepted-request reservations (27 October 2026)
 
 28 October review corrections: capacity-closed Office replacements direct Students to the Postgraduate Office and never invite a Student-initiated replacement. Ordinary new-application recovery remains subject to lifecycle eligibility, active appointment and pending-request checks. Request detail must retain factual active/reserved counts without presenting a missing or restricted policy as numerical availability.
@@ -134,6 +174,18 @@ Student, Lecturer, Programme Coordinator and Office views of the primary Supervi
 Decorative header icons must share the vertical centre of their title, with supporting text beneath the title rather than shifting the icon. Preserve existing typography, colours, actions, heading semantics and role/workflow rules. Long titles must wrap without horizontal overflow at desktop, tablet and phone widths. This pass corrects alignment before any appointment request redesign.
 
 
+## Existing profile ownership protection (25 October 2026)
+
+Existing Student, Lecturer and OfficeStaff profiles must retain their owning User during Django admin maintenance. Owner reassignment, including crafted or ambiguous POST values, must be rejected before any profile or audit writes. Both the edited and other participant records must remain unchanged on rejection. Legitimate new-profile creation and permitted ordinary maintenance remain available; lifecycle changes continue through the reasoned Office services.
+
+
+## Office business authorization separation (25 October 2026)
+
+Approved policy: active authenticated Office users retain the five owned modules' business actions independently of Django admin flags. Submitted Marks correction/reopening additionally requires an explicit user/group `marks.change_markentry` assignment; a superuser flag does not substitute. Technical admin entry requires a separate active Technical Administrator with staff/superuser flags. Governed academic records, including research profiles, remain inspection-only. Account conversion must preserve credentials, existing permissions, scope, validation and audits. Implementation and rollout evidence: `docs/OFFICE_ADMIN_SEPARATION_2026-10-25.md`.
+
+## Carryover and semester handover acceptance boundary (25 October 2026)
+
+Verify Office reassessment grant, replacement, revocation, stale-decision recovery and final consumption separately for primary Supervisor, supporting Supervisor and Panel requests. Retain original semester and approval stage; authorizations add no workload or capacity, and final approval must record the policy actually checked. Verify semester activation with a fresh unfinished-Marks preview, reason and acknowledgement, closure of the outgoing Published period, preserved submitted/draft Marks and active completion rights, and blocked premature archival. Use isolated synthetic records and distinguish component/HTTP evidence from full-shell and remaining compound acceptance. This testing work adds no runtime policy or workflow.
 
 ## Acting delegation acceptance boundary (25 October 2026)
 

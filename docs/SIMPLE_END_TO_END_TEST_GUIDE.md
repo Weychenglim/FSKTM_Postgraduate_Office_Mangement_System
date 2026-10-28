@@ -2,7 +2,7 @@
 
 Updated 8 October 2026. Use this for your first manual run; the [detailed guide](WHOLE_SYSTEM_END_TO_END_TEST_GUIDE.md) covers additional cases. This is a test plan, not a claim that all flows have passed.
 
-Development priorities and decisions are consolidated in the [pending-work register](PENDING_WORK_REGISTER_2026-10-08.md). Technical-only admin access is the target and has not yet been implemented; current admin test instructions below describe the existing behavior.
+Development priorities and decisions are consolidated in the [pending-work register](PENDING_WORK_REGISTER_2026-10-08.md). The 25 October permission separation is documented in [Office/admin separation](OFFICE_ADMIN_SEPARATION_2026-10-25.md). Use a dedicated Technical Administrator for admin inspection and a non-admin Office account for portal checks; existing installations need explicit account setup and process restart.
 
 ## Open the system
 
@@ -69,13 +69,13 @@ For each step, record **Passed**, **Failed**, or **Blocked**, with the role, Stu
 | General files | Try upload/list/preview/download and record the actual result. | General repository/submission APIs are missing. Supervisor application documents are a separate working feature. |
 | FAQ | Try editor/chatbot and refresh. | Local/simulated behavior; no FAQ backend. |
 
-## Why Office sees only Marks in Django admin
+## Technical Django admin and Office portal access
 
-The demo Office account is staff but is not a superuser. The seed command assigns Django model permissions only for the Marks app. Portal Office authority and Django admin model permissions are separate: being Office in the portal does not automatically grant access to every admin model.
+Office accounts use the main portal and cannot enter Django admin, even if a legacy staff flag remains. Submitted Marks correction/reopening additionally requires an explicit user/group `marks.change_markentry` grant; it does not require Django staff status.
 
-Other information is registered in Django admin: accounts/Students/Lecturers, Supervisor/Panel records, semesters/capacity, timeline/audits, announcements/notifications and letter templates. A technical administrator with the appropriate permissions can inspect those sections. Governed appointment/configuration/Marks changes must still use their required workflow services; many admin screens are intentionally inspection-only.
+Django admin is for an active dedicated Technical Administrator with staff/superuser flags. Use it for authorized account/access maintenance and record/audit inspection. Governed Marks, appointment, timeline, semester/capacity and research-profile records have no direct add/edit/delete workflow route. Technical accounts remain excluded from portal authentication.
 
-Office users should do daily work in the main portal. The user has now chosen technical-only Django admin access; separating that access from Office business permissions is pending. No account authority was expanded during the server restart. Once implemented, run admin inspection checks as a designated technical account and verify ordinary Office admin access is denied.
+Before converting existing Office flags, provision and verify the intended technical account, preview `separate_office_admin_access`, then apply it explicitly. The command preserves credentials and permissions. See the [rollout and evidence](OFFICE_ADMIN_SEPARATION_2026-10-25.md). Earlier dated admin acceptance describes historical behavior.
 
 ## What to do now
 

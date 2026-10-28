@@ -1,3 +1,45 @@
+## Branch integration and release (28 October 2026)
+
+Use a normal merge of origin/main into the current feature branch. Keep appointment source navigation available when a partial supervisory DTO has an approved application ID but lacks lifecycle details; omit fabricated lifecycle controls and facts. Workload tests assert the current accessible section hierarchy and lecturer heading rather than obsolete typography tokens. Retain Office/Technical Administrator separation and incoming main features together.
+
+## Office approved request supervisor change (28 October 2026)
+
+- `OfficeAppointmentAdministration` accepts an optional replacement callback and refresh version. Its active-appointment action reads the existing replacement context, validates appointment/student identity, ignores obsolete responses, and requires server `canSubmit` with no pending application before exposing the action.
+- `SupervisorAppointmentManagement` opens `OfficeSupervisorReplacementForm` locally from request details and refreshes source data and eligibility after submission. The form accepts an optional back label; its existing draft protection, POST validation and recovery behavior are preserved.
+- No API, database or authorization changes. Browser fixtures exercise form opening, return, submission payload, source refresh, pending-request suppression, availability retry and ended-record protection.
+
+## Panel nomination history action placement (28 October 2026)
+
+PanelSuperviseeDetails renders terminal nomination records outside data-panel-supervisee-columns in a named PortalCard using the existing SupervisorRequestDisclosure. Its responsive semantic table has explicit table/row/cell roles and mobile field labels; desktop action cells use end alignment. The existing onOpenRequest(row) callback and WorkspacePagination are retained. No API or permission changes. History is omitted when no terminal records exist, rather than adding an empty sidebar disclosure.
+
+## Labelled appointment management controls (28 October 2026)
+
+AppointmentRecordSection wraps supplied management actions in the existing native SupervisorRequestDisclosure, providing consistent keyboard interaction and one divider without introducing a menu dependency. Source/marking slots remain outside this disclosure. AppointmentEndControl accepts an optional buttonLabel while retaining its original dialog/submit contract; compact Supervisor and staff Panel hosts supply role-specific appointment wording. SupervisorAppointmentRecordCard suppresses ending controls on inactive records before constructing the management slot. PrimarySupervisorReplacementActions uses the accurate Request supervisor change label.
+
+## Staff appointment details and contextual marking (28 October 2026)
+
+AppointmentRecordSection is reused by Supervisor/Panel record renderers, with distinct source-navigation, marking and management slots. PanelAssignmentDetails and noncollapsible SupervisoryStudentDetailCard place only the record in their sidebar; AppointmentHistoryCard now renders Appointment changes below the columns when real changes exist. Pending supporting nominations use a compact disclosure beside supporting members; historical supporting evidence stays below. The earlier inline SupervisorApprovalHistory component was removed because approval belongs in the linked request.
+
+AppointmentMarkingAction reads the existing signed-in Lecturer assigned/submitted-task endpoints, merges task IDs and selects exact student plus SUPERVISOR/PANEL role. It cancels stale responses on identity/unmount changes, hides genuinely absent tasks, and offers a retry on read failure. It only mounts in Lecturer active-appointment hosts when marking navigation is supplied.
+
+appointmentMarking.ts defines tested task-state labels and encoded/validated student-role-task targets. App passes these targets through /marks query parameters. LecturerMarksEntry validates and resolves the target from fresh authorised tasks, opens a single exact task (including historical submitted work), or lists matching periods. Submitted details stay read-only; explicit Show all tasks restores normal browsing. Target context resets stale saved filters and does not weaken existing save/submit guards. No new endpoint, dependency, database migration or permission change.
+
+## Request history simplification (28 October 2026)
+
+SupervisorRequestDetail and PanelRecommendationDetail omit their duplicate RequestAuditHistory rendering. ApprovalProcess retains decision comments; Panel approval-step presentation now includes recorded review reasons while avoiding repetition of separately displayed terminal reasons. SupervisorAppointmentRecordCard and PanelAppointmentRecordCard filter ACTIVATED only for their displayed lifecycle changes, retaining creation dates and all stored evidence. These presentation changes require no API, database or authorization changes.
+
+## Appointment sidebar consistency phase (28 October 2026)
+
+- AppointmentSidebar.tsx provides the common compact AppointmentRecordSection and AppointmentHistoryCard. SupervisorAppointmentRecordCard and PanelAppointmentRecordCard reuse the frame; staff assignment hosts move their audit to History via showHistory=false. Request hosts retain lifecycle audit inside their compact record.
+- Supervisor and Panel request review cards share SupervisionDetailSection. RequestAuditHistory has an opt-in sidebar disclosure variant; its default rendering and event semantics remain intact.
+- panelBrowseRecordKey preserves recommendation IDs in the Office request list and appointment IDs in the appointment workspace, with honest fallback for imported appointments lacking a source nomination. Office source links navigate to the exact request; Lecturer and Coordinator assignment hosts offer read-only source details with a return to the appointment.
+- SupervisorApprovalHistory uses supplied matching Office/Coordinator evidence or lazily reads the existing authorised Supervisor application endpoint for Lecturer details. It verifies application/student/appointment identity, cancels stale reads and supports retry without blocking current team content. No new endpoint, migration or permission changes are required.
+- A real fieldset box preserves the disabled-state boundary while allowing the shared 28px gap between management and history. Semester dates are outside the appointment columns.
+
+## Request lifecycle sidebar repair (27 October 2026)
+
+SupervisorRequestDetail and PanelRecommendationDetail render their administration slot inside the review sidebar instead of after the content grid. A sidebar can still render for a lifecycle-only record without an invented approval process. Office/Coordinator request hosts use the existing compact appointment card variants, including shared Panel reviewer hosts. No API, permission, capacity or lifecycle-service changes. CoordinatorSupervisorApprovals passes CoordinatorApplicationLifecycle through SupervisorRequestDetail.administration, retaining the same reasoned ending callback and busy guard. Regression coverage mounts the actual Coordinator route with an isolated detail API response rather than only composing the shared components.
+
 ## Supervisor capacity reservation design (27 October 2026)
 
 28 October follow-up review: StudentSupervisorAppointment derives Office-managed replacement identity from both Office provenance and predecessor linkage, separately gates ordinary recovery, and keeps backend authorization unchanged. SupervisorRequestDetail maps null/missing policy and restricted states to explicit availability labels while retaining actual workload counts. The publication regression suite distinguishes unaccepted submission from accepted primary reservations rather than preserving the superseded rule. Fresh review evidence: `docs/SUPERVISOR_CAPACITY_REVIEW_2026-10-28.md`.
@@ -152,6 +194,20 @@ SupervisorResearchIntentSection supports an embedded mode without an extra card,
 A dedicated isolated browser harness bundles the production React components and compiles the production Tailwind styles, measures title/icon centres and checks subtitle/overflow/action placement at exact iframe widths. It uses synthetic content, static settings header rendering (no account API effects), an ephemeral loopback server and temporary Chrome profiles. Google font loading is omitted in this isolated test to use the declared system fallback deterministically; production fonts are unchanged.
 
 
+## Admin profile ownership protection (25 October 2026)
+
+The shared ProfileOwnerAdmin base serves Student, Lecturer and OfficeStaff: the owning User is read-only on existing records and posted ownership changes are checked before Django binds/saves its ModelForm. This prevents changing a shared primary key from overwriting another profile's protected lifecycle metadata. Add remains owner-selectable and ordinary permitted fields remain editable. Real admin HTTP regressions cover both lifecycle overwrite cases, Office staff identity, crafted/ambiguous ownership POSTs, valid maintenance, valid creation, duplicate-add preservation and parent-bound User-page inline rejection. Nine permanent ownership regressions run alongside existing account/admin boundary tests. No model schema or portal workflow redesign is required.
+
+
+## Office business authorization separation (25 October 2026)
+
+Shared `accounts.authorization.office_actor` now replaces staff coupling in participant lifecycle, delegation, research/transfer, reassessment, Office browse/attention/export and Marks configuration/completion/closure checks. `can_correct_marks` resolves explicit user/group grants and gates both API capabilities and direct submitted-Marks services. `config.admin.TechnicalAdminConfig` selects `TechnicalAdminSite` without losing registered models; its login form and request gate enforce the same technical account rule. Research profile Add is removed through the existing read-only workflow mixin.
+
+Portal account forms reject admin flags. Guarded demo setup creates non-admin Office accounts with the explicit correction permission. `separate_office_admin_access` previews by default and applies only after verifying technical recovery access and rejecting mixed-role superusers, preserving passwords/permissions under account locks. No schema/dependency/UI relocation was added. See `docs/OFFICE_ADMIN_SEPARATION_2026-10-25.md` for tests and the blocked local restart/conversion sequence.
+
+## Carryover and semester handover real HTTP acceptance (25 October 2026)
+
+The opt-in `appointments.carryover_browser_journey` uses disposable LiveServerTestCase fixtures and exact 1440/390px iframe viewports. Production CapacityReassessments and SemesterActivationSection components/services use authenticated ephemeral Django HTTP. Separate fixtures exercise all three reassessment request kinds and an expired outgoing semester with a submitted entry, Panel draft and completion window. Database assertions compare retained original application and Marks/task/window/audit rows, record reassessment consumption actors/policy, and verify semester/period transition audits. No runtime, schema, dependency or live-clock changes; browser bundles/profiles and runner databases are disposable.
 
 ## Acting delegation real HTTP acceptance (25 October 2026)
 

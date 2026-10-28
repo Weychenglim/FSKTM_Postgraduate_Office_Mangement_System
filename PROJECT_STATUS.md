@@ -1,3 +1,48 @@
+## Branch integration and release (28 October 2026)
+
+Preparing grouped commits for all pending session changes and a normal merge of origin/main. Pre-merge verification: 374 frontend checks and seven affected browser suites passed after fixing partial-DTO approved-source navigation and a stale Panel workload assertion. All 1,587 backend tests passed in a disposable PostgreSQL database (983.288s); Django system checks and migration drift passed. Frontend TypeScript and production build passed. Grouped commits are prepared; merged-tree verification is next. No deployment or account conversion has been performed.
+
+## Office approved request supervisor change (28 October 2026)
+
+- Added the missing Office **Request supervisor change** action to the approved request's **Manage appointment** section, using existing server eligibility and replacement workflow.
+- Cancel returns to the same request; successful submission returns with confirmation and refreshes the record and availability. Pending/ended appointments do not expose another change action; failed reads have a retry.
+- Validation: 51 request-detail browser viewport scenarios, 7 replacement recovery browser scenarios, 9 focused unit checks and TypeScript and production build passed (2490 modules; existing ExcelJS chunk-size advisory).
+- No live replacement request was created. Changes remain uncommitted and unpushed.
+
+## Panel nomination history action placement (28 October 2026)
+
+Moved completed nomination history out of the current-action sidebar into a full-width section beneath Student Panel details. View request is attached to its row and right aligned on desktop; mobile entries stack with their own action below. No duplicate filters or new nomination controls added.
+
+Verification: 12 focused checks passed; 88 browser viewport scenarios passed across assignment details and assignment/workspace navigation. The actual routed Lecturer student-detail test checks section placement/width, row action alignment, phone stacking, touch-target size, exact request opening and roster-filter return. Expanded desktop/phone fixture screenshots were visually reviewed. Final TypeScript and production build passed, with the existing ExcelJS bundle-size advisory. No commit, push or live data mutation included.
+
+## Labelled appointment management controls (28 October 2026)
+
+Completed the approved management-button refinement for shared compact Supervisor/Panel cards: initially collapsed Manage appointment; directly visible approved-application/marking shortcuts; explicit end labels; Request supervisor change wording. No permissions, workflow transitions, confirmation outcomes or mandatory reasons changed.
+
+Validation: 18 focused checks passed; 162 viewport browser scenarios passed across Panel assignment details, supervision details, Panel requests and Supervisor requests. Tests cover collapsed/expanded management, read-only omission, role-specific actions, busy state, exact ending payload/reason guard, marking navigation and request routing. TypeScript and production build passed with the existing ExcelJS bundle advisory. No commit/push performed; stop for user comments.
+
+## Staff appointment details and contextual marking (28 October 2026)
+
+Implemented the approved rethink for staff supervision and Panel appointment/assignment details. Removed congested sidebar history, duplicate embedded approval and shared semester-date blocks. The remaining sidebar separates source navigation from permitted appointment management; Change supervisor uses the outlined secondary treatment on these detail pages. Full-width actual appointment changes remain collapsed below content, while pending supporting nominations stay compact beside the supervisory team.
+
+Added parity for Lecturer marking shortcuts: exact student and Supervisor/Panel responsibility; state-specific labels; multiple-period list; no invented task/button; read-only handling; exact submitted-mark navigation; scope escape and retry. Office/Coordinator personal-task requests remain absent. Existing request review pages and Student appointment overviews retain their established behaviour.
+
+Verification: 27 focused frontend checks passed. Five browser suites passed 188 viewport scenarios (48 Panel assignment/detail, 42 supervision detail, 45 Supervisor request, 27 Panel request, 26 Marks feedback). Final compact-nomination polish also passed a fresh 42-scenario supervision rerun. Coverage includes actual request hosts, marking destination/role/student identity, submitted and noneditable work, multiple periods, absent tasks, busy/role/privacy boundaries, lifecycle controls and responsive geometry. Desktop fixture screenshots were visually reviewed; synthetic data only. Final TypeScript and production build passed; only the existing ExcelJS bundle-size advisory remains. No live data mutation, commit or push performed. Stop for user comments after this phase.
+
+## Request history simplification (28 October 2026)
+
+Completed the approved follow-up: removed duplicate audit disclosures from Supervisor/Panel request details, preserved decision comments, and limited appointment-record history to changes after initial creation. Creation-only records have no empty history section; ending/replacement evidence remains available under Appointment changes.
+
+Verification: 19 focused frontend checks and 72 request browser scenarios passed across desktop, tablet and phone widths. TypeScript passed. Production build passed with the existing ExcelJS bundle-size advisory. No live records were modified; no commit or push is included. Stop after this follow-up for user comments.
+
+## Appointment sidebar consistency phase (28 October 2026)
+
+Implemented this phase only: consistent request review cards; common compact appointment records; separate approval/appointment history; authorised source-request tracing; Supervisor semester dates below the workspace; approved Panel nominations retain request navigation. Also corrected the remaining larger lifecycle variant in the nomination-history host.
+
+Verification: 34 focused frontend checks passed. Five browser suites passed: 39 Panel appointment, 42 supervision detail, 45 Supervisor request, 27 Panel request and 40 assignment/workspace scenarios (193 viewport scenarios total). Coverage includes the actual Office request-list host, exact Coordinator request host, read-only source navigation, approval identity mismatch/retry, sidebar gaps, desktop/tablet/phone layouts, Student privacy, existing lifecycle guards and return/filter behaviour. Production build passed with the existing ExcelJS bundle-size advisory. TypeScript passed. Desktop and phone fixture screenshots were visually reviewed, including the corrected gap between Supervisor sidebar cards. Browser screenshots are synthetic fixture data; no live records were changed.
+
+The user requested stopping after this phase for comments. No following phase, commit or push is included.
+
 ## Supervisor capacity commit preparation (28 October 2026)
 
 User requested commit and push after accepting the completed plan. Prepared a capacity-only change on `codex/portal-consistency-and-toast`, including feature code, migration, regressions, source-of-truth sections, verification reports and UI previews. Unrelated Office authorization/admin, Marks, carryover and concurrent appointment-layout changes are excluded, including unrelated hunks in shared files. The exact isolated index snapshot passed 350 backend tests (76.790s), 19 focused frontend checks, 28 desktop/phone browser scenarios, TypeScript and production build (12.43s). Approved-application navigation checks and seven adjacent Coordinator/Office/feedback checks also passed in that snapshot; the shared-checkout navigation regression is not included. Credential-pattern scanning and scoped whitespace checks passed. The existing baseline Panel typography check remains separately documented; these results do not claim a fully green whole-project suite.
@@ -11,6 +56,13 @@ Final whole-frontend result: 371/373 passed. Existing Panel typography-class ass
 ## Last-place warning clarity (28 October 2026)
 
 Replaced the long plain-text acceptance warning with the existing amber AlertMessage, warning icon, bold Last available place title and concise reservation/closure copy. Clarified that already-full lecturer submissions are blocked; automatic closure follows final approval filling capacity for earlier unaccepted requests. No backend/policy changes. New visual/conciseness regression failed before implementation, then all 26 mounted desktop/phone scenarios and 17 focused component checks passed. The example now consistently contains two total requests and one other pending request, with singular-wording coverage. Updated screenshots saved under `output/supervisor-capacity-reservations-20261028/`; final TypeScript and production build passed (17.28s). Existing unrelated Panel typography assertion and ExcelJS bundle advisory remain. No academic writes, commit or push.
+
+## Request appointment record positioning fix (27 October 2026)
+
+Fixed detached full-width appointment lifecycle cards in shared Supervisor and Panel request layouts. Appointment records now sit below review in the same sidebar; request hosts use compact facts and existing controls/history. Verified 69 production-CSS browser scenarios across 1440/1024/390px and ten focused component checks. Production build passed; populated desktop and phone screenshots reviewed. Final TypeScript check passed after correcting test fixture typing. Existing ExcelJS bundle-size advisory remains. Concurrent capacity and authorization changes are preserved; no commit or push performed.
+
+
+Follow-up: the initial fix missed CoordinatorSupervisorApprovals appending its lifecycle card outside the shared detail component. Moved that actual route render into the sidebar slot and removed the separate page-bottom render. The actual routed Coordinator component now has a permanent browser regression at desktop/tablet/phone widths; all 45 Supervisor browser scenarios and the focused Coordinator checks pass. Live Vite serves the updated Coordinator module. Final follow-up TypeScript and production build passed; actual routed Coordinator desktop fixture screenshot reviewed. Existing ExcelJS bundle advisory remains. No commit/push performed.
 
 ## Supervisor capacity reservations (completed 28 October 2026)
 
@@ -182,6 +234,31 @@ Traced the appointment request summary offset to shared headers top-aligning 36p
 Browser regressions reproduced the original 4–8px shared-header offsets and additional settings/Registry/staff offsets before their fixes. Final verification passed 51 browser layout cases (17 patterns at exact 1440/768/390px widths), all 312 frontend checks, 10 final targeted regressions, TypeScript, production build and scoped whitespace checks. Reviewed the phone screenshot and confirmed the development server serves the new shared component. Browser measurements check icon/title centres within 1px, subtitle separation, wrapping and action/card overflow using isolated synthetic content and system fallback fonts; this is not a full authenticated crawl of every role and record. Existing ExcelJS bundle advisory remains. All three project documents are updated; unrelated concurrent changes are preserved. No backend/data changes, commit or push were performed.
 
 
+## Admin profile ownership fix (25 October 2026; fixed in source)
+
+Fixed the review's P1 with a shared ProfileOwnerAdmin base for Student, Lecturer and OfficeStaff. Existing owner links render read-only; changed, invalid or conflicting repeated User values are rejected with HTTP 403 before ModelForm binding. Rejected requests preserve complete source/target profile rows and lifecycle audits. Legitimate new creation, duplicate-add rejection, ordinary maintenance and unchanged-owner submissions remain available; the User-page inline also rejects ownership rebinding.
+
+The first eight permanent regression tests reproduced 15 failing assertions/subcases before the fix. The initial affected gate passed 79 tests in 6.930 seconds. Final verification passed 394 tests in 86.566 seconds across all accounts tests plus Academic, Appointment, Dashboard and Marks protected-admin suites, including nine ownership regressions. Django checks/migration drift and whitespace/syntax checks pass; no schema/dependency/frontend change was required. All disposable test databases and the temporary review launcher are removed. Existing permission-separation/A04 work remains preserved. No live account/academic changes, process restart, commit or push occurred. Local activation and Office flag conversion still await the previously blocked restart. Review evidence: docs/OFFICE_ADMIN_SEPARATION_REVIEW_2026-10-25.md.
+
+
+## Permission-separation review discovery (25 October 2026; historical, fixed above)
+
+A fresh direct review found a pre-existing account-maintenance bypass left open by T04: StudentAdmin and LecturerAdmin allow editing the owning User, which is also the profile primary key. Real admin POSTs against a disposable PostgreSQL test database overwrite another participant's row, including protected lifecycle status/actor/time/reason, without an Office transition or new lifecycle audit. Probes changed a Deferred student and a Retired lecturer to Active. This was not a regression in the new authorization predicates; the maintenance boundary was subsequently closed by the ownership fix above.
+
+The fresh review ran 24 tests in 4.578 seconds: 22 existing authorization/Marks controls pass; two new target-row-preservation probes fail. No production code or development academic records were changed. Recommended follow-up: immutable owner links for existing profiles, crafted-POST rejection and permanent Student/Lecturer regression coverage; review OfficeStaff's equivalent identity pattern. Requirements/design already require preservation of governed state and audits. Evidence: `docs/OFFICE_ADMIN_SEPARATION_REVIEW_2026-10-25.md`; the synthetic probes were subsequently replaced by permanent `accounts.test_admin_profile_ownership` coverage. The earlier full-suite/browser passes below do not cover this newly exposed path. Local API activation and Office flag conversion remain pending after the previously rejected restart.
+
+
+## Office/admin permission separation (25 October 2026; source verified, local activation pending)
+
+T01-T06 source implementation and direct critical review are complete. The final full suite passed 1,551 tests in 487.320 seconds across all eight backend apps (two workers, disposable PostgreSQL). Scoped gates passed 98 and 70 tests; 17 real browser journeys passed with non-admin Office fixtures (719 assertions), and a fresh final Marks browser rerun passed after explicit-grant resolution. Final admin acceptance follow-up passed 18 tests in 4.340 seconds after making its no-permission fixture explicit. TypeScript/build, Django checks/migration drift and changed Python/Node syntax pass. Task test databases/clones and the temporary launcher are removed; the private credential file remains ignored. A04 work is preserved.
+
+With the user's authorization to choose the identity, provisioned `local.technical.admin@example.test` with a generated password in an ignored private credential file. Real Django authentication against the development database verified admin login and portal refusal. Existing credentials and business permissions are unchanged. Automatic approval review rejected the local API restart with only “blocked by policy”; its existing `--noreload` process is still healthy on port 8000 and running the old source. Office staff-flag conversion is intentionally pending until restart, to preserve old-process portal functions. No commit/push or demo reseeding occurred. Report: `docs/OFFICE_ADMIN_SEPARATION_2026-10-25.md`.
+
+## Carryover and semester handover core acceptance (25 October 2026)
+
+Completed scoped A04 production-component/real-HTTP journeys at exact 1440/390px widths: reasoned reassessment grant/replacement/revocation/stale recovery/consumption for primary, supporting and Panel requests, plus semester activation with a fresh preview and unfinished-work acknowledgement. Exact snapshots preserve original applications, submitted/draft Marks, tasks, windows and their audits; authority consumption records the actual Coordinator and Published policy. Handover closes the source semester/period, retains completion rights and blocks premature archival. No production defect or runtime/schema/dependency/live-clock change was needed.
+
+The combined gate passed 63 tests in 76.819 seconds, including eight browser journeys and 214 browser/API assertions plus persisted checks. Direct review moved the activation layout assertion into the open review dialog; the final two activation journeys passed in 7.253 seconds. TypeScript/build, Django/migration, runner syntax and scoped whitespace pass; existing ExcelJS advisory remains. All runner databases/clones/browser artifacts were removed. Independent review remained unavailable due to the earlier account usage limit; direct scoped review completed. Report: `docs/CARRYOVER_HANDOVER_ACCEPTANCE_2026-10-25.md`; A04/E13 and all root documents updated. Compound/external clauses remain pending; next is A05 Dashboard/Timeline/report/export/dossier/reconciliation combinations. Earlier work committed by the other active chat is retained; new A04 work remains local and uncommitted.
 
 ## Verified release snapshot (25 October 2026)
 
