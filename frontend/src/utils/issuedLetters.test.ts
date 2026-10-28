@@ -13,6 +13,7 @@ import { SIDEBAR_ITEMS } from '../constants/navigation';
 import {
   APP_ROUTES,
   isKnownAppPath,
+  routeForLetterApplication,
   routeForLetterRequest,
   routeForNotificationTarget,
   sidebarItemForPath,
@@ -56,15 +57,21 @@ assert.deepEqual(letterDataFromIssued(issued), {
   bodyParagraphs: 'This is to confirm that **Ali bin Abu** is registered.',
   studentName: 'Ali bin Abu',
   matricNumber: 'S2101234',
+  disclaimer: LETTERHEAD.disclaimer,
+  signatoryName: LETTERHEAD.signatoryName,
+  signatoryOffice: LETTERHEAD.signatoryOffice,
 });
 assert.equal(letterFileName(letterDataFromIssued(issued)), 'UM_Confirmation_of_Study_S2101234');
 
 // students request letters; they never fill or preview one themselves
 const documentSource = readFileSync(resolve('src/utils/letterDocument.ts'), 'utf8');
 const studentScreen = readFileSync(resolve('src/components/StudentLetterGeneration.tsx'), 'utf8');
+const applicationForm = readFileSync(resolve('src/components/StudentLetterRequestForm.tsx'), 'utf8');
 assert.doesNotMatch(documentSource, /generateReferenceNumber|Math\.random/);
-assert.match(studentScreen, /requestLetter\(selected\.id, note\.trim\(\)\)/);
-assert.doesNotMatch(studentScreen, /LetterPages|renderLetterBodyHtml|\.content\b/, 'no wording reaches the student before approval');
+assert.match(applicationForm, /requestLetter\(\s*template\.id,\s*note\.trim\(\),/);
+for (const source of [studentScreen, applicationForm]) {
+  assert.doesNotMatch(source, /LetterPages|renderLetterBodyHtml|\.content\b/, 'no wording reaches the student before approval');
+}
 assert.equal(PENDING_REFERENCE, 'Assigned on approval');
 
 // a refused approval names the values that need attention
@@ -149,7 +156,14 @@ assert.equal(
   routeForLetterRequest('12'),
 );
 assert.equal(routeForLetterRequest('12'), '/letters/requests/12');
-for (const path of [APP_ROUTES.lettersMine, APP_ROUTES.lettersIssued, APP_ROUTES.lettersRequests, routeForLetterRequest('12')]) {
+assert.equal(routeForLetterApplication('62'), '/letters/apply/62');
+for (const path of [
+  APP_ROUTES.lettersMine,
+  APP_ROUTES.lettersIssued,
+  APP_ROUTES.lettersRequests,
+  routeForLetterRequest('12'),
+  routeForLetterApplication('62'),
+]) {
   assert.equal(isKnownAppPath(path), true, path);
   assert.equal(sidebarItemForPath(path), SIDEBAR_ITEMS.LETTER_GENERATION, path);
 }
@@ -170,6 +184,8 @@ const pythonStrings = (name: string) => {
 assert.equal(pythonStrings('FACULTY').join(''), LETTERHEAD.faculty);
 assert.deepEqual(pythonStrings('ADDRESS_LINES'), [...LETTERHEAD.addressLines]);
 assert.equal(pythonStrings('DISCLAIMER').join(''), LETTERHEAD.disclaimer);
+assert.equal(pythonStrings('APPOINTMENT_DISCLAIMER').join(''), LETTERHEAD.appointmentDisclaimer);
+assert.equal(pythonStrings('MALAY_DISCLAIMER').join(''), LETTERHEAD.malayDisclaimer);
 assert.equal(pythonStrings('SIGNATORY_NAME').join(''), LETTERHEAD.signatoryName);
 assert.equal(pythonStrings('SIGNATORY_OFFICE').join(''), LETTERHEAD.signatoryOffice);
 

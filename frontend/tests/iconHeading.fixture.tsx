@@ -5,7 +5,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {SettingsView} from '../src/components/SettingsView';
 import {RegistryImportResult} from '../src/components/RegistryImportResult';
 import {RegistryImportProgrammes} from '../src/components/RegistryImportProgrammes';
-import {AccountTypeSelector, RoleAssignmentCard} from '../src/components/StaffLecturersRegistry';
+import {WorkloadLecturerOverview, WorkloadDetailSection} from '../src/components/WorkloadDetailLayout';
 import {ChecklistCard} from '../src/components/ChecklistCard';
 import {BookOpen, ClipboardList} from 'lucide-react';
 import {RequestSummaryCard, ResearchDetailsCard} from '../src/components/AppointmentRequestSections';
@@ -31,8 +31,8 @@ const cases = [
   ['Marks setup row', <ChecklistCard items={[{id:'period',taskName:'Mark entry periods',status:'PENDING',actionLabel:'Manage'}]} onItemAction={()=>{}}/>],
   ['Registry import result', <RegistryImportResult result={{batch:{id:1,fileName:'example-import.xlsx',uploadedBy:'Example Office',totalRows:0,created:0,skipped:0,failed:0,invitationsFailed:0,problems:[],createdAt:'2026-10-26T00:00:00Z'},rows:[]}} onDownloadReport={()=>{}} onClose={()=>{}}/>],
   ['Registry import programmes', <RegistryImportProgrammes values={[]} total={0} choices={{}} busy={false} onChoose={()=>{}}/>],
-  ['Staff registration choice', <AccountTypeSelector selectedType="Lecturer" onChange={()=>{}}/>],
-  ['Staff role assignment', <RoleAssignmentCard title="Programme coordinator" description="Manage assigned programmes and review appointment requests." icon={BookOpen}/>],
+  ['Workload overview', <WorkloadLecturerOverview name="Example lecturer" status="Available" tone="success"><p>Example department</p></WorkloadLecturerOverview>],
+  ['Workload detail section', <WorkloadDetailSection title="Active supervisees" icon={BookOpen}><p>Example student</p></WorkloadDetailSection>],
   ['Form heading', <FormCard title="Application details" icon={<BookOpen size={20}/>}><p>Example</p></FormCard>],
 ] as const;
 

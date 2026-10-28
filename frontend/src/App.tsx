@@ -5,7 +5,7 @@ import {recordPathWithSearch} from './utils/recordNavigation';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, matchPath, useLocation, useNavigate } from 'react-router';
 import { AuthLayout } from './components/AuthLayout';
 import { LoginCard } from './components/LoginCard';
@@ -28,6 +28,7 @@ import {
   isKnownAppPath,
   routeForDashboardTimeline,
   routeForDocument,
+  routeForLetterApplication,
   routeForLetterRequest,
   routeForMarkRecord,
   routeForNotificationTarget,
@@ -62,6 +63,7 @@ import {
 } from './services/apiClient';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { defaultLandingPageForUser } from './utils/landingPage';
+import { returnPathAfterSignIn, type SignInReturnState } from './utils/signInReturn';
 import { MarkRecordStatusTab } from './utils/markRecords';
 import { recordBackSteps, recordReturn, recordSourceLabel, studentSupervisorRequestReturn } from './utils/recordNavigation';
 
@@ -97,6 +99,7 @@ const FileRepository = lazyNamed('FileRepository', () => import('./components/Fi
 const StudentFileSubmission = lazyNamed('StudentFileSubmission', () => import('./components/StudentFileSubmission'));
 const UploadNewDocument = lazyNamed('UploadNewDocument', () => import('./components/UploadNewDocument'));
 const DocumentPage = lazyNamed('DocumentPage', () => import('./components/DocumentPage'));
+const AppointmentLetterPage = lazyNamed('AppointmentLetterPage', () => import('./components/AppointmentLetterPage'));
 const FileSettings = lazyNamed('FileSettings', () => import('./components/FileSettings'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
 const AnnouncementManagement = lazyNamed('AnnouncementManagement', () => import('./components/AnnouncementManagement'));
@@ -106,6 +109,7 @@ const LetterTemplateManagement = lazyNamed('LetterTemplateManagement', () => imp
 const StudentLetterGeneration = lazyNamed('StudentLetterGeneration', () => import('./components/StudentLetterGeneration'));
 const StudentMyRecords = lazyNamed('StudentMyRecords', () => import('./components/StudentMyRecords'));
 const StudentRegistry = lazyNamed('StudentRegistry', () => import('./components/StudentRegistry'));
+const StaffLecturersRegistry = lazyNamed('StaffLecturersRegistry', () => import('./components/StaffLecturersRegistry'));
 const StudentDashboard = lazyNamed('StudentDashboard', () => import('./components/StudentDashboard'));
 const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
 const LecturerAvailabilityPage = lazyNamed('LecturerAvailabilityPage', () => import('./components/LecturerAvailabilityPage'));
@@ -205,7 +209,18 @@ export default function App() {
   const activeSidebarItem = sidebarItemForPath(pathname);
   const markRecordMatch = matchPath(`${APP_ROUTES.marksRecords}/:recordId`, pathname);
   const letterRequestMatch = matchPath(`${APP_ROUTES.lettersRequests}/:requestId`, pathname);
+  const letterApplicationMatch = matchPath(`${APP_ROUTES.lettersApply}/:templateId`, pathname);
   const documentMatch = matchPath(`${APP_ROUTES.filesDocuments}/:documentId`, pathname);
+  const fileLetterMatch = matchPath(`${APP_ROUTES.filesLetters}/:letterId`, pathname);
+  const faqEntryMatch = pathname === APP_ROUTES.faqEntryNew ? null : matchPath(`${APP_ROUTES.faqEntries}/:entryId`, pathname);
+  const faqView = pathname === APP_ROUTES.faqEntryNew ? 'new'
+    : faqEntryMatch ? 'entry'
+    : pathname === APP_ROUTES.faqQuestions ? 'questions'
+    : pathname === APP_ROUTES.faqDocuments ? 'documents'
+    : pathname === APP_ROUTES.faqSettings ? 'settings'
+    : 'entries';
+  const isStaffRoute = pathname === APP_ROUTES.registryStaff || pathname.startsWith(`${APP_ROUTES.registryStaff}/`);
+  const staffAccountMatch = pathname === APP_ROUTES.registryStaffNew ? null : matchPath(`${APP_ROUTES.registryStaff}/:accountId`, pathname);
   const isSupervisorWorkloadRoute = pathname === APP_ROUTES.supervisorAppointmentWorkload;
   const isSupervisorRequestsRoute = pathname === APP_ROUTES.supervisorAppointmentRequests;
   const isSupervisorNewRoute = pathname === APP_ROUTES.supervisorAppointmentNew;
@@ -346,9 +361,13 @@ export default function App() {
   };
 
   const handleSuccessfulLogin = (user: DemoUser) => {
+    signedOutOnPurpose.current = false;
     setSessionNotice(null);
     setCurrentUser(user);
-    navigate(routeForSidebarItem(defaultLandingPageForUser(user)), { replace: true });
+    // A page opened while signed out (an email link, or one a session ended
+    // on) opens after sign-in; the route guards still apply to it. The
+    // redirect off the sign-in page below makes the same choice.
+    navigate(returnPathAfterSignIn(location.state) ?? routeForSidebarItem(defaultLandingPageForUser(user)), { replace: true });
   };
 
   const showAppToast = (message: string) => {
@@ -356,7 +375,12 @@ export default function App() {
     window.setTimeout(() => setAppToastMessage(null), 3500);
   };
 
+  // Set when the person signs out themselves, so the next sign-in on this
+  // computer starts on its own landing page, not on the page left behind.
+  const signedOutOnPurpose = useRef(false);
+
   const handleLogout = () => {
+    signedOutOnPurpose.current = true;
     void authApi.logout();
     setSessionNotice(null);
     setCurrentUser(null);
@@ -411,7 +435,8 @@ export default function App() {
     }
 
     if (pathname !== APP_ROUTES.login) {
-      return <Navigate to={APP_ROUTES.login} replace />;
+      const returnState: SignInReturnState | null = signedOutOnPurpose.current ? null : { from: `${pathname}${location.search}` };
+      return <Navigate to={APP_ROUTES.login} replace state={returnState} />;
     }
 
     return (
@@ -456,7 +481,9 @@ export default function App() {
     || isPasswordLinkPage
     || !isKnownAppPath(pathname)
   ) {
-    return <Navigate to={defaultAuthenticatedRoute} replace />;
+    // Just signed in on the sign-in page: open the page that was asked for.
+    const requested = pathname === APP_ROUTES.login ? returnPathAfterSignIn(location.state) : null;
+    return <Navigate to={requested ?? defaultAuthenticatedRoute} replace />;
   }
 
   if (!canAccessModule(currentUser.role, activeSidebarItem)) {
@@ -693,6 +720,13 @@ export default function App() {
                   onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
               )
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isStaffRoute && currentUser.role !== 'Office Staff/Admin' ? (
+              <Navigate to={APP_ROUTES.registry} replace />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isStaffRoute ? (
+              <StaffLecturersRegistry
+                view={pathname === APP_ROUTES.registryStaffNew ? 'new' : staffAccountMatch ? 'account' : 'list'}
+                accountId={staffAccountMatch?.params.accountId}
+              />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
               <StudentRegistry
                 readOnly={currentUser.role !== 'Office Staff/Admin'}
@@ -814,6 +848,7 @@ export default function App() {
                   role={currentUser.role}
                   initialStudent={new URLSearchParams(location.search).get('student') ?? ''}
                   initialType={new URLSearchParams(location.search).get('type') ?? ''}
+                  initialFile={location.state?.droppedFile instanceof File ? location.state.droppedFile : null}
                   onBack={() => navigate(APP_ROUTES.files)}
                   onUploadSuccess={(document) => navigate(routeForDocument(document.id), { replace: true, state: { uploadedReference: document.reference } })}
                   onOpenExisting={(documentId) => navigate(routeForDocument(documentId))}
@@ -827,16 +862,23 @@ export default function App() {
                   isStudent={isStudentWorkspace}
                   onBack={() => navigate(APP_ROUTES.files)}
                 />
+              ) : fileLetterMatch ? (
+                <AppointmentLetterPage
+                  key={fileLetterMatch.params.letterId}
+                  letterId={fileLetterMatch.params.letterId ?? ''}
+                  isStudent={isStudentWorkspace}
+                  onBack={(matric) => navigate(matric && !isStudentWorkspace ? `${APP_ROUTES.files}?student=${encodeURIComponent(matric)}` : APP_ROUTES.files)}
+                />
               ) : isStudentWorkspace ? (
                 <StudentFileSubmission />
               ) : (
                 <FileRepository />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.FAQ_CHATBOT ? (
-              isStudentWorkspace ? (
+              isStudentWorkspace || currentUser.role === 'Programme Coordinator' ? (
                 <StudentFAQChatbot />
               ) : (
-                <AcademicFAQEditor />
+                <AcademicFAQEditor view={faqView} entryId={faqEntryMatch?.params.entryId} />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.LETTER_GENERATION ? (
               isStudentWorkspace ? (
@@ -846,6 +888,9 @@ export default function App() {
                   programme={currentUser.department}
                   view={pathname === APP_ROUTES.lettersMine ? 'history' : 'new'}
                   onViewChange={(view) => navigate(view === 'history' ? APP_ROUTES.lettersMine : APP_ROUTES.letters)}
+                  requestTemplateId={letterApplicationMatch?.params.templateId ?? null}
+                  onOpenRequestForm={(templateId) => navigate(routeForLetterApplication(templateId))}
+                  onCloseRequestForm={() => navigate(APP_ROUTES.letters)}
                 />
               ) : (
                 <LetterTemplateManagement
@@ -853,12 +898,20 @@ export default function App() {
                   view={
                     pathname === APP_ROUTES.lettersIssued
                       ? 'issued'
-                      : pathname === APP_ROUTES.lettersRequests || letterRequestMatch
-                        ? 'requests'
-                        : 'templates'
+                      : pathname === APP_ROUTES.lettersLists
+                        ? 'lists'
+                        : pathname === APP_ROUTES.lettersTypes || currentUser.role !== 'Office Staff/Admin'
+                          ? 'templates'
+                          : 'requests'
                   }
                   onViewChange={(view) => navigate(
-                    view === 'issued' ? APP_ROUTES.lettersIssued : view === 'requests' ? APP_ROUTES.lettersRequests : APP_ROUTES.letters,
+                    view === 'issued'
+                      ? APP_ROUTES.lettersIssued
+                      : view === 'lists'
+                        ? APP_ROUTES.lettersLists
+                        : view === 'templates'
+                          ? APP_ROUTES.lettersTypes
+                          : APP_ROUTES.lettersRequests,
                   )}
                   requestId={letterRequestMatch?.params.requestId ?? null}
                   onOpenRequest={(id) => navigate(routeForLetterRequest(id))}
@@ -876,6 +929,7 @@ export default function App() {
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.SETTINGS ? (
               <SettingsView currentUser={currentUser} onLogout={handleLogout} onUserUpdated={(updated) => setCurrentUser((existing) => existing?.id === updated.id ? updated : existing)} onPasswordChanged={() => {
+                signedOutOnPurpose.current = true;
                 setCurrentUser(null);
                 navigate(APP_ROUTES.login, { replace: true });
                 showAppToast('Password updated. Please sign in again.');

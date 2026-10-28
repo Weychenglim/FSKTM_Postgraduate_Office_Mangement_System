@@ -8,16 +8,31 @@
 // copy, so it always carries the original reference number and date.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Eye, FileDown, Printer, RotateCcw, Search, Undo2, X } from 'lucide-react';
+import { Ban, BellRing, Eye, FileDown, Printer, RotateCcw, Search, Undo2, X } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, StatusBadge, type BadgeTone } from './PortalPrimitives';
 import { PortalModal, useModalTitle } from './PortalModal';
 import { LoadingState, ErrorState } from './StateViews';
+import { AlertMessage } from './AlertMessage';
+import { ApprovalProcess } from './ApprovalProcess';
+import type { ApprovalStep } from '../utils/approvalProcess';
 import { LetterPages } from './LetterPages';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
-import { GeneratedLetter, GeneratedLetterStatus } from '../types';
-import { downloadLetterPdf, getLetterRequest, getLetterRequests, withdrawLetterRequest } from '../services';
-import { letterDataFromIssued, openLetterWindow, printLetterInWindow, renderLetterBodyHtml } from '../utils/letterDocument';
+import { MissingAppointmentLetters } from './MissingAppointmentLetters';
+import { GeneratedLetter, GeneratedLetterStatus, LetterRequestFilters } from '../types';
+import {
+  downloadLetterPdf,
+  fieldErrors,
+  getLetterRequest,
+  getLetterRequests,
+  reissueAppointmentLetter,
+  resendLetterNotification,
+  revokeLetter,
+  withdrawLetterRequest,
+} from '../services';
+import { isAppointmentLetter, letterClosing, letterDataFromIssued, openLetterWindow, printLetterInWindow, renderLetterBodyHtml } from '../utils/letterDocument';
+import { canReissue, letterOrigin, recipientsLine } from '../utils/appointmentLetters';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
 type OutputAction = 'view' | 'print' | 'pdf';
 
@@ -40,13 +55,20 @@ const STATUS_TONE: Record<GeneratedLetterStatus, BadgeTone> = {
   Revoked: 'danger',
 };
 
-export const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus }> = ({ status }) => (
-  <StatusBadge tone={STATUS_TONE[status] ?? 'neutral'} className="px-2 py-0.5 text-[9px] rounded-md">
-    {LETTER_STATUS_LABEL[status] ?? status}
+export const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus; replaced?: boolean }> = ({ status, replaced = false }) => (
+  <StatusBadge tone={replaced ? 'neutral' : STATUS_TONE[status] ?? 'neutral'} className="px-2 py-0.5 text-[9px] rounded-md">
+    {replaced ? 'Replaced' : LETTER_STATUS_LABEL[status] ?? status}
   </StatusBadge>
 );
 
 export const shortDate = (value: string | null | undefined) => (value ? formatMalaysiaDate(value) : '');
+
+/** Who a letter is for and how long it is valid, e.g. "For Maybank · valid until 23 Jan 2027"; blank when neither applies. */
+export function letterForLine(letter: Pick<GeneratedLetter, 'requestDetails' | 'validUntil' | 'status'>): string {
+  const organisation = letter.requestDetails?.organisation;
+  const validUntil = letter.status === 'Issued' && letter.validUntil ? `valid until ${shortDate(letter.validUntil)}` : '';
+  return [organisation ? `For ${organisation}` : '', validUntil].filter(Boolean).join(' · ');
+}
 
 /** View, print and PDF for issued letters, with a per-row busy flag. */
 export function useLetterOutput(onMessage: (message: string) => void) {
@@ -102,12 +124,18 @@ export function useLetterOutput(onMessage: (message: string) => void) {
   return { viewLetter, printLetter, downloadPdf, isBusy, viewing, closeView };
 }
 
-/** The letter as it was issued, on A4 pages like the printed copy. Read only. */
-export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void }> = ({ letter, onClose }) => {
+/** The letter as it was issued, on A4 pages like the printed copy. Read only,
+ *  except for any `actions` the caller adds to the footer. */
+export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void; actions?: React.ReactNode }> = ({
+  letter,
+  onClose,
+  actions,
+}) => {
   const titleId = useModalTitle();
+  const sentTo = recipientsLine(letter.recipients);
   return (
-    <PortalModal isOpen onClose={onClose} labelledBy={titleId} className="max-w-4xl p-0">
-      <div className="drawer-header sticky top-0 z-10">
+    <PortalModal isOpen onClose={onClose} labelledBy={titleId} className="max-w-4xl p-0 open:flex open:flex-col">
+      <div className="drawer-header shrink-0">
         <div className="min-w-0">
           <h2 id={titleId} className="section-label truncate">{letter.templateName}</h2>
           <p className="mt-0.5 text-[11px] font-semibold text-slate-500 truncate">
@@ -118,7 +146,7 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <LetterStatusBadge status={letter.status} />
+          <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
           <button
             type="button"
             onClick={onClose}
@@ -130,10 +158,17 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
         </div>
       </div>
 
-      <div className="bg-slate-100/70 p-4 sm:p-6 space-y-4">
+      <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-100/70 p-4 sm:p-6 space-y-4 ${THIN_SCROLLBAR}`}>
         {letter.status === 'Revoked' && (
           <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-semibold text-rose-700">
-            This letter was revoked{letter.revokeReason ? `: ${letter.revokeReason}` : '.'} It is no longer valid.
+            {letter.replacedById
+              ? `${letter.revokeReason || 'This letter was replaced by a newer one.'} It is no longer valid.`
+              : `This letter was revoked${letter.revokeReason ? `: ${letter.revokeReason}` : '.'} It is no longer valid.`}
+          </p>
+        )}
+        {sentTo && (
+          <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11.5px] font-semibold text-slate-600">
+            Sent to {sentTo}.
           </p>
         )}
         <LetterPages
@@ -141,10 +176,13 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
           referenceText={letter.referenceNumber}
           date={letter.date}
           bodyHtml={renderLetterBodyHtml(letter.content ?? '')}
+          malayBodyHtml={letter.contentMs?.trim() ? renderLetterBodyHtml(letter.contentMs) : undefined}
+          closing={letterClosing(letter)}
         />
       </div>
 
-      <div className="drawer-footer sticky bottom-0 z-10">
+      <div className="drawer-footer shrink-0 flex-wrap">
+        {actions}
         <PortalButton variant="secondary" onClick={onClose}>Close</PortalButton>
       </div>
     </PortalModal>
@@ -159,20 +197,52 @@ const TableMessage: React.FC<{ colSpan: number; children: React.ReactNode }> = (
   </tr>
 );
 
-/** The line under a request's status: where it stands, or why. */
-const StatusNote: React.FC<{ letter: GeneratedLetter }> = ({ letter }) => {
-  const note =
-    letter.status === 'Pending'
-      ? { text: 'Waiting for the office', tone: 'text-slate-400' }
-      : letter.status === 'Issued'
-        ? { text: `Approved ${shortDate(letter.decidedAt)}`, tone: 'text-slate-400' }
-        : letter.status === 'Withdrawn'
-          ? { text: `Withdrawn ${shortDate(letter.withdrawnAt)}`, tone: 'text-slate-400' }
-          : letter.status === 'Rejected'
-            ? { text: `Reason: ${letter.rejectReason}`, tone: 'text-rose-600' }
-            : { text: `Reason: ${letter.revokeReason}`, tone: 'text-rose-600' };
-  return <p className={`mt-1 text-[10.5px] font-semibold leading-snug max-w-[260px] ${note.tone}`}>{note.text}</p>;
-};
+const DAY = 24 * 60 * 60 * 1000;
+const OFFICE = 'Postgraduate office';
+const EXPIRY_WARNING_DAYS = 30;
+
+/** Days until a letter's last valid day, counted in Malaysia; negative once it has passed. */
+export function daysLeft(validUntil: string | null | undefined, today: Date = new Date()): number | null {
+  if (!validUntil) return null;
+  const end = Date.parse(`${validUntil}T23:59:59+08:00`);
+  return Number.isFinite(end) ? Math.ceil((end - today.getTime()) / DAY) - 1 : null;
+}
+
+/** Where a request stands, as steps from sending it to the letter being ready. */
+export function requestSteps(letter: GeneratedLetter, readyInDays?: number | null): ApprovalStep[] {
+  if (isAppointmentLetter(letter.purpose)) {
+    return [{ id: 'issued', label: 'Issued after your appointment was approved', state: 'completed', actorName: OFFICE, occurredAt: letter.decidedAt ?? undefined, description: `Reference ${letter.referenceNumber}.` }];
+  }
+  const sent: ApprovalStep = { id: 'submitted', label: 'Sent to the office', state: 'completed', actorName: 'You', occurredAt: letter.requestedAt, description: letter.note ? `Your note: ${letter.note}` : undefined };
+  const wait = readyInDays ? `Usually ready in ${readyInDays} working day${readyInDays === 1 ? '' : 's'}. You are notified when it is decided.` : 'You are notified when it is decided.';
+  if (letter.status === 'Pending') {
+    return [sent, { id: 'office', label: 'With the office', state: 'current', description: wait }, { id: 'ready', label: 'Ready to download', state: 'upcoming' }];
+  }
+  if (letter.status === 'Withdrawn') {
+    return [sent, { id: 'office', label: 'You withdrew it', state: 'cancelled', actorName: 'You', occurredAt: letter.withdrawnAt ?? undefined }, { id: 'ready', label: 'Ready to download', state: 'not_reached' }];
+  }
+  if (letter.status === 'Rejected') {
+    return [
+      sent,
+      { id: 'office', label: 'Not approved', state: 'rejected', occurredAt: letter.decidedAt ?? undefined, actorName: letter.decidedBy || OFFICE, reason: letter.rejectReason || undefined },
+      { id: 'ready', label: 'Ready to download', state: 'not_reached' },
+    ];
+  }
+  const approved: ApprovalStep = { id: 'office', label: 'Approved', state: 'completed', occurredAt: letter.decidedAt ?? undefined, actorName: letter.decidedBy || OFFICE };
+  if (letter.status === 'Revoked') {
+    return [
+      sent,
+      approved,
+      letter.replacedById
+        ? { id: 'ready', label: 'Replaced by a newer copy', state: 'cancelled', actorName: OFFICE, occurredAt: letter.revokedAt ?? undefined, description: `${letter.revokeReason || 'A newer copy replaced it.'} It is no longer valid.` }
+        : { id: 'ready', label: 'Revoked by the office', state: 'rejected', actorName: OFFICE, occurredAt: letter.revokedAt ?? undefined, reason: letter.revokeReason || undefined },
+    ];
+  }
+  return [sent, approved, { id: 'ready', label: 'Ready to view and download', state: 'completed', showRecordedDetails: false, description: `Reference ${letter.referenceNumber}.` }];
+}
+
+/** Requests still in play (waiting, or a letter that is valid) come first; the rest are history. */
+export const isCurrentRequest = (letter: GeneratedLetter) => letter.status === 'Pending' || letter.status === 'Issued';
 
 interface StudentLetterRequestsProps {
   letters: GeneratedLetter[];
@@ -182,11 +252,13 @@ interface StudentLetterRequestsProps {
   onMessage: (message: string) => void;
   /** A request changed, e.g. withdrawn. */
   onLetterChange?: (letter: GeneratedLetter) => void;
-  /** Ask for the same letter again after a rejection. */
+  /** Ask for the same letter again, starting from this request's answers. */
   onRequestAgain?: (letter: GeneratedLetter) => void;
+  /** How many working days each letter type usually takes, by template id. */
+  readyInDays?: Record<string, number | null | undefined>;
 }
 
-/** The signed-in student's letter requests: their status, and the letter once approved. */
+/** The signed-in student's letter requests: where each one stands, and the letter once approved. */
 export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
   letters,
   loading,
@@ -195,10 +267,12 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
   onMessage,
   onLetterChange,
   onRequestAgain,
+  readyInDays = {},
 }) => {
   const { viewLetter, printLetter, downloadPdf, isBusy, viewing, closeView } = useLetterOutput(onMessage);
   const [withdrawing, setWithdrawing] = useState<GeneratedLetter | null>(null);
   const [withdrawSaving, setWithdrawSaving] = useState(false);
+  const [view, setView] = useState<'current' | 'history'>('current');
 
   const confirmWithdraw = async () => {
     if (!withdrawing) return;
@@ -215,103 +289,110 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
     }
   };
 
-  // What the student can do with a request at its stage.
-  const actionsFor = (letter: GeneratedLetter): React.ReactNode =>
-    letter.status === 'Pending' ? (
-      <PortalButton variant="ghost" size="sm" icon={Undo2} onClick={() => setWithdrawing(letter)}>
-        Withdraw
-      </PortalButton>
-    ) : letter.status === 'Issued' ? (
-      <>
-        <PortalButton variant="secondary" size="sm" icon={Eye} isLoading={isBusy(letter, 'view')} onClick={() => void viewLetter(letter)}>
-          View
-        </PortalButton>
-        <PortalButton variant="secondary" size="sm" icon={Printer} isLoading={isBusy(letter, 'print')} onClick={() => void printLetter(letter)}>
-          Print
-        </PortalButton>
-        <PortalButton variant="secondary" size="sm" icon={FileDown} isLoading={isBusy(letter, 'pdf')} onClick={() => void downloadPdf(letter)}>
-          PDF
-        </PortalButton>
-      </>
-    ) : letter.status === 'Rejected' && onRequestAgain ? (
-      <PortalButton variant="secondary" size="sm" icon={RotateCcw} onClick={() => onRequestAgain(letter)}>
-        Request again
-      </PortalButton>
-    ) : null;
+  const current = letters.filter(isCurrentRequest);
+  const history = letters.filter((letter) => !isCurrentRequest(letter));
+  const shown = view === 'current' ? current : history;
+  const switchButton = (value: 'current' | 'history', label: string, count: number) => (
+    <button
+      key={value}
+      type="button"
+      aria-pressed={view === value}
+      onClick={() => setView(value)}
+      className={`card-value rounded-md px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy cursor-pointer ${view === value ? 'bg-white text-brand-navy shadow-sm' : 'text-slate-600 hover:bg-white/60'}`}
+    >
+      {label} ({count})
+    </button>
+  );
 
   return (
-    <div id="student-letter-history" className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden">
-      <div className="px-5 pt-5 pb-3 flex items-center justify-between gap-3">
-        <h2 className="section-label">My Requests</h2>
-        <span className="text-[11px] font-semibold text-slate-400">
-          {letters.length} request{letters.length === 1 ? '' : 's'}
-        </span>
+    <section id="student-letter-history" aria-label="My requests" className="app-card appointment-workspace-card">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 basis-64 flex-1">
+          <h2 className="section-label">My requests</h2>
+          <p className="card-description mt-1">Where each request stands. Approved letters can be viewed, printed or downloaded here.</p>
+        </div>
+        <div role="group" aria-label="Request views" className="flex w-fit flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
+          {switchButton('current', 'Current', current.length)}
+          {switchButton('history', 'History', history.length)}
+        </div>
       </div>
+
       {loading ? (
         <LoadingState message="Loading your requests…" />
       ) : error ? (
         <ErrorState message={error} onRetry={onRetry} />
-      ) : letters.length === 0 ? (
-        <p className="px-5 py-12 text-center text-slate-400 font-semibold">
-          You have not requested any letters yet. Once the office approves a request, you can view, print or download the letter here.
+      ) : shown.length === 0 ? (
+        <p className="rounded-xl bg-slate-50 px-4 py-6 card-description">
+          {view === 'current'
+            ? letters.length
+              ? 'Nothing waiting or valid right now. Past requests are under History.'
+              : 'You have not asked for any letters yet. Choose one under Request a letter.'
+            : 'No past requests yet.'}
         </p>
       ) : (
-        <>
-          {/* Phones: one card per request, with its buttons in view. */}
-          <ul className="md:hidden divide-y divide-slate-100 border-t border-slate-100">
-            {letters.map((letter) => (
-              <li key={letter.id} className="px-5 py-4 space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <span className="block font-bold text-slate-800 text-[12.5px]">{letter.templateName}</span>
-                    <span className="block text-[10.5px] text-slate-400">
-                      {letter.letterType} · Requested {shortDate(letter.requestedAt)}
-                    </span>
+        <ul className="space-y-4">
+          {shown.map((letter) => {
+            const left = letter.status === 'Issued' ? daysLeft(letter.validUntil) : null;
+            const automatic = isAppointmentLetter(letter.purpose);
+            return (
+              <li key={letter.id}>
+                <article aria-label={`${letter.templateName}${letter.requestDetails?.organisation ? ` for ${letter.requestDetails.organisation}` : ''}`} className="rounded-xl border border-slate-200 p-5 space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-brand-navy">{letter.templateName}</h3>
+                      <p className="card-description mt-0.5">
+                        {[letter.requestDetails?.organisation ? `For ${letter.requestDetails.organisation}` : '', automatic ? letterOrigin(letter) : `Requested ${shortDate(letter.requestedAt)}`]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
                   </div>
-                  <LetterStatusBadge status={letter.status} />
-                </div>
-                <StatusNote letter={letter} />
-                {letter.referenceNumber && (
-                  <p className="font-mono text-[11px] font-semibold text-slate-700">{letter.referenceNumber}</p>
-                )}
-                {actionsFor(letter) && <div className="flex flex-wrap gap-2 pt-1">{actionsFor(letter)}</div>}
+                  <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_16rem]">
+                    <ApprovalProcess steps={requestSteps(letter, letter.templateId ? readyInDays[letter.templateId] : null)} title="Progress" />
+                    <div className="space-y-3">
+                      {letter.referenceNumber && (
+                        <dl className="space-y-1">
+                          <dt className="card-label">Reference</dt>
+                          <dd className="font-mono text-[12.5px] font-semibold text-slate-800">{letter.referenceNumber}</dd>
+                        </dl>
+                      )}
+                      {letter.status === 'Issued' && letter.validUntil && (
+                        <dl className="space-y-1">
+                          <dt className="card-label">Valid until</dt>
+                          <dd className="text-[12.5px] font-semibold text-slate-800">{shortDate(letter.validUntil)}</dd>
+                        </dl>
+                      )}
+                      {left !== null && left < 0 && (
+                        <AlertMessage type="warning" message="This letter is no longer valid. Request a new one if you still need it." />
+                      )}
+                      {left !== null && left >= 0 && left <= EXPIRY_WARNING_DAYS && (
+                        <AlertMessage type="warning" message={`It stops being valid ${left === 0 ? 'today' : `in ${left} day${left === 1 ? '' : 's'}`}. Request again to renew it.`} />
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {letter.status === 'Pending' && (
+                          <PortalButton size="sm" icon={Undo2} onClick={() => setWithdrawing(letter)}>Withdraw</PortalButton>
+                        )}
+                        {letter.status === 'Issued' && (
+                          <>
+                            <PortalButton size="sm" icon={Eye} isLoading={isBusy(letter, 'view')} onClick={() => void viewLetter(letter)}>View</PortalButton>
+                            <PortalButton size="sm" icon={Printer} isLoading={isBusy(letter, 'print')} onClick={() => void printLetter(letter)}>Print</PortalButton>
+                            <PortalButton size="sm" icon={FileDown} isLoading={isBusy(letter, 'pdf')} onClick={() => void downloadPdf(letter)}>PDF</PortalButton>
+                          </>
+                        )}
+                        {!automatic && letter.status !== 'Pending' && onRequestAgain && (
+                          <PortalButton size="sm" variant={left !== null && left <= EXPIRY_WARNING_DAYS ? 'primary' : 'secondary'} icon={RotateCcw} onClick={() => onRequestAgain(letter)}>
+                            Request again
+                          </PortalButton>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </article>
               </li>
-            ))}
-          </ul>
-
-          <div className="hidden md:block overflow-x-auto">
-            <table className="data-table text-xs">
-              <thead>
-                <tr className="data-thead bg-[#f8fafc]">
-                  <th className="data-th">Letter</th>
-                  <th className="data-th">Requested</th>
-                  <th className="data-th">Status</th>
-                  <th className="data-th">Reference</th>
-                  <th className="data-th text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {letters.map((letter) => (
-                  <tr key={letter.id} className="hover:bg-slate-50/50 transition align-top">
-                    <td className="data-td">
-                      <span className="block font-bold text-slate-800">{letter.templateName}</span>
-                      <span className="block text-[10px] text-slate-400">{letter.letterType}</span>
-                    </td>
-                    <td className="data-td whitespace-nowrap">{shortDate(letter.requestedAt)}</td>
-                    <td className="data-td">
-                      <LetterStatusBadge status={letter.status} />
-                      <StatusNote letter={letter} />
-                    </td>
-                    <td className="data-td font-mono whitespace-nowrap text-slate-700">{letter.referenceNumber || '-'}</td>
-                    <td className="data-td text-right">
-                      <div className="inline-flex flex-wrap justify-end gap-2">{actionsFor(letter)}</div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+            );
+          })}
+        </ul>
       )}
 
       {viewing && <LetterView letter={viewing} onClose={closeView} />}
@@ -319,11 +400,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
       <PortalConfirmModal
         isOpen={withdrawing !== null}
         title="Withdraw this request?"
-        message={
-          withdrawing
-            ? `The office will not process your request for a ${withdrawing.templateName}. You can request it again later.`
-            : ''
-        }
+        message={withdrawing ? `The office will not process your request for a ${withdrawing.templateName}. You can request it again later.` : ''}
         confirmLabel="Withdraw"
         cancelLabel="Keep request"
         tone="warning"
@@ -331,7 +408,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
         onConfirm={() => void confirmWithdraw()}
         onCancel={() => setWithdrawing(null)}
       />
-    </div>
+    </section>
   );
 };
 
@@ -343,12 +420,22 @@ const REGISTER_STATUS_OPTIONS: SelectMenuOption<RegisterStatus>[] = [
   { value: 'Revoked', label: 'Revoked' },
 ];
 
+type MadeBy = NonNullable<LetterRequestFilters['madeBy']>;
+
+const MADE_BY_OPTIONS: SelectMenuOption<MadeBy>[] = [
+  { value: '', label: 'All letters', triggerLabel: 'All' },
+  { value: 'request', label: 'Student requests' },
+  { value: 'automatic', label: 'Sent automatically' },
+];
+
 interface IssuedLettersRegisterProps {
   onMessage: (message: string) => void;
+  /** Opens the Templates tab, to set up a missing appointment template. */
+  onOpenTemplates?: () => void;
 }
 
 /** Office register of every issued letter: search, filter and view each one. */
-export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ onMessage }) => {
+export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ onMessage, onOpenTemplates }) => {
   const [letters, setLetters] = useState<GeneratedLetter[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -356,6 +443,14 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [statusFilter, setStatusFilter] = useState<RegisterStatus>('Issued,Revoked');
+  const [madeBy, setMadeBy] = useState<MadeBy>('');
+  const [reissuing, setReissuing] = useState<GeneratedLetter | null>(null);
+  const [reissueSaving, setReissueSaving] = useState(false);
+  const [revoking, setRevoking] = useState<GeneratedLetter | null>(null);
+  const [revokeReason, setRevokeReason] = useState('');
+  const [revokeError, setRevokeError] = useState<string | null>(null);
+  const [revokeSaving, setRevokeSaving] = useState(false);
+  const [resending, setResending] = useState(false);
   const latestLoad = useRef(0);
   const { viewLetter, isBusy, viewing, closeView } = useLetterOutput(onMessage);
 
@@ -363,7 +458,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
     const loadId = ++latestLoad.current;
     setLoading(true);
     setError(null);
-    getLetterRequests({ search, from, to, status: statusFilter })
+    getLetterRequests({ search, from, to, status: statusFilter, madeBy })
       .then((rows) => {
         if (loadId === latestLoad.current) setLetters(rows);
       })
@@ -373,19 +468,82 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
       .finally(() => {
         if (loadId === latestLoad.current) setLoading(false);
       });
-  }, [search, from, to, statusFilter]);
+  }, [search, from, to, statusFilter, madeBy]);
 
   useEffect(() => {
     const timer = setTimeout(load, 300);
     return () => clearTimeout(timer);
   }, [load]);
 
-  const filtersActive = Boolean(search || from || to || statusFilter !== 'Issued,Revoked');
+  const filtersActive = Boolean(search || from || to || statusFilter !== 'Issued,Revoked' || madeBy);
+
+  const reissue = async () => {
+    if (!reissuing) return;
+    setReissueSaving(true);
+    try {
+      const fresh = await reissueAppointmentLetter(reissuing.id);
+      onMessage(`Reissued as ${fresh.referenceNumber}. ${reissuing.referenceNumber} is revoked as replaced, and everyone on the letter has been told.`);
+      setReissuing(null);
+      closeView();
+      load();
+    } catch (err) {
+      setReissuing(null);
+      onMessage(errorText(err, 'Could not reissue this letter.'));
+    } finally {
+      setReissueSaving(false);
+    }
+  };
+
+  // Revoking and resending are rare, so they sit in the letter view, not on each row.
+  const openRevoke = (letter: GeneratedLetter) => {
+    setRevokeReason('');
+    setRevokeError(null);
+    setRevoking(letter);
+  };
+
+  const revoke = async () => {
+    if (!revoking) return;
+    const reason = revokeReason.trim();
+    if (!reason) {
+      setRevokeError('Give the reason, so the student knows why the letter is no longer valid.');
+      return;
+    }
+    setRevokeSaving(true);
+    try {
+      const revoked = await revokeLetter(revoking.id, reason);
+      onMessage(`Revoked ${revoked.referenceNumber}. ${revoked.studentName || 'The student'} has been told why.`);
+      setRevoking(null);
+      closeView();
+      load();
+    } catch (err) {
+      const problem = fieldErrors(err).reason;
+      if (problem) setRevokeError(problem);
+      else {
+        setRevoking(null);
+        onMessage(errorText(err, 'Could not revoke this letter.'));
+      }
+    } finally {
+      setRevokeSaving(false);
+    }
+  };
+
+  const resend = async (letter: GeneratedLetter) => {
+    setResending(true);
+    try {
+      onMessage((await resendLetterNotification(letter.id)).detail);
+    } catch (err) {
+      onMessage(errorText(err, 'Could not send the notification again.'));
+    } finally {
+      setResending(false);
+    }
+  };
 
   return (
     <div id="issued-letters-register" className="space-y-6">
+      <MissingAppointmentLetters onMessage={onMessage} onMade={load} onOpenTemplates={onOpenTemplates} />
+
       <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-        <label className="md:col-span-5 block">
+        <label className="md:col-span-3 block">
           <span className="form-label block">Search</span>
           <span className="relative block">
             <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
@@ -418,12 +576,22 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
             onChange={setStatusFilter}
           />
         </div>
+        <div className="md:col-span-2 block">
+          <span className="form-label block">Made by</span>
+          <SelectMenu<MadeBy>
+            size="sm"
+            aria-label="Made by"
+            value={madeBy}
+            options={MADE_BY_OPTIONS}
+            onChange={setMadeBy}
+          />
+        </div>
         <div className="md:col-span-1">
           <PortalButton
             variant="ghost"
             size="md"
             disabled={!filtersActive}
-            onClick={() => { setSearch(''); setFrom(''); setTo(''); setStatusFilter('Issued,Revoked'); }}
+            onClick={() => { setSearch(''); setFrom(''); setTo(''); setStatusFilter('Issued,Revoked'); setMadeBy(''); }}
             className="w-full"
           >
             Reset
@@ -469,17 +637,18 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
                     </td>
                     <td className="data-td">
                       <span className="block font-bold text-slate-800">{letter.templateName}</span>
-                      <span className="block text-[10px] text-slate-400">{letter.letterType}</span>
+                      {letterForLine(letter) && <span className="block text-[10.5px] font-semibold text-slate-500">{letterForLine(letter)}</span>}
+                      <span className="block text-[10px] text-slate-400">{letterOrigin(letter)}</span>
                     </td>
                     <td className="data-td whitespace-nowrap">
                       {letter.date}
                       {letter.decidedBy && <span className="block text-[10px] text-slate-400">by {letter.decidedBy}</span>}
                     </td>
                     <td className="data-td">
-                      <LetterStatusBadge status={letter.status} />
+                      <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
                       {letter.status === 'Revoked' && letter.revokeReason && (
-                        <p className="mt-1 text-[10px] font-semibold text-rose-600 leading-snug max-w-[220px]">
-                          Reason: {letter.revokeReason}
+                        <p className={`mt-1 text-[10px] font-semibold leading-snug max-w-[220px] ${letter.replacedById ? 'text-slate-500' : 'text-rose-600'}`}>
+                          {letter.replacedById ? letter.revokeReason : `Reason: ${letter.revokeReason}`}
                         </p>
                       )}
                     </td>
@@ -503,7 +672,78 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
         </div>
       </div>
 
-      {viewing && <LetterView letter={viewing} onClose={closeView} />}
+      {viewing && (
+        <LetterView
+          letter={viewing}
+          onClose={closeView}
+          actions={
+            viewing.status === 'Issued' ? (
+              <>
+                <PortalButton variant="danger" icon={Ban} onClick={() => openRevoke(viewing)}>
+                  Revoke
+                </PortalButton>
+                <PortalButton variant="secondary" icon={BellRing} isLoading={resending} onClick={() => void resend(viewing)}>
+                  Resend notification
+                </PortalButton>
+                {canReissue(viewing) && (
+                  <PortalButton variant="secondary" icon={RotateCcw} onClick={() => setReissuing(viewing)}>
+                    Reissue with current details
+                  </PortalButton>
+                )}
+              </>
+            ) : undefined
+          }
+        />
+      )}
+
+      <PortalConfirmModal
+        isOpen={revoking !== null}
+        title="Revoke this letter?"
+        message={
+          <div className="space-y-3 text-left">
+            <p>
+              {revoking
+                ? `${revoking.referenceNumber} will no longer be valid. ${revoking.studentName || 'The student'} is told the reason and can no longer print or download it.`
+                : ''}
+            </p>
+            <label className="block">
+              <span className="form-label block">Reason (shown to the student)</span>
+              <textarea
+                value={revokeReason}
+                onChange={(e) => {
+                  setRevokeReason(e.target.value);
+                  setRevokeError(null);
+                }}
+                maxLength={500}
+                rows={3}
+                placeholder="For example: issued with the wrong programme. A corrected letter will follow."
+                className={`form-control form-control-sm resize-none ${revokeError ? 'form-control-error' : ''}`}
+              />
+            </label>
+            {revokeError && <p role="alert" className="text-[11px] font-semibold text-rose-600">{revokeError}</p>}
+          </div>
+        }
+        confirmLabel="Revoke letter"
+        tone="danger"
+        isLoading={revokeSaving}
+        onConfirm={() => void revoke()}
+        onCancel={() => setRevoking(null)}
+      />
+
+      <PortalConfirmModal
+        isOpen={reissuing !== null}
+        title="Reissue this letter?"
+        message={
+          reissuing
+            ? `A new ${reissuing.templateName} is issued with the current details and a new reference number. ${reissuing.referenceNumber} is revoked as replaced, and everyone on the letter is told.`
+            : ''
+        }
+        confirmLabel="Reissue letter"
+        tone="warning"
+        isLoading={reissueSaving}
+        onConfirm={() => void reissue()}
+        onCancel={() => setReissuing(null)}
+      />
     </div>
   );
 };

@@ -39,10 +39,14 @@ from .serializers import (
     PasswordResetRequestSerializer,
 )
 from .session_tokens import (
+    SESSION_KEY_COOKIE,
     blacklist_user_refresh_tokens,
     delete_refresh_cookie,
+    end_session,
     SessionTokenRefreshSerializer,
     issue_refresh,
+    new_session_key,
+    note_rotation,
     remembered,
     set_refresh_cookie,
 )
@@ -112,7 +116,7 @@ def login_view(request):
     response = Response(
         {"token": str(refresh.access_token), "user": user.to_public_dict()}
     )
-    return set_refresh_cookie(response, refresh, remember)
+    return set_refresh_cookie(response, refresh, remember, session_key=new_session_key())
 
 
 @api_view(["POST"])
@@ -126,10 +130,18 @@ def refresh_view(request):
             TechnicalAccountForbidden.default_detail, status=status.HTTP_403_FORBIDDEN
         )
         return delete_refresh_cookie(response)
+    # Noted before rotating, so a second request from the same page load
+    # that arrives mid-rotation already finds the grace.
+    note_rotation(request, request.auth)
     serializer = SessionTokenRefreshSerializer(data={"refresh": str(request.auth)})
     serializer.is_valid(raise_exception=True)
     response = Response({"token": serializer.validated_data["access"]})
-    return set_refresh_cookie(response, serializer.validated_data["refresh"], remembered(request.auth))
+    return set_refresh_cookie(
+        response,
+        serializer.validated_data["refresh"],
+        remembered(request.auth),
+        session_key=request.COOKIES.get(SESSION_KEY_COOKIE),
+    )
 
 
 @api_view(["POST"])
@@ -139,6 +151,7 @@ def logout_view(request):
     """Revoke the authenticated refresh session and remove its cookie."""
     _require_json_request(request)
     request.auth.blacklist()
+    end_session(request)
     response = Response({"message": "Logged out successfully."})
     return delete_refresh_cookie(response)
 
@@ -179,6 +192,7 @@ def change_password_view(request):
     blacklist_user_refresh_tokens(request.user)
 
     # The new session keeps the "Remember me" choice of the one in use.
+    end_session(request)
     remember = remembered(request.auth)
     refresh = issue_refresh(request.user, remember)
     response = Response(
@@ -187,7 +201,7 @@ def change_password_view(request):
             "token": str(refresh.access_token),
         }
     )
-    return set_refresh_cookie(response, refresh, remember)
+    return set_refresh_cookie(response, refresh, remember, session_key=new_session_key())
 
 
 PREFERENCE_FIELDS = {
@@ -247,6 +261,7 @@ def settings_password_view(request):
         user.must_change_password = False
         user.save(update_fields=["password", "must_change_password"])
         blacklist_user_refresh_tokens(user)
+    end_session(request)
     return delete_refresh_cookie(Response({"message": "Password updated. Please sign in again."}))
 
 

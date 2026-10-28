@@ -1,6 +1,6 @@
 ## Branch integration and release (28 October 2026)
 
-Use a normal merge of origin/main into the current feature branch. Keep appointment source navigation available when a partial supervisory DTO has an approved application ID but lacks lifecycle details; omit fabricated lifecycle controls and facts. Workload tests assert the current accessible section hierarchy and lecturer heading rather than obsolete typography tokens. Retain Office/Technical Administrator separation and incoming main features together.
+Use a normal merge of origin/main into the current feature branch. Keep appointment source navigation available when a partial supervisory DTO has an approved application ID but lacks lifecycle details; omit fabricated lifecycle controls and facts. Workload tests assert the current accessible section hierarchy and lecturer heading rather than obsolete typography tokens. Retain Office/Technical Administrator separation and incoming main features together. The two content conflicts keep main's redesigned letter-management and staff-account screens; obsolete staff-component alignment fixtures now exercise the shared production workload headings. The automatic account-admin merge preserves immutable profile owners alongside main's read-only AccountChange registration.
 
 ## Office approved request supervisor change (28 October 2026)
 

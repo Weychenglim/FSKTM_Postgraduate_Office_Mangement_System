@@ -118,6 +118,7 @@ INSTALLED_APPS = [
     "letters",
     "announcements",
     "documents",
+    "faq",
 ]
 
 MIDDLEWARE = [
@@ -247,6 +248,27 @@ REGISTRY_BATCH_INVITE_THROTTLE_RATE = os.getenv(
 REGISTRY_STUDENT_EMAIL_DOMAIN = os.getenv(
     "REGISTRY_STUDENT_EMAIL_DOMAIN", "siswa.um.edu.my"
 )
+
+# FAQ chatbot (UC28). "hybrid" adds a small multilingual meaning model to the
+# keyword search; "keywords" never loads it. If the model cannot be loaded,
+# the chatbot falls back to keywords by itself.
+FAQ_SEARCH = os.getenv("FAQ_SEARCH", "hybrid")
+FAQ_MODEL = os.getenv("FAQ_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+FAQ_MODEL_CACHE = os.getenv("FAQ_MODEL_CACHE", str(BASE_DIR / "faq_model_cache"))
+FAQ_ENCODER = os.getenv("FAQ_ENCODER", "faq.encoder.FastEmbedEncoder")
+# How sure the search must be to answer, or to offer choices. Measured on
+# docs/faq/evaluation-set.json (evaluate_faq): the most right answers with at
+# most 2 wrong ones and 90% of off-topic questions refused. Keyword search
+# alone scores on another scale, so it has its own pair.
+FAQ_STRONG_MATCH = float(os.getenv("FAQ_STRONG_MATCH", "0.69"))
+FAQ_POSSIBLE_MATCH = float(os.getenv("FAQ_POSSIBLE_MATCH", "0.42"))
+FAQ_KEYWORD_STRONG_MATCH = float(os.getenv("FAQ_KEYWORD_STRONG_MATCH", "0.61"))
+FAQ_KEYWORD_POSSIBLE_MATCH = float(os.getenv("FAQ_KEYWORD_POSSIBLE_MATCH", "0.22"))
+# A passage from a reference document is shown only above this. It awaits the
+# office's real documents to be measured; a short focused passage scored well above it.
+FAQ_DOCUMENT_MATCH = float(os.getenv("FAQ_DOCUMENT_MATCH", "0.6"))
+FAQ_ASK_THROTTLE_RATE = os.getenv("FAQ_ASK_THROTTLE_RATE", "30/minute")
+FAQ_QUESTION_RETENTION_DAYS = int(os.getenv("FAQ_QUESTION_RETENTION_DAYS", "365"))
 
 # Django REST Framework + SimpleJWT
 REST_FRAMEWORK = {

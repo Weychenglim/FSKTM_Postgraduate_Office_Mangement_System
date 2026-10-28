@@ -13,6 +13,7 @@ from django.core.exceptions import PermissionDenied
 
 from .forms import UserCreationForm, UserChangeForm
 from .models import (
+    AccountChange,
     Coordinator,
     CoordinatorDelegation,
     Lecturer,
@@ -281,6 +282,24 @@ class ParticipantLifecycleAuditAdmin(admin.ModelAdmin):
 class CoordinatorDelegationAdmin(admin.ModelAdmin):
     list_display = ('programme', 'coordinator', 'starts_on', 'ends_on', 'granted_by', 'revoked_at')
     readonly_fields = tuple(field.name for field in CoordinatorDelegation._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+
+@admin.register(AccountChange)
+class AccountChangeAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "account_name", "action", "actor_name")
+    list_filter = ("action", "created_at")
+    search_fields = ("account_name", "account_email", "actor_name")
+    readonly_fields = tuple(field.name for field in AccountChange._meta.fields)
 
     def has_add_permission(self, request):
         return False

@@ -18,10 +18,18 @@ export const APP_ROUTES = {
   dashboardLecturerCapacity: '/dashboard/lecturer-capacity',
   dashboardMyAvailability: '/dashboard/my-availability',
   registry: '/registry',
+  registryStaff: '/registry/staff',
+  registryStaffNew: '/registry/staff/new',
   faq: '/faq',
+  faqEntries: '/faq/entries',
+  faqEntryNew: '/faq/entries/new',
+  faqQuestions: '/faq/questions',
+  faqDocuments: '/faq/documents',
+  faqSettings: '/faq/settings',
   files: '/files',
   filesUpload: '/files/upload',
   filesDocuments: '/files/documents',
+  filesLetters: '/files/letters',
   filesSettings: '/files/settings',
   supervisorAppointments: '/supervisor-appointments',
   supervisorAppointmentRequests: '/supervisor-appointments/requests',
@@ -38,6 +46,9 @@ export const APP_ROUTES = {
   lettersMine: '/letters/my-letters',
   lettersIssued: '/letters/issued',
   lettersRequests: '/letters/requests',
+  lettersApply: '/letters/apply',
+  lettersTypes: '/letters/types',
+  lettersLists: '/letters/lists',
   announcements: '/announcements',
   marks: '/marks',
   marksConfig: '/marks/config',
@@ -86,6 +97,12 @@ const PATH_TO_SIDEBAR: Array<{ path: string; sidebarItem: SidebarItemId }> = [
 export const routeForSidebarItem = (item: SidebarItemId | string): string =>
   SIDEBAR_TO_ROUTE[item as SidebarItemId] ?? APP_ROUTES.dashboard;
 
+export const routeForFaqEntry = (entryId: string): string =>
+  `${APP_ROUTES.faqEntries}/${encodeURIComponent(entryId)}`;
+
+export const routeForStaffAccount = (accountId: string): string =>
+  `${APP_ROUTES.registryStaff}/${encodeURIComponent(accountId)}`;
+
 export const routeForDashboardTimeline = (): string => APP_ROUTES.dashboardTimeline;
 
 export const routeForDashboardSemesters = (): string => APP_ROUTES.dashboardSemesters;
@@ -133,8 +150,16 @@ export const routeForSupervisorResearchRequest = (requestId: string): string =>
 export const routeForDocument = (documentId: number | string): string =>
   `${APP_ROUTES.filesDocuments}/${encodeURIComponent(String(documentId))}`;
 
+/** An appointment letter, opened in Files so its lecturers can reach it too. */
+export const routeForFileLetter = (letterId: number | string): string =>
+  `${APP_ROUTES.filesLetters}/${encodeURIComponent(String(letterId))}`;
+
 export const routeForLetterRequest = (requestId: string): string =>
   `${APP_ROUTES.lettersRequests}/${encodeURIComponent(requestId)}`;
+
+/** A student's application form for one letter. */
+export const routeForLetterApplication = (templateId: string): string =>
+  `${APP_ROUTES.lettersApply}/${encodeURIComponent(templateId)}`;
 
 export const routeForPanelRecommendation = (recommendationId: string): string =>
   `${APP_ROUTES.panelAppointments}/recommendations/${encodeURIComponent(recommendationId)}`;
@@ -253,6 +278,13 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
     // A new request opens for the office to review; decisions open the student's list.
     if (target.recordType === 'LETTER_REQUEST' && target.recordId) {
       return routeForLetterRequest(target.recordId);
+    }
+    // Appointment letters open their own page; missing ones, the office's register.
+    if (target.recordType === 'APPOINTMENT_LETTER' && target.recordId) {
+      return routeForFileLetter(target.recordId);
+    }
+    if (target.recordType === 'APPOINTMENT_LETTERS_MISSING') {
+      return APP_ROUTES.lettersIssued;
     }
     return APP_ROUTES.lettersMine;
   }

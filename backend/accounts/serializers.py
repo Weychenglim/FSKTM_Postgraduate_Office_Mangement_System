@@ -54,7 +54,7 @@ class SettingsPreferencesSerializer(StrictSettingsSerializer):
 
 
 class AccountSettingsSerializer(StrictSettingsSerializer):
-    phone = serializers.CharField(max_length=32, allow_blank=True, required=False)
+    phone = serializers.CharField(max_length=32, allow_blank=True, required=False, validators=[validate_phone])
     preferences = SettingsPreferencesSerializer(required=False)
 
     def to_internal_value(self, data):
@@ -73,6 +73,13 @@ class SettingsPasswordSerializer(StrictSettingsSerializer):
         except DjangoValidationError as exc:
             raise serializers.ValidationError(list(exc.messages))
         return value
+
+    def validate(self, attrs):
+        if attrs["currentPassword"] == attrs["newPassword"]:
+            raise serializers.ValidationError(
+                {"newPassword": "Choose a password different from your current one."}
+            )
+        return attrs
 
 
 class PasswordLinkSerializer(serializers.Serializer):

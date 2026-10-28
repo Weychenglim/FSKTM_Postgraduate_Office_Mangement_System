@@ -1,0 +1,478 @@
+{
+  "date": "2026-10-16",
+  "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "questions": 122,
+  "leftOut": [],
+  "results": {
+    "keywords": {
+      "rule": {
+        "strong": 0.61,
+        "possible": 0.22,
+        "questions": 102,
+        "offTopic": 20,
+        "top1": 65.7,
+        "top3": 75.5,
+        "answeredRight": 39.2,
+        "helped": 67.6,
+        "wrongAnswers": 2,
+        "offTopicRefused": 90.0,
+        "milliseconds": 2.9,
+        "byKind": {
+          "keyword": {
+            "questions": 2,
+            "answered": 2,
+            "helped": 2,
+            "answeredPercent": 100.0,
+            "helpedPercent": 100.0
+          },
+          "malay": {
+            "questions": 20,
+            "answered": 0,
+            "helped": 3,
+            "answeredPercent": 0.0,
+            "helpedPercent": 15.0
+          },
+          "paraphrase": {
+            "questions": 62,
+            "answered": 32,
+            "helped": 55,
+            "answeredPercent": 51.6,
+            "helpedPercent": 88.7
+          },
+          "short": {
+            "questions": 9,
+            "answered": 5,
+            "helped": 7,
+            "answeredPercent": 55.6,
+            "helpedPercent": 77.8
+          },
+          "slang": {
+            "questions": 5,
+            "answered": 1,
+            "helped": 2,
+            "answeredPercent": 20.0,
+            "helpedPercent": 40.0
+          },
+          "typo": {
+            "questions": 4,
+            "answered": 0,
+            "helped": 0,
+            "answeredPercent": 0.0,
+            "helpedPercent": 0.0
+          }
+        },
+        "utility": 50.0
+      },
+      "best score": {
+        "strong": 0.49,
+        "possible": 0.22,
+        "questions": 102,
+        "offTopic": 20,
+        "top1": 66.7,
+        "top3": 75.5,
+        "answeredRight": 50.0,
+        "helped": 66.7,
+        "wrongAnswers": 4,
+        "offTopicRefused": 90.0,
+        "milliseconds": 2.9,
+        "byKind": {
+          "keyword": {
+            "questions": 2,
+            "answered": 2,
+            "helped": 2,
+            "answeredPercent": 100.0,
+            "helpedPercent": 100.0
+          },
+          "malay": {
+            "questions": 20,
+            "answered": 1,
+            "helped": 3,
+            "answeredPercent": 5.0,
+            "helpedPercent": 15.0
+          },
+          "paraphrase": {
+            "questions": 62,
+            "answered": 40,
+            "helped": 54,
+            "answeredPercent": 64.5,
+            "helpedPercent": 87.1
+          },
+          "short": {
+            "questions": 9,
+            "answered": 7,
+            "helped": 7,
+            "answeredPercent": 77.8,
+            "helpedPercent": 77.8
+          },
+          "slang": {
+            "questions": 5,
+            "answered": 1,
+            "helped": 2,
+            "answeredPercent": 20.0,
+            "helpedPercent": 40.0
+          },
+          "typo": {
+            "questions": 4,
+            "answered": 0,
+            "helped": 0,
+            "answeredPercent": 0.0,
+            "helpedPercent": 0.0
+          }
+        },
+        "utility": 51.0
+      },
+      "current": {
+        "strong": 0.61,
+        "possible": 0.22,
+        "questions": 102,
+        "offTopic": 20,
+        "top1": 65.7,
+        "top3": 75.5,
+        "answeredRight": 39.2,
+        "helped": 67.6,
+        "wrongAnswers": 2,
+        "offTopicRefused": 90.0,
+        "milliseconds": 2.9,
+        "byKind": {
+          "keyword": {
+            "questions": 2,
+            "answered": 2,
+            "helped": 2,
+            "answeredPercent": 100.0,
+            "helpedPercent": 100.0
+          },
+          "malay": {
+            "questions": 20,
+            "answered": 0,
+            "helped": 3,
+            "answeredPercent": 0.0,
+            "helpedPercent": 15.0
+          },
+          "paraphrase": {
+            "questions": 62,
+            "answered": 32,
+            "helped": 55,
+            "answeredPercent": 51.6,
+            "helpedPercent": 88.7
+          },
+          "short": {
+            "questions": 9,
+            "answered": 5,
+            "helped": 7,
+            "answeredPercent": 55.6,
+            "helpedPercent": 77.8
+          },
+          "slang": {
+            "questions": 5,
+            "answered": 1,
+            "helped": 2,
+            "answeredPercent": 20.0,
+            "helpedPercent": 40.0
+          },
+          "typo": {
+            "questions": 4,
+            "answered": 0,
+            "helped": 0,
+            "answeredPercent": 0.0,
+            "helpedPercent": 0.0
+          }
+        },
+        "utility": 50.0
+      }
+    },
+    "meaning": {
+      "rule": {
+        "strong": 0.7,
+        "possible": 0.43,
+        "questions": 102,
+        "offTopic": 20,
+        "top1": 85.3,
+        "top3": 93.1,
+        "answeredRight": 52.9,
+        "helped": 87.3,
+        "wrongAnswers": 2,
+        "offTopicRefused": 90.0,
+        "milliseconds": 11.1,
+        "byKind": {
+          "keyword": {
+            "questions": 2,
+            "answered": 1,
+            "helped": 2,
+            "answeredPercent": 50.0,
+            "helpedPercent": 100.0
+          },
+          "malay": {
+            "questions": 20,
+            "answered": 9,
+            "helped": 16,
+            "answeredPercent": 45.0,
+            "helpedPercent": 80.0
+          },
+          "paraphrase": {
+            "questions": 62,
+            "answered": 39,
+            "helped": 56,
+            "answeredPercent": 62.9,
+            "helpedPercent": 90.3
+          },
+          "short": {
+            "questions": 9,
+            "answered": 2,
+            "helped": 8,
+            "answeredPercent": 22.2,
+            "helpedPercent": 88.9
+          },
+          "slang": {
+            "questions": 5,
+            "answered": 3,
+            "helped": 5,
+            "answeredPercent": 60.0,
+            "helpedPercent": 100.0
+          },
+          "typo": {
+            "questions": 4,
+            "answered": 0,
+            "helped": 2,
+            "answeredPercent": 0.0,
+            "helpedPercent": 50.0
+          }
+        },
+        "utility": 67.0
+      },
+      "best score": {
+        "strong": 0.75,
+        "possible": 0.36,
+        "questions": 102,
+        "offTopic": 20,
+        "top1": 85.3,
+        "top3": 93.1,
+        "answeredRight": 45.1,
+        "helped": 93.1,
+        "wrongAnswers": 0,
+        "offTopicRefused": 80.0,
+        "milliseconds": 11.1,
+        "byKind": {
+          "keyword": {
+            "questions": 2,
+            "answered": 1,
+            "helped": 2,
+            "answeredPercent": 50.0,
+            "helpedPercent": 100.0
+          },
+          "malay": {
+            "questions": 20,
+            "answered": 7,
+            "helped": 18,
+            "answeredPercent": 35.0,
+            "helpedPercent": 90.0
+          },
+          "paraphrase": {
+            "questions": 62,
+            "answered": 35,
+            "helped": 58,
+            "answeredPercent": 56.5,
+            "helpedPercent": 93.5
+          },
+          "short": {
+            "questions": 9,
+            "answered": 2,
+            "helped": 9,
+            "answeredPercent": 22.2,
+            "helpedPercent": 100.0
+          },
+          "slang": {
+            "questions": 5,
+            "answered": 1,
+            "helped": 5,
+            "answeredPercent": 20.0,
+            "helpedPercent": 100.0
+          },
+          "typo": {
+            "questions": 4,
+            "answered": 0,
+            "helped": 3,
+            "answeredPercent": 0.0,
+            "helpedPercent": 75.0
+          }
+        },
+        "utility": 69.5
+      }
+    },
+    "combined": {
+      "rule": {
+        "strong": 0.69,
+        "possible": 0.42,
+        "questions": 102,
+        "offTopic": 20,
+        "top1": 91.2,
+        "top3": 94.1,
+        "answeredRight": 64.7,
+        "helped": 89.2,
+        "wrongAnswers": 2,
+        "offTopicRefused": 90.0,
+        "milliseconds": 11.9,
+        "byKind": {
+          "keyword": {
+            "questions": 2,
+            "answered": 2,
+            "helped": 2,
+            "answeredPercent": 100.0,
+            "helpedPercent": 100.0
+          },
+          "malay": {
+            "questions": 20,
+            "answered": 10,
+            "helped": 16,
+            "answeredPercent": 50.0,
+            "helpedPercent": 80.0
+          },
+          "paraphrase": {
+            "questions": 62,
+            "answered": 45,
+            "helped": 59,
+            "answeredPercent": 72.6,
+            "helpedPercent": 95.2
+          },
+          "short": {
+            "questions": 9,
+            "answered": 5,
+            "helped": 8,
+            "answeredPercent": 55.6,
+            "helpedPercent": 88.9
+          },
+          "slang": {
+            "questions": 5,
+            "answered": 3,
+            "helped": 4,
+            "answeredPercent": 60.0,
+            "helpedPercent": 80.0
+          },
+          "typo": {
+            "questions": 4,
+            "answered": 1,
+            "helped": 2,
+            "answeredPercent": 25.0,
+            "helpedPercent": 50.0
+          }
+        },
+        "utility": 74.0
+      },
+      "best score": {
+        "strong": 0.62,
+        "possible": 0.36,
+        "questions": 102,
+        "offTopic": 20,
+        "top1": 91.2,
+        "top3": 94.1,
+        "answeredRight": 78.4,
+        "helped": 92.2,
+        "wrongAnswers": 4,
+        "offTopicRefused": 80.0,
+        "milliseconds": 11.9,
+        "byKind": {
+          "keyword": {
+            "questions": 2,
+            "answered": 2,
+            "helped": 2,
+            "answeredPercent": 100.0,
+            "helpedPercent": 100.0
+          },
+          "malay": {
+            "questions": 20,
+            "answered": 14,
+            "helped": 17,
+            "answeredPercent": 70.0,
+            "helpedPercent": 85.0
+          },
+          "paraphrase": {
+            "questions": 62,
+            "answered": 53,
+            "helped": 60,
+            "answeredPercent": 85.5,
+            "helpedPercent": 96.8
+          },
+          "short": {
+            "questions": 9,
+            "answered": 7,
+            "helped": 8,
+            "answeredPercent": 77.8,
+            "helpedPercent": 88.9
+          },
+          "slang": {
+            "questions": 5,
+            "answered": 3,
+            "helped": 4,
+            "answeredPercent": 60.0,
+            "helpedPercent": 80.0
+          },
+          "typo": {
+            "questions": 4,
+            "answered": 1,
+            "helped": 3,
+            "answeredPercent": 25.0,
+            "helpedPercent": 75.0
+          }
+        },
+        "utility": 78.0
+      },
+      "current": {
+        "strong": 0.69,
+        "possible": 0.42,
+        "questions": 102,
+        "offTopic": 20,
+        "top1": 91.2,
+        "top3": 94.1,
+        "answeredRight": 64.7,
+        "helped": 89.2,
+        "wrongAnswers": 2,
+        "offTopicRefused": 90.0,
+        "milliseconds": 11.9,
+        "byKind": {
+          "keyword": {
+            "questions": 2,
+            "answered": 2,
+            "helped": 2,
+            "answeredPercent": 100.0,
+            "helpedPercent": 100.0
+          },
+          "malay": {
+            "questions": 20,
+            "answered": 10,
+            "helped": 16,
+            "answeredPercent": 50.0,
+            "helpedPercent": 80.0
+          },
+          "paraphrase": {
+            "questions": 62,
+            "answered": 45,
+            "helped": 59,
+            "answeredPercent": 72.6,
+            "helpedPercent": 95.2
+          },
+          "short": {
+            "questions": 9,
+            "answered": 5,
+            "helped": 8,
+            "answeredPercent": 55.6,
+            "helpedPercent": 88.9
+          },
+          "slang": {
+            "questions": 5,
+            "answered": 3,
+            "helped": 4,
+            "answeredPercent": 60.0,
+            "helpedPercent": 80.0
+          },
+          "typo": {
+            "questions": 4,
+            "answered": 1,
+            "helped": 2,
+            "answeredPercent": 25.0,
+            "helpedPercent": 50.0
+          }
+        },
+        "utility": 74.0
+      }
+    }
+  }
+}

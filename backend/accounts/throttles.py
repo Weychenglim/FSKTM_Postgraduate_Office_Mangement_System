@@ -133,3 +133,15 @@ class SettingsPasswordRateThrottle(SimpleRateThrottle):
         if not request.user.is_authenticated:
             return None
         return self.cache_format % {"scope": self.scope, "ident": request.user.pk}
+
+
+class StaffAccessLinkRateThrottle(AccessLinkRateThrottle):
+    """Office-sent links for one staff account, at the same rate as students."""
+
+    scope = "staff_access_link"
+
+    def get_cache_key(self, request, view):
+        office_role = get_user_model().Role.OFFICE_ADMIN
+        if getattr(request.user, "role", None) != office_role:
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": view.kwargs.get("account_id")}

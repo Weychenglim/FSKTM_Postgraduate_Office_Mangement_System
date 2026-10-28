@@ -139,15 +139,15 @@ export const MetadataGrid: React.FC<MetadataGridProps> = ({ from, to, reference 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-4 border-y border-slate-100 my-5 text-left">
       <div className="space-y-1">
-        <span className="card-label uppercase text-slate-400 tracking-wider">From</span>
+        <span className="card-label block uppercase text-slate-400 tracking-wider">From</span>
         <h4 className="card-value text-slate-800">{from}</h4>
       </div>
       <div className="space-y-1">
-        <span className="card-label uppercase text-slate-400 tracking-wider">To</span>
+        <span className="card-label block uppercase text-slate-400 tracking-wider">To</span>
         <h4 className="card-value text-slate-800">{to}</h4>
       </div>
       <div className="space-y-1">
-        <span className="card-label uppercase text-slate-400 tracking-wider">Reference</span>
+        <span className="card-label block uppercase text-slate-400 tracking-wider">Reference</span>
         <h4 className="card-value text-slate-800 tracking-wider font-mono bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100 inline-block">
           {reference}
         </h4>
@@ -323,6 +323,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
       />
 
       <SegmentedControl
+        variant="tabs"
         options={FEED_TABS}
         value={activeTab}
         onChange={(tab) => { setActiveTab(tab); setSearchQuery(''); }}
@@ -330,7 +331,6 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
           announcements: `Announcements (${announcementFeed.length})`,
           notifications: `Notifications (${notificationFeed.length})`,
         }}
-        className="w-fit"
       />
 
       {/* FILTER SEARCH WRAPPER CARD */}
@@ -427,7 +427,8 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
 
       {/* ==================== SCREEN COMPONENT: DIALOG WINDOW CONTEXT ==================== */}
       
-      {selectedNotification ? <PortalModal isOpen onClose={() => setSelectedNotification(null)} labelledBy="notification-dialog-title" className="max-w-2xl p-0">
+      {/* A column while open, so the message scrolls and Close stays in view on a phone. */}
+      {selectedNotification ? <PortalModal isOpen onClose={() => setSelectedNotification(null)} labelledBy="notification-dialog-title" className="max-w-2xl p-0 open:flex open:flex-col">
 
               <div id="modal-header-panel" className="drawer-header">
                 <div className="flex items-center gap-2.5 min-w-0">

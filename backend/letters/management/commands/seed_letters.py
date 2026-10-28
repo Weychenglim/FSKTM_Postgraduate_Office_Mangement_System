@@ -7,15 +7,35 @@ frontend substitutes when a student generates a letter:
     {{STUDENT_NAME}} {{STUDENT_ID}} {{PROGRAMME_NAME}} {{CURRENT_STATUS}}
     {{SUPERVISOR_NAME}} {{REFERENCE_NUMBER}} {{CURRENT_DATE}}
 """
+from importlib import import_module
+
 from django.core.management.base import BaseCommand
 
 from letters.models import LetterTemplate
 
+# The same wording the migration adds, so a fresh seed matches a migrated database.
+confirmation = import_module("letters.migrations.0007_student_confirmation_letter")
+
 TEMPLATES = [
     {
-        "name": "Confirmation of Enrolment",
+        "name": "Student Confirmation Letter",
         "letter_type": "Academic Certification",
         "status": LetterTemplate.Status.ACTIVE,
+        "reference_prefix": "UMF/PG/SCL",
+        "description": "Confirms the student is registered, for banks, agencies, sponsors and transport companies.",
+        "content": confirmation.CONTENT,
+        "content_ms": confirmation.CONTENT_MS,
+        "asks_recipient": True,
+        "form_questions": [{"kind": "recipient", "purposes": [], "askAddress": True}, {"kind": "extras"}],
+        "valid_months": 3,
+        "ready_in_days": 2,
+        "signatory_name": "Dean / Director",
+    },
+    {
+        # Replaced by the Student Confirmation Letter.
+        "name": "Confirmation of Enrolment",
+        "letter_type": "Academic Certification",
+        "status": LetterTemplate.Status.ARCHIVED,
         "reference_prefix": "UMF/PG/ENR",
         "description": "Official status verification for currently registered students.",
         "content": (

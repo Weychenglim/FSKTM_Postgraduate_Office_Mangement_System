@@ -24,6 +24,7 @@ interface UploadNewDocumentProps {
   role?: string;
   initialStudent?: string;
   initialType?: string;
+  initialFile?: File | null;
   onOpenExisting?: (documentId: number) => void;
 }
 
@@ -46,12 +47,13 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
   role = '',
   initialStudent = '',
   initialType = '',
+  initialFile = null,
   onOpenExisting,
 }) => {
   const [options, setOptions] = useState<DocumentOptions | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(initialFile);
   const [dragging, setDragging] = useState(false);
   const [typeCode, setTypeCode] = useState('');
   const [students, setStudents] = useState<TaggableStudent[]>([]);
@@ -60,7 +62,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
   const [audience, setAudience] = useState<StaffAudience>('ACADEMIC');
   const [programme, setProgramme] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(initialFile ? titleFromFileName(initialFile.name) : '');
   const [titleEdited, setTitleEdited] = useState(false);
   const [semester, setSemester] = useState('');
   const [description, setDescription] = useState('');
@@ -221,7 +223,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
         <LoadingState message="Loading the upload form..." />
       ) : (
         <form
-          className="app-card mx-auto max-w-2xl divide-y divide-slate-100"
+          className="app-card divide-y divide-slate-100"
           noValidate
           onSubmit={event => {
             event.preventDefault();

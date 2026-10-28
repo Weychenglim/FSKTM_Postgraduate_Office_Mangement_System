@@ -7,6 +7,7 @@ coverage/
 
 # Python / Django backend
 .venv/
+faq_model_cache/
 __pycache__/
 *.py[cod]
 db.sqlite3

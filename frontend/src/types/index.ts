@@ -10,7 +10,7 @@
 
 export * from './auth';
 export * from './student';
-export * from './lecturer';
+export * from './staffAccount';
 export * from './marks';
 export * from './appointment';
 export * from './file';
@@ -25,3 +25,4 @@ export * from './academicSemester';
 export * from './participantLifecycle';
 export * from './workflowReconciliation';
 export * from './lecturerCapacity';
+export * from './faq';

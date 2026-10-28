@@ -31,7 +31,7 @@ from appointments.models import (
     SupervisorAppointment,
 )
 
-from .account_emails import activation_email
+from .account_emails import activation_email, email_changed_email
 from .authorization import coordinator_scope_q
 from .models import Lecturer, OfficeStaff, RegistryImportBatch, Student, StudentRegistry
 from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
@@ -227,6 +227,8 @@ class StudentRecordCreateSerializer(serializers.Serializer):
 class StudentRecordUpdateSerializer(serializers.Serializer):
     """Fields Office Staff may correct from the Registry screen."""
 
+    name = serializers.CharField(max_length=255, required=False)
+    email = serializers.EmailField(max_length=254, required=False)
     programme = serializers.ChoiceField(choices=APPROVED_PROGRAMMES, required=False)
     academicStatus = serializers.ChoiceField(
         choices=Student.Status.choices, required=False
@@ -243,8 +245,17 @@ class StudentRecordUpdateSerializer(serializers.Serializer):
     semester = serializers.CharField(max_length=64, allow_blank=True, required=False)
     intakeDate = serializers.CharField(max_length=32, allow_blank=True, required=False)
 
+    def validate_name(self, value):
+        name = value.strip()
+        if not name:
+            raise serializers.ValidationError("Enter the student's full name.")
+        return name
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
     def to_internal_value(self, data):
-        # An ignored key read as "saved" to the office (e.g. a name or email
+        # An ignored key read as "saved" to the office (e.g. a matric number
         # edit), so anything this form cannot change is refused outright.
         if hasattr(data, "keys"):
             unknown = sorted(set(data.keys()) - set(self.fields))
@@ -316,6 +327,18 @@ def send_activation_email(user, connection=None) -> bool:
         # Never fail the registration because mail is down; the office is told
         # in the response and can resend.
         logger.exception("Activation email to user %s could not be sent.", user.pk)
+        return False
+
+
+def tell_old_address(user, old_email):
+    """Email the old address after the office changed an account's email.
+    Returns whether it went."""
+    subject, message = email_changed_email(user, old_email)
+    try:
+        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [old_email], fail_silently=False)
+        return True
+    except Exception:
+        logger.exception("Email-change notice for user %s could not be sent.", user.pk)
         return False
 
 
@@ -770,6 +793,13 @@ def student_record_detail_view(request, matric_no):
             {"statusReason": ["A reason is required to change the academic status."]},
             status=status.HTTP_400_BAD_REQUEST,
         )
+    old_email = student.user.email
+    email_change = "email" in data and data["email"] != old_email.lower()
+    if email_change and User.objects.filter(email__iexact=data["email"]).exclude(pk=student.user_id).exists():
+        return Response(
+            {"email": ["An account with this email already exists."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     with transaction.atomic():
         if status_change:
@@ -815,6 +845,14 @@ def student_record_detail_view(request, matric_no):
             student.save(update_fields=student_fields)
 
         user_fields = []
+        if "name" in data and data["name"] != student.user.full_name:
+            student.user.full_name = data["name"]
+            user_fields.append("full_name")
+        if email_change:
+            # The email is also the sign-in name, and changing it ends any
+            # activation or reset link sent to the old address.
+            student.user.email = data["email"]
+            user_fields.append("email")
         if "phone" in data:
             student.user.phone = data["phone"]
             user_fields.append("phone")
@@ -840,7 +878,14 @@ def student_record_detail_view(request, matric_no):
             registry.save(update_fields=["current_semester", "updated_at"])
 
     student.refresh_from_db()
-    return Response(to_record(student))
+    payload = to_record(student)
+    if email_change:
+        # As for staff: only someone who has signed in used the old address,
+        # so only they are told; an unactivated account needs a new link.
+        payload["oldAddressTold"] = (
+            tell_old_address(student.user, old_email) if student.user.has_usable_password() else None
+        )
+    return Response(payload)
 
 
 @api_view(["POST"])

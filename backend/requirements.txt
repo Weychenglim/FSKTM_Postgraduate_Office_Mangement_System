@@ -13,3 +13,5 @@ Pillow>=12.3,<13
 pypdf>=6,<7
 # Security floor for Django's SQL parser dependency.
 sqlparse>=0.6.0,<0.7
+# FAQ chatbot: the small multilingual meaning model, run on the CPU.
+fastembed>=0.9,<1

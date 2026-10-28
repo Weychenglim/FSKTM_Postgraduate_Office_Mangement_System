@@ -6,9 +6,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ArrowLeft, Plus, Search, Settings2, SlidersHorizontal } from 'lucide-react';
-import type { DocumentFilters, DocumentOptions, DocumentSummary, PortalDocument, StudentFileHeader } from '../types';
+import type { DocumentFilters, DocumentOptions, DocumentSummary, GeneratedLetter, PortalDocument, StudentFileHeader } from '../types';
 import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
-import { APP_ROUTES, routeForDocument } from '../constants/routes';
+import { getReceivedLetters } from '../services/lettersApi';
+import { APP_ROUTES, routeForDocument, routeForFileLetter } from '../constants/routes';
 import { filtersFromParams, filtersToParams, moreFilterCount } from '../utils/documentFilters';
 import { shortDocumentDate, studentsLine, typeAndTags, uploadedLine } from '../utils/documentDisplay';
 import { MAX_ZIP_FILES, toggleSelection } from '../utils/documentPreview';
@@ -113,6 +114,23 @@ export const FileRepository: React.FC = () => {
     };
   }, [filters.student]);
 
+  // A lecturer's own appointment letters about this student, from Letter Generation.
+  const [appointmentLetters, setAppointmentLetters] = useState<GeneratedLetter[]>([]);
+  const lecturerView = options !== null && !options.isOffice;
+  useEffect(() => {
+    if (!filters.student || !lecturerView) {
+      setAppointmentLetters([]);
+      return;
+    }
+    let cancelled = false;
+    getReceivedLetters(filters.student)
+      .then(rows => !cancelled && setAppointmentLetters(rows))
+      .catch(() => !cancelled && setAppointmentLetters([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [filters.student, lecturerView]);
+
   const loadMore = async () => {
     setLoadingMore(true);
     try {
@@ -215,6 +233,18 @@ export const FileRepository: React.FC = () => {
                 <div><dt className="text-slate-500">Supervisor</dt><dd className="font-bold text-slate-800">{student.supervisors.join(', ') || 'None yet'}</dd></div>
                 <div><dt className="text-slate-500">Panel member</dt><dd className="font-bold text-slate-800">{student.panel.join(', ') || 'None yet'}</dd></div>
                 {student.letters !== null && <div><dt className="text-slate-500">Letters approved</dt><dd className="font-bold text-slate-800">{student.letters}</dd></div>}
+                {appointmentLetters.length > 0 && (
+                  <div>
+                    <dt className="text-slate-500">Your appointment letters</dt>
+                    <dd className="font-bold">
+                      {appointmentLetters.map(letter => (
+                        <Link key={letter.id} to={routeForFileLetter(letter.id)} className="block text-blue-700 hover:underline">
+                          {letter.templateName}{letter.status === 'Revoked' ? ' (revoked)' : ''}
+                        </Link>
+                      ))}
+                    </dd>
+                  </div>
+                )}
                 {student.required && student.required.length > 0 && (
                   <div>
                     <dt className="text-slate-500">Required documents</dt>
@@ -233,7 +263,7 @@ export const FileRepository: React.FC = () => {
           </section>
         </div>
       ) : (
-        <div role="tablist" aria-label="File views" className="flex flex-wrap gap-x-5 border-b border-slate-200 sm:gap-x-7">
+        <div role="tablist" aria-label="File views" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
           {tabs.map(tab => {
             const selected = filters.view === tab.view;
             return (
@@ -243,7 +273,7 @@ export const FileRepository: React.FC = () => {
                 role="tab"
                 aria-selected={selected}
                 onClick={() => update({ view: tab.view })}
-                className={`-mb-px inline-flex items-center gap-2 border-b-2 py-3 text-[14px] font-bold transition ${selected ? 'border-brand-navy text-brand-navy' : 'border-transparent text-slate-500 hover:text-brand-navy'}`}
+                className={`card-value inline-flex items-center gap-2 rounded-lg px-4 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${selected ? 'bg-brand-navy text-white' : 'text-slate-600 hover:bg-white'}`}
               >
                 {tab.short ? (
                   <>
@@ -252,7 +282,7 @@ export const FileRepository: React.FC = () => {
                   </>
                 ) : tab.label}
                 {tab.count !== undefined && (
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${tab.alert && tab.count ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'}`}>{tab.count}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${tab.alert && tab.count ? 'bg-amber-100 text-amber-800' : selected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>{tab.count}</span>
                 )}
               </button>
             );
