@@ -99,7 +99,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 AUTH_USER_MODEL = "accounts.User"
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
+    "config.admin.TechnicalAdminConfig",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",

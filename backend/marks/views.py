@@ -9,6 +9,7 @@ from rest_framework.response import Response
 
 from academics.models import AcademicSemester
 from accounts.models import Lecturer, Student
+from accounts.authorization import office_actor, can_correct_marks
 from academics.services import current_effective_semester
 from appointments.models import StudentResearchProfile
 
@@ -62,11 +63,11 @@ User = get_user_model()
 
 
 def office_only(user):
-    return user.role == User.Role.OFFICE_ADMIN
+    return office_actor(user)
 
 
 def may_edit_submitted_marks(user):
-    return office_only(user) and user.is_staff and user.has_perm("marks.change_markentry")
+    return can_correct_marks(user)
 
 
 def task_entry_or_none(task):
@@ -1283,7 +1284,7 @@ def manual_override_task_view(request, pk):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def completion_window_history_view(request, pk):
-    if not office_only(request.user) or not request.user.is_staff:
+    if not office_only(request.user):
         return Response({"error":"Only Office Staff/Admin may view completion history."}, status=403)
     task = EvaluationTask.objects.filter(pk=pk).first()
     if task is None:
@@ -1295,7 +1296,7 @@ def completion_window_history_view(request, pk):
 @permission_classes([IsAuthenticated])
 def completion_window_grant_view(request):
     from rest_framework import serializers
-    if not office_only(request.user) or not request.user.is_staff:
+    if not office_only(request.user):
         return Response({"error":"Only Office Staff/Admin may grant completion windows."}, status=403)
     class Input(serializers.Serializer):
         taskIds = serializers.ListField(child=serializers.IntegerField(min_value=1), allow_empty=False)
@@ -1316,7 +1317,7 @@ def completion_window_grant_view(request):
 @permission_classes([IsAuthenticated])
 def completion_window_revoke_view(request, pk):
     from .models import TaskCompletionWindow
-    if not office_only(request.user) or not request.user.is_staff:
+    if not office_only(request.user):
         return Response({"error":"Only Office Staff/Admin may revoke completion windows."}, status=403)
     data = ReasonSerializer(data=request.data)
     data.is_valid(raise_exception=True)
@@ -1335,7 +1336,7 @@ def completion_window_revoke_view(request, pk):
 @permission_classes([IsAuthenticated])
 def period_closure_preview_view(request, pk):
     from .closure_preview import period_closure_preview
-    if not office_only(request.user) or not request.user.is_staff:
+    if not office_only(request.user):
         return Response({"error":"Only Office Staff/Admin may preview closure."},status=403)
     period = EvaluationPeriod.objects.filter(pk=pk).first()
     if period is None:

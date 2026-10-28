@@ -35,11 +35,12 @@ class AppointmentAdminBoundaryTests(APITestCase):
                 workflow]
 
     def admin_request(self):
-        self.office.is_staff = True
-        self.office.is_superuser = True
-        self.office.save(update_fields=["is_staff", "is_superuser"])
+        from accounts.models import User
+        self.technical, _ = User.objects.get_or_create(email='appointments.inspect@example.test', defaults={
+            'role': User.TECHNICAL_ADMIN, 'is_staff': True, 'is_superuser': True,
+        })
         request = RequestFactory().get("/admin/")
-        request.user = self.office
+        request.user = self.technical
         return request
 
     def test_governed_records_are_viewable_with_no_editable_fields_or_write_permissions(self):
@@ -68,7 +69,7 @@ class AppointmentAdminBoundaryTests(APITestCase):
         )
         entry = MarkEntry.objects.create(task=task, status="DRAFT", comments="Preserve this draft")
         client = Client()
-        client.force_login(self.office)
+        client.force_login(self.technical)
         for record in records:
             model = type(record)
             opts = record._meta
@@ -99,12 +100,13 @@ class AppointmentAdminBoundaryTests(APITestCase):
         self.assertFalse(AppointmentLifecycleEvent.objects.exists())
         self.assertFalse(SupervisorDocumentRequirementAudit.objects.exists())
 
-    def test_profile_provisioning_stays_available_but_existing_profile_is_read_only(self):
+    def test_profile_provisioning_and_existing_profile_are_inspection_only(self):
         request = self.admin_request()
         model_admin = admin.site._registry[StudentResearchProfile]
-        self.assertTrue(model_admin.has_add_permission(request))
-        self.assertIn("supervisor", model_admin.get_form(request).base_fields)
-        self.assertIn("proposed_topic", model_admin.get_form(request).base_fields)
+        self.assertFalse(model_admin.has_add_permission(request))
+        client = Client()
+        client.force_login(self.technical)
+        self.assertEqual(client.post(reverse('admin:appointments_studentresearchprofile_add'), {}).status_code, 403)
         self.assertFalse(model_admin.has_change_permission(request, self.profile))
         self.assertFalse(model_admin.has_delete_permission(request, self.profile))
         self.assertEqual(model_admin.get_form(request, self.profile).base_fields, {})
@@ -112,7 +114,7 @@ class AppointmentAdminBoundaryTests(APITestCase):
     def test_profile_admin_post_cannot_reassign_existing_supervisor(self):
         self.admin_request()
         client = Client()
-        client.force_login(self.office)
+        client.force_login(self.technical)
         response = client.post(reverse("admin:appointments_studentresearchprofile_change", args=[self.profile.pk]),
                                {"supervisor": self.new_supervisor.pk, "_save": "Save"})
         self.assertEqual(response.status_code, 403)

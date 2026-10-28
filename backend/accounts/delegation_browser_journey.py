@@ -44,7 +44,7 @@ class DelegationBrowserJourney(LiveServerTestCase):
             "A disposable test database is required.",
         )
         primary_fixtures.AppointmentLifecycleTests.setUp(self)
-        self.office.is_staff = True
+        self.office.is_staff = False
         self.office.save(update_fields=["is_staff"])
         self.acting = self.other_coordinator
         self.regular_programme = self.acting.lecturer.coordinator.programme_managed

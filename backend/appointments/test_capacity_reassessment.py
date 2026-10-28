@@ -7,7 +7,7 @@ class CapacityReassessmentTests(APITestCase):
     _lecturer = fixture.AppointmentLifecycleTests._lecturer
     def setUp(self):
         fixture.AppointmentLifecycleTests.setUp(self)
-        self.office.is_staff = True
+        self.office.is_staff = False
         self.office.save(update_fields=['is_staff'])
     def test_staff_collection_exists_and_student_cannot_read(self):
         self.client.force_authenticate(self.office)

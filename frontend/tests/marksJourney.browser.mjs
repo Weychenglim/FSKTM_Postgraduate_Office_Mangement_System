@@ -60,7 +60,7 @@ try {
   assert.ok(encoded && encoded !== 'RUNNING', 'Browser journey did not finish');
   const result = JSON.parse(encoded.replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&'));
   assert.equal(result.error, undefined, JSON.stringify(result));
-  assert.equal(result.checks.length, 23, 'The complete journey including conflict and interrupted-response recovery must run');
+  assert.equal(result.checks.length, 29, 'The complete journey including non-admin Office correction/reopening must run');
   console.log(result.checks.map(check => `PASS ${check}`).join('\n'));
 } finally {
   if (server) await new Promise(resolve => server.close(resolve));

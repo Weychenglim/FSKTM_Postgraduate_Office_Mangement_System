@@ -1074,10 +1074,15 @@ class PanelRecommendationWorkflowTests(APITestCase):
         self.assertEqual(response.data["status"], "CONFIRMED")
         self.assertEqual(response.data["readinessState"], "CONFIRMED")
         self.assertEqual(response.data["panelMemberName"], self.panel.full_name)
-        self.assertEqual(response.data["panelMemberId"], self.panel.lecturer.staff_no)
+        self.assertIsNone(response.data["panelMemberId"])
+        self.assertNotIn(self.panel.lecturer.staff_no, str(response.data))
         self.assertEqual(response.data["panelMemberEmail"], self.panel.email)
         self.assertEqual(response.data["researchTitle"], self.profile.proposed_topic)
         self.assertTrue(response.data["appointmentDate"])
+        self.assertEqual(response.data["approvedRequest"]["id"], recommendation.pk)
+        self.assertEqual(response.data["approvedRequest"]["nominatedBy"], self.supervisor.full_name)
+        self.assertNotIn("justification", response.data["approvedRequest"])
+        self.assertNotIn("workflow", response.data["approvedRequest"])
 
     def test_student_panel_endpoint_denies_non_student_roles(self):
         for user in [self.supervisor, self.panel, self.coordinator]:

@@ -12,7 +12,7 @@ class OfficeWorkspaceTests(APITestCase):
     nomination = cw.CoordinatorWorkspaceTests.nomination
     def setUp(self):
         cw.CoordinatorWorkspaceTests.setUp(self)
-        self.office.is_staff = True
+        self.office.is_staff = False
         self.office.save(update_fields=['is_staff'])
         self.client.force_authenticate(self.office)
     def get(self, path, **query):
@@ -63,12 +63,12 @@ class OfficeWorkspaceTests(APITestCase):
         self.assertFalse(response.data['canDecide'])
         self.assertEqual(response.data['email'],row.student.user.email)
         self.assertIn('Supervisees',response.data['workloadLimit'])
-    def test_office_endpoint_rejects_other_roles_and_nonstaff_office(self):
+    def test_office_endpoint_rejects_other_roles_and_inactive_office(self):
         for actor in [self.coordinator,self.supervisor,self.student.user]:
             self.client.force_authenticate(actor)
             self.assertEqual(self.get('requests').status_code,403)
-        self.office.is_staff=False
-        self.office.save(update_fields=['is_staff'])
+        self.office.is_active=False
+        self.office.save(update_fields=['is_active'])
         self.client.force_authenticate(self.office)
         self.assertEqual(self.get('requests').status_code,403)
     def test_legacy_unlinked_panel_is_omitted_from_capacity_browse_and_detail(self):

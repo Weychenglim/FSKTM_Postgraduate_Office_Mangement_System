@@ -48,7 +48,7 @@ class ParticipantLifecycleTests(APITestCase):
             password="StrongPass123!",
             full_name="Lifecycle Office",
             role=User.Role.OFFICE_ADMIN,
-            is_staff=True,
+            is_staff=False,
         )
         OfficeStaff.objects.create(
             user=self.office,

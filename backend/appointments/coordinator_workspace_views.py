@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from academics.services import current_effective_semester
-from accounts.authorization import coordinator_scope_q
+from accounts.authorization import office_actor, coordinator_scope_q
 from accounts.models import User
 from . import capacity_reassessment, co_supervision, coordinator_workspace as workspace, office_attention
 from .models import SupervisorApplication
@@ -19,7 +19,8 @@ from .supervision_exports import supervision_workbook
 
 def require_browse_staff(actor, office=False):
     expected = User.Role.OFFICE_ADMIN if office else User.Role.COORDINATOR
-    if actor.role != expected or not actor.is_active or office and not actor.is_staff:
+    allowed = office_actor(actor) if office else actor.role == expected and actor.is_active
+    if not allowed:
         raise PermissionDenied("This staff workspace is not available to your account.")
 
 

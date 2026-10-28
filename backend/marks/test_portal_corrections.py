@@ -22,6 +22,8 @@ class MarksPortalCorrectionTests(APITestCase):
         self.office_admin.user_permissions.add(Permission.objects.get(
             content_type__app_label='marks', codename='change_markentry',
         ))
+        self.office_admin.is_staff = False
+        self.office_admin.save(update_fields=['is_staff'])
         self.client.force_authenticate(self.lecturer)
         self.assertEqual(self.client.put(f'/api/marks/tasks/{self.task.pk}/draft/', self.score_payload(), format='json').status_code, 200)
         self.assertEqual(self.client.post(f'/api/marks/tasks/{self.task.pk}/submit/', submission_payload(self.task), format='json').status_code, 200)
@@ -141,7 +143,7 @@ class MarksPortalCorrectionTests(APITestCase):
         self.assertEqual(response.status_code, 400, response.data)
         self.assertEqual(self.snapshot(), before)
 
-    def test_permissions_require_office_staff_and_model_change_permission(self):
+    def test_permissions_require_active_office_and_model_change_permission(self):
         payload = self.payload(); before = self.snapshot()
         for actor in [self.lecturer, self.student_user, self.other_lecturer]:
             actor.is_staff = True; actor.save(update_fields=['is_staff'])
@@ -156,10 +158,27 @@ class MarksPortalCorrectionTests(APITestCase):
         self.assertFalse(self.detail()['officeActions']['canCorrect'])
         self.assertEqual(self.client.post(self.url+'correct/', payload, format='json').status_code, 403)
         self.office_admin.user_permissions.add(Permission.objects.get(content_type__app_label='marks', codename='change_markentry'))
-        self.office_admin.is_staff = False; self.office_admin.save(update_fields=['is_staff'])
         self.office_admin = type(self.office_admin).objects.get(pk=self.office_admin.pk)
         self.client.force_authenticate(self.office_admin)
-        self.assertEqual(self.client.post(self.url+'correct/', payload, format='json').status_code, 403)
+        self.assertEqual(self.client.post(self.url+'correct/', payload, format='json').status_code, 200)
+
+    def test_direct_services_require_explicit_permission_and_active_office(self):
+        from django.core.exceptions import ValidationError
+        from .services import correct_submitted_marks, reopen_submitted_marks
+        self.office_admin.user_permissions.clear()
+        self.office_admin = type(self.office_admin).objects.get(pk=self.office_admin.pk)
+        before = self.snapshot()
+        for service, extra in [(correct_submitted_marks, {'score_values': {}, 'comments': 'Forbidden'}),
+                               (reopen_submitted_marks, {})]:
+            with self.subTest(service=service.__name__), self.assertRaises(ValidationError):
+                service(entry=self.entry, actor=self.office_admin, reason='Must be rejected', **extra)
+            self.assertEqual(self.snapshot(), before)
+        self.office_admin.user_permissions.add(Permission.objects.get(content_type__app_label='marks', codename='change_markentry'))
+        self.office_admin.is_active = False
+        self.office_admin.save(update_fields=['is_active'])
+        with self.assertRaises(ValidationError):
+            reopen_submitted_marks(entry=self.entry, actor=self.office_admin, reason='Inactive actor')
+        self.assertEqual(self.snapshot(), before)
 
     def test_missing_and_unsubmitted_records_cannot_be_edited(self):
         payload = self.payload()
@@ -177,8 +196,8 @@ class MarksPortalCorrectionTests(APITestCase):
         self.assertEqual(self.snapshot(), before)
 
     def test_django_admin_is_inspection_only_even_for_superuser(self):
-        self.office_admin.is_superuser = True; self.office_admin.save(update_fields=['is_superuser'])
-        client = Client(); client.force_login(self.office_admin)
+        technical = type(self.office_admin).objects.create_superuser('marks.inspect@example.test')
+        client = Client(); client.force_login(technical)
         url = reverse('admin:marks_markentry_change', args=[self.entry.pk])
         response = client.get(url)
         self.assertEqual(response.status_code, 200)

@@ -11,6 +11,7 @@ from django.utils.text import slugify
 
 from academics.models import AcademicSemester
 from accounts.models import Lecturer, Student
+from accounts.authorization import office_actor, can_correct_marks
 from appointments.models import (
     PanelAppointment,
     StudentResearchProfile,
@@ -55,7 +56,7 @@ def _assert_period_allows_task_creation(period):
 
 
 def _assert_office_admin(actor):
-    if actor.role != User.Role.OFFICE_ADMIN or not actor.is_staff:
+    if not office_actor(actor):
         raise ValidationError("Only authorized Office Staff/Admin may modify submitted marks.")
 
 
@@ -1213,7 +1214,8 @@ def correct_submitted_marks(
     comments=None,
     expected_version=None,
 ):
-    _assert_office_admin(actor)
+    if not can_correct_marks(actor):
+        raise ValidationError("Only authorized Office Staff/Admin may modify submitted marks.")
     reason = str(reason).strip()
     if not reason:
         raise ValidationError("A correction reason is required.")
@@ -1255,7 +1257,8 @@ def correct_submitted_marks(
 
 @transaction.atomic
 def reopen_submitted_marks(*, entry, actor, reason, expected_version=None):
-    _assert_office_admin(actor)
+    if not can_correct_marks(actor):
+        raise ValidationError("Only authorized Office Staff/Admin may modify submitted marks.")
     reason = str(reason).strip()
     if not reason:
         raise ValidationError("A reopening reason is required.")

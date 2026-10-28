@@ -4,12 +4,13 @@ from django.db import models, transaction
 from django.utils import timezone
 from accounts.eligibility import profile_student_is_workflow_eligible, user_is_assignable_lecturer
 from accounts.models import User
+from accounts.authorization import office_actor as is_office_actor
 from academics.models import AcademicSemester
 from .models import EvaluationPeriod, EvaluationTask, MarkEntry, TaskCompletionWindow, TaskCompletionWindowAudit
 
 
 def office_actor(actor):
-    if actor.role != User.Role.OFFICE_ADMIN or not actor.is_staff:
+    if not is_office_actor(actor):
         raise PermissionError('Only Office Staff/Admin may manage completion windows.')
 
 

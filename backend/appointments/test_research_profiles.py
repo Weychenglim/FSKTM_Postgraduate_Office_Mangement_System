@@ -16,7 +16,7 @@ class ResearchProfileDirectoryTests(APITestCase):
 
     def setUp(self):
         fixture.AppointmentLifecycleTests.setUp(self)
-        self.office.is_staff = True
+        self.office.is_staff = False
         self.office.save(update_fields=['is_staff'])
         self.client.force_authenticate(self.office)
         for index in range(32):
@@ -62,6 +62,9 @@ class ResearchProfileDirectoryTests(APITestCase):
         self.office.is_staff = False
         self.office.save(update_fields=['is_staff'])
         self.client.force_authenticate(self.office)
+        self.assertEqual(self.client.get(self.base).status_code, 200)
+        self.office.is_active = False
+        self.office.save(update_fields=['is_active'])
         self.assertEqual(self.client.get(self.base).status_code, 403)
 
     def test_selected_only_options_do_not_serialize_the_full_roster(self):
