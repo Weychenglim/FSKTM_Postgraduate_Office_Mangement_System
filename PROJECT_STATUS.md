@@ -1,3 +1,9 @@
+## System-wide README (28 October 2026)
+
+Replaced the five-owned-module introduction with a whole-system overview covering the combined team project: roles, all portal modules, the appointment-to-evaluation workflow, Registry, Letters, File Repository, Announcements/Notifications, FAQ/chatbot, and Settings. Expanded the stack and repository map, retained development/demo guidance, and documented backend-integrated frontend configuration, verification commands, and operational references. Module ownership boundaries remain separate. Requirements and architecture documents were reviewed; no product requirements, runtime architecture, or application code changed.
+
+Verification: checked module descriptions against local routes/services and backend references; all 10 local documentation links and anchors resolve, Markdown fences are balanced, all 10 listed backend module directories exist, the four documented npm scripts and Node minimum match package.json, and all eight PowerShell examples parse without errors. A separate reader review found no actionable issues. Corrected the frontend test locations during the final source check. Whitespace checks pass. Application tests were not rerun for this documentation-only update; the pre-existing local-server status note is preserved.
+
 ## Branch integration and release (28 October 2026)
 
 All pending session changes are recorded in separate appointment UI, Office authorization, carryover acceptance and documentation commits. Integrated origin/main at 423a2a4 into codex/portal-consistency-and-toast with a normal merge. Resolved both content conflicts by retaining main's redesigned letter-management and staff-account screens; preserved profile ownership guards, incoming AccountChange inspection and contextual marking routes. Updated obsolete alignment fixtures to current production workload components and removed two incoming trailing blank lines.
