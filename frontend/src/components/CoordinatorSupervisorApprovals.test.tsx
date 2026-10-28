@@ -72,11 +72,11 @@ assert.doesNotMatch(lifecycle(true),/Appointment history/,'Records with no event
 assert.match(lifecycle(true), /Approved on/);
 assert.equal(typeof coordinator.CoordinatorApplicationLifecycle, 'function', 'An approved application detail must include its own lifecycle controls');
 const selectedLifecycle = (record: SupervisorApplicationRecord) => renderToStaticMarkup(<coordinator.CoordinatorApplicationLifecycle record={record} onEnd={async () => {}} />);
-assert.match(selectedLifecycle(active), />End Appointment</);
+assert.match(selectedLifecycle(active), />End supervisor appointment</);
 assert.doesNotMatch(selectedLifecycle(active), /Ended appointment student|Research completed/, 'A selected application cannot expose unrelated lifecycle records');
 assert.doesNotMatch(selectedLifecycle(active), /View student record|Programme Appointment Records/, 'Embedded lifecycle omits duplicate navigation and workspace framing');
 assert.match(selectedLifecycle(ended), /Research completed/);
-assert.doesNotMatch(selectedLifecycle(ended), />End Appointment</);
+assert.doesNotMatch(selectedLifecycle(ended), />End supervisor appointment</);
 assert.equal(selectedLifecycle(base), '', 'Pending requests do not receive appointment controls');
 const labelledReturn = renderToStaticMarkup(<MemoryRouter><coordinator.CoordinatorSupervisorApprovals initialApplicationId="1" backLabel="Back to Supervisory teams" /></MemoryRouter>);
 assert.match(labelledReturn, /Back to Supervisory teams/);

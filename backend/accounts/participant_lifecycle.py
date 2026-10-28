@@ -28,6 +28,7 @@ from .models import (
     Student,
     User,
 )
+from .authorization import office_actor
 from .session_tokens import blacklist_user_refresh_tokens
 
 
@@ -38,7 +39,7 @@ class ParticipantLifecycleConflict(Exception):
 
 
 def assert_office_actor(actor):
-    if actor.role != User.Role.OFFICE_ADMIN or not actor.is_staff:
+    if not office_actor(actor):
         raise PermissionError("Only Office Staff/Admin may manage participant lifecycles.")
 
 

@@ -142,7 +142,7 @@ class CapacityPublicationWorkloadTests(TestCase):
         self.assertEqual(validate_capacity_plan_ready(self.draft), [])
         self.assertEqual(self.publish().lifecycle_status, "PUBLISHED")
 
-    def test_ended_appointments_and_terminal_or_supervisor_pending_requests_do_not_count(self):
+    def test_ended_terminal_and_unaccepted_supervisor_requests_do_not_count(self):
         appointment = self.primary()
         SupervisorAppointment.objects.filter(pk=appointment.pk).update(status="ENDED")
         for status in ("REJECTED_BY_PANEL", "REJECTED_BY_COORDINATOR",
@@ -151,11 +151,26 @@ class CapacityPublicationWorkloadTests(TestCase):
         SupervisorApplication.objects.create(
             student=self.student(), proposed_supervisor=self.lecturer.user,
             academic_semester=self.semester, research_title="Pending",
-            research_abstract="Pending", status="PENDING_COORDINATOR",
+            research_abstract="Pending", status="SUBMITTED_TO_SUPERVISOR",
         )
         self.supporting(active=False)
         self.limits(supervisor=0, panel=0)
         self.assertEqual(self.publish().lifecycle_status, "PUBLISHED")
+
+    def test_accepted_primary_request_reserves_capacity_before_appointment(self):
+        application = SupervisorApplication.objects.create(
+            student=self.student(), proposed_supervisor=self.lecturer.user,
+            academic_semester=self.semester, research_title="Accepted request",
+            research_abstract="Awaiting Coordinator", status="PENDING_COORDINATOR",
+        )
+        self.limits(supervisor=0, panel=0)
+        with self.assertRaisesRegex(CapacityLifecycleConflict, "0 active.*1 reserved"):
+            self.publish()
+        self.limits(supervisor=1, panel=0)
+        self.assertEqual(self.publish().lifecycle_status, "PUBLISHED")
+        application.refresh_from_db()
+        self.assertEqual(application.status, "PENDING_COORDINATOR")
+        self.assertFalse(SupervisorAppointment.objects.filter(application=application).exists())
 
     def test_publish_rechecks_workload_after_an_earlier_ready_preview(self):
         self.limits(supervisor=0)

@@ -28,3 +28,15 @@ test('submitted view distinguishes legacy, loading, error/retry and real full te
   assert.match(html, /Second paragraph/); assert.doesNotMatch(html, /<script>/);
   for (const field of intent.RESEARCH_INTENT_FIELDS) assert.ok(html.includes(field.label));
 });
+
+
+test('Embedded submitted intent groups the complete research text without another card', () => {
+  const record = { ...intent.emptySupervisorResearchIntent(), introduction: 'Recorded introduction', methodology: 'Recorded method' };
+  const html=renderToStaticMarkup(React.createElement(fields.SupervisorResearchIntentSection, {record,loading:false,error:null,onRetry:()=>{},embedded:true} as any));
+  for(const group of ['Background and purpose','Questions and objectives','Research plan'])assert.ok(html.includes(group),group);
+  assert.equal((html.match(/<details/g)||[]).length,3);
+  assert.equal((html.match(/<details[^>]*open/g)||[]).length,1);
+  assert.match(html,/Expand all/);
+  assert.doesNotMatch(html,/bg-white rounded-2xl border/);
+  assert.match(html,/Recorded introduction/);assert.match(html,/Recorded method/);
+});

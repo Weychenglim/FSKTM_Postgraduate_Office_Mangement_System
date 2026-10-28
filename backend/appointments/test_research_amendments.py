@@ -10,7 +10,7 @@ from . import test_appointment_lifecycle as fixture
 class ResearchAmendmentTests(APITestCase):
     def setUp(self):
         fixture.AppointmentLifecycleTests.setUp(self)
-        self.office.is_staff = True
+        self.office.is_staff = False
         self.office.save(update_fields=['is_staff'])
     _lecturer = fixture.AppointmentLifecycleTests._lecturer
     base = '/api/appointments/research-amendments/'

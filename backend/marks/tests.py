@@ -3,6 +3,7 @@ from .test_write_helpers import submission_payload
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework import status
@@ -67,8 +68,9 @@ class MarkEntryWorkflowTests(APITestCase):
             password="password123",
             full_name="Marks Administrator",
             role=User.Role.OFFICE_ADMIN,
-            is_staff=True,
+            is_staff=False,
         )
+        self.office_admin.user_permissions.add(Permission.objects.get(content_type__app_label='marks', codename='change_markentry'))
         OfficeStaff.objects.create(
             user=self.office_admin,
             staff_no="MO1001",

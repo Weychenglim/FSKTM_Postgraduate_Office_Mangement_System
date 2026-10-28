@@ -47,7 +47,7 @@ class SupportingSupervisionBrowserJourney(LiveServerTestCase):
             "A disposable test database is required.",
         )
         primary_fixtures.AppointmentLifecycleTests.setUp(self)
-        self.office.is_staff = True
+        self.office.is_staff = False
         self.office.save(update_fields=["is_staff"])
         self.panel_appointment = (
             primary_fixtures.AppointmentLifecycleTests._panel_appointment(self)

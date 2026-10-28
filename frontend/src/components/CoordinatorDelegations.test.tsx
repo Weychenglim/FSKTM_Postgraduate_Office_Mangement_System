@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CoordinatorDelegationCard } from './CoordinatorDelegations';
+import { CoordinatorDelegationCard, CoordinatorProgrammeSummary } from './CoordinatorDelegations';
 import { coordinatorProgrammeNames, malaysiaToday, validateDelegation } from '../utils/coordinatorDelegations';
 import type { CoordinatorDelegation } from '../types/coordinatorDelegation';
 
@@ -23,3 +23,26 @@ assert.deepEqual(coordinatorProgrammeNames({ programme: 'Regular', programmes: [
 assert.deepEqual(coordinatorProgrammeNames({ programme: 'Regular', programmes: [] }), []);
 assert.deepEqual(coordinatorProgrammeNames({ programme: 'Regular' }), ['Regular']);
 console.log('Coordinator delegation role rendering and Malaysia date validation passed');
+
+const summary = (rows: CoordinatorDelegation[], extra = {}) => renderToStaticMarkup(<CoordinatorProgrammeSummary regularProgramme="MSc Computing" effectiveProgrammes={['MSc Computing']} rows={rows} {...extra} />);
+const emptySummary = summary([]);
+assert.match(emptySummary, /Your programme/);
+assert.equal((emptySummary.match(/MSc Computing/g) || []).length, 1);
+assert.doesNotMatch(emptySummary, /My coordinator scope|Temporary programme cover|Access history|No coordinator delegations|Current access|<strong/);
+const activeCover = summary([{ ...row, programme: 'MSc Data Science' }]);
+assert.match(activeCover, /Temporary programme cover/);
+assert.match(activeCover, /MSc Data Science/);
+assert.match(activeCover, /2026-09-18 to 2026-09-30/);
+assert.doesNotMatch(activeCover, /Access history|>Revoke</);
+const scheduledCover = summary([{ ...row, status: 'SCHEDULED' }]);
+assert.match(scheduledCover, /Scheduled/);
+assert.doesNotMatch(scheduledCover, />Active</);
+const pastCover = summary([{ ...row, status: 'EXPIRED' }, { ...row, id: 2, status: 'REVOKED' }]);
+assert.match(pastCover, /Access history \(2\)/);
+assert.match(pastCover, /<details class=/);
+assert.doesNotMatch(pastCover, /<details[^>]*open|Temporary programme cover/);
+assert.match(summary([], { loading: true }), /Checking temporary programme cover/);
+assert.match(summary([], { error: 'Unable to load access.' }), /Unable to load access/);
+assert.match(summary([], { regularProgramme: '' }), /No regular programme assigned/);
+assert.match(summary([], { effectiveProgrammes: ['MSc Computing', 'MSc AI'] }), /Additional programme access/);
+console.log('Coordinator programme summary covers empty, active, scheduled, historical, loading and failure states');

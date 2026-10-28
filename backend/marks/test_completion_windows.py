@@ -40,13 +40,11 @@ class CompletionWindowTests(APITestCase):
         self.assertEqual(self.task.mark_entry.submitted_completion_window_id, window_id)
         self.assertIsNotNone(self.task.mark_entry.submitted_due_at)
 
-    def test_grant_requires_staff_and_future_extension(self):
+    def test_non_admin_office_grants_but_future_extension_is_required(self):
         self.office.is_staff = False
         self.office.save()
-        self.assertEqual(self.grant().status_code, 403)
-        self.office.is_staff = True
-        self.office.save()
         self.assertEqual(self.grant(deadline=(timezone.now()+timezone.timedelta(days=1)).isoformat()).status_code, 400)
+        self.assertEqual(self.grant().status_code, 201)
 
     def test_history_cannot_be_rewritten_through_queryset(self):
         from django.core.exceptions import ValidationError

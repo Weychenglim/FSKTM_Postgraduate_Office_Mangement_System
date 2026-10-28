@@ -234,6 +234,7 @@ def _capacity_resolution_payload(result):
         "limit": result.limit,
         "activeLoad": result.active_load,
         "reservedLoad": result.reserved_load,
+        "pendingRequests": result.pending_requests,
         "availableSlots": result.available_slots,
         "state": str(result.state),
         "unavailableUntil": (
@@ -301,7 +302,7 @@ def _entry_capacity_resolution(entry, role, context):
     if role == CapacityRole.SUPERVISOR:
         limit = limit_values.get("supervisor_limit")
         active_load = context["supervisorLoad"].get(user.pk, 0)
-        reserved_load = 0
+        reserved_load = context["supervisorReservations"].get(user.pk, 0)
     else:
         limit = limit_values.get("panel_limit")
         active_load = context["panelLoad"].get(user.pk, 0)
@@ -314,6 +315,7 @@ def _entry_capacity_resolution(entry, role, context):
         limit=limit,
         active_load=active_load,
         reserved_load=reserved_load,
+        pending_requests=context["supervisorPendingRequests"].get(user.pk, 0) if role == CapacityRole.SUPERVISOR else 0,
         eligible=(
             user.is_active and lecturer.lifecycle_status == lecturer.Lifecycle.ACTIVE
         ),

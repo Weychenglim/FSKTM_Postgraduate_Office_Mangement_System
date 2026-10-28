@@ -95,7 +95,7 @@ class SupervisionExportTests(APITestCase):
         self.assertLessEqual(len(large) - len(small), 1)
         self.assertLessEqual(len(large), 10)
 
-    def test_namespace_guards_reject_other_roles_inactive_and_nonstaff_office(self):
+    def test_namespace_guards_accept_nonstaff_office_but_reject_other_roles_and_inactive(self):
         for namespace, actors in (
             ("office-workspace", (self.coordinator, self.supervisor, self.student_user)),
             ("coordinator-workspace", (self.office, self.supervisor, self.student_user)),
@@ -105,9 +105,9 @@ class SupervisionExportTests(APITestCase):
                     self.assertEqual(self.get(actor, namespace).status_code, 403)
         self.office.is_staff = False
         self.office.save(update_fields=["is_staff"])
-        self.assertEqual(self.get().status_code, 403)
-        self.office.is_staff, self.office.is_active = True, False
-        self.office.save(update_fields=["is_staff", "is_active"])
+        self.assertEqual(self.get().status_code, 200)
+        self.office.is_active = False
+        self.office.save(update_fields=["is_active"])
         self.assertEqual(self.get().status_code, 403)
         self.coordinator.is_active = False
         self.coordinator.save(update_fields=["is_active"])

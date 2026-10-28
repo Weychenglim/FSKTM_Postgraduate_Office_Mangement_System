@@ -1,6 +1,7 @@
 import { UsersRound, ClipboardCheck, Clock3 } from 'lucide-react';
 import {clearAppointmentFilterParams} from '../utils/appointmentFilters';
 import { DecisionDialog } from './DecisionDialog';
+import { AlertMessage } from './AlertMessage';
 import { completeDecision } from '../utils/decisionSubmission';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
@@ -15,7 +16,7 @@ import { LoadingState, ErrorState } from './StateViews';
 import { RequestViewSwitch, RequestFilters, RequestGroupSection, WorkspaceSectionHeader, WorkspaceRecordTable, WorkspacePagination, workspacePageSize, type RequestListView } from './RequestWorkspacePrimitives';
 import { RecordPage } from './RecordPage';
 import { SupervisorRequestDetail, supervisorRequestMetadata, toSupervisorRequestPresentation } from './SupervisorRequestDetail';
-import { RequestMetadata, ViewStudentRecordAction } from './RequestDetailPrimitives';
+import { PrimaryRequestDecisionButtons, RequestMetadata, ViewStudentRecordAction } from './RequestDetailPrimitives';
 import { CoSupervisorAppointmentCard, CoSupervisorNominationCard, supportingRequestMetadata } from './SupervisoryTeamManagement';
 import { AppointmentSummaryCard } from './AppointmentPrimitives';
 import { capacityStateLabel } from '../utils/lecturerCapacity';
@@ -41,9 +42,12 @@ export function LecturerPrimaryRequestActions({ record, blocked = false, busy, o
   children?: React.ReactNode;
 }) {
   const canReview = record.status === 'SUBMITTED_TO_SUPERVISOR' && record.participantEligible !== false && !blocked;
+  const capacity = record.acceptanceCapacity;
+  const capacityBlocked = !!capacity && (capacity.state !== 'AVAILABLE' || capacity.availableSlots <= 0);
   return <div className="space-y-4">
     {record.participantEligible === false ? <p className="card-description">This Student is currently ineligible for a decision.</p> : null}
-    {canReview ? <div className="flex flex-wrap gap-2">{(['accept', 'reject'] as const).map(value => <PortalButton key={value} size="sm" variant={value === 'accept' ? 'primary' : 'secondary'} disabled={busy} onClick={() => onAction(value)}>{value === 'accept' ? 'Accept request' : 'Reject request'}</PortalButton>)}</div> : null}
+    {canReview && capacityBlocked ? <p className="card-description text-amber-800">{capacity!.availableSlots <= 0 && ['FULL','OVER_CAPACITY'].includes(capacity!.state) ? 'No places available. Active appointments and accepted requests use the available capacity. You can still reject this request.' : 'Acceptance is unavailable under this request’s current capacity policy. You can still reject this request.'}</p> : null}
+    {canReview ? <PrimaryRequestDecisionButtons positiveLabel="Accept request" disabled={busy} positiveDisabled={capacityBlocked} onPositive={()=>{if(!capacityBlocked)onAction('accept');}} onReject={()=>onAction('reject')}/> : null}
     {children}
   </div>;
 }
@@ -175,15 +179,27 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
   const panelRow = selected?.nomination;
   const loadError = primaryError ?? error;
   const decisionLabel = action === 'accept' ? 'Accept request' : action === 'approve' ? 'Approve supporting appointment' : action === 'cancel' ? 'Cancel nomination' : 'Reject request';
-  const decisionDialog = <DecisionDialog isOpen={!!action} decisionKey={selected?.key} title={decisionLabel} confirmLabel={decisionLabel} kind={action==='cancel'?'confirmation':'review'} tone={action&&['accept','approve'].includes(action)?'info':'danger'}
-    context={<p>{selected?.studentName} · {selected?.matricNo} · {selected?.programme}</p>}
-    message={action === 'accept' ? 'Acceptance forwards this request to the Programme Coordinator for final approval.' : action === 'approve' ? 'Approval confirms the supporting appointment after eligibility and capacity checks.' : action === 'cancel' ? 'This nomination will be cancelled.' : 'This request will be rejected with your reason recorded.'}
-    busy={busy} dirty={!!reason.trim()} canConfirm={!!selected && !!action && (['accept', 'approve'].includes(action) || !!reason.trim())}
+  const acceptanceCapacity = selected?.kind === 'primary' ? detail?.acceptanceCapacity : null;
+  const acceptanceBlocked = !!acceptanceCapacity && (acceptanceCapacity.state !== 'AVAILABLE' || acceptanceCapacity.availableSlots <= 0);
+  const otherPendingRequests = Math.max(0,(acceptanceCapacity?.pendingRequests ?? 0)-1);
+  const lastPlaceAcceptance = selected?.kind === 'primary' && acceptanceCapacity?.availableSlots === 1;
+  const acceptanceMessage = lastPlaceAcceptance
+    ? <AlertMessage type="warning" title="Last available place" message={<>
+        <p>Accepting reserves this place until Coordinator approval.</p>
+        {otherPendingRequests > 0 ? <p className="mt-2">{otherPendingRequests} other pending {otherPendingRequests === 1 ? 'request' : 'requests'} may close after final approval.</p> : null}
+      </>}/>
+    : selected?.kind === 'primary'
+      ? 'Acceptance reserves a place while the Programme Coordinator makes the final decision.'
+      : 'Acceptance forwards this nomination to the Programme Coordinator for final approval. Capacity is checked at final approval.';
+  const decisionDialog = <DecisionDialog isOpen={!!action} decisionKey={selected?.key} title={decisionLabel} confirmLabel={decisionLabel} kind={action==='cancel'?'confirmation':'review'} tone={action==='accept'&&lastPlaceAcceptance?'warning':action&&['accept','approve'].includes(action)?'info':'danger'}
+    context={<p>{(selected?.kind === 'primary' && detail ? [detail.studentName, detail.studentId, detail.programme] : [selected?.studentName, selected?.matricNo, selected?.programme]).filter(Boolean).join(' · ')}</p>}
+    message={action === 'accept' ? acceptanceMessage : action === 'approve' ? 'Approval confirms the supporting appointment after eligibility and capacity checks.' : action === 'cancel' ? 'This nomination will be cancelled.' : 'This request will be rejected with your reason recorded.'}
+    busy={busy} dirty={!!reason.trim()} canConfirm={!!selected && !!action && !(action === 'accept' && acceptanceBlocked) && (['accept', 'approve'].includes(action) || !!reason.trim())}
     successMessage={action === 'accept' ? 'Request accepted and forwarded to the Programme Coordinator.' : action === 'approve' ? 'Supporting appointment approved.' : action === 'cancel' ? 'Nomination cancelled.' : 'Request rejected.'}
     onClose={() => { setAction(null); setReason(''); }} onConfirm={decide} onReload={async () => { if (selected) await open(selected, true, true); }}>
     {action && !['accept', 'approve'].includes(action) ? <label className="form-label block">Reason (required)<textarea required className="form-control mt-2" value={reason} disabled={busy} onChange={event => setReason(event.target.value)} /></label> : null}
   </DecisionDialog>;
-  const primaryActions = detail ? <LecturerPrimaryRequestActions record={detail} blocked={!!detailError || decisionSaved.current} busy={busy}
+  const primaryActions = detail && (detail.participantEligible === false || (detail.status === 'SUBMITTED_TO_SUPERVISOR' && !detailError && !decisionSaved.current)) ? <LecturerPrimaryRequestActions record={detail} blocked={!!detailError || decisionSaved.current} busy={busy}
     onAction={value => { setAction(value); setReason(''); }} /> : null;
   if (initialApplicationId || initialSupportingId || selected) return <>{decisionDialog}<RecordPage navigationComplete={navigationComplete} title="Appointment request" backLabel={backLabel} onBack={closePanel}
     metadata={!detailLoading && !detailError ? detail ? <RequestMetadata {...supervisorRequestMetadata(toSupervisorRequestPresentation(detail))} /> : panelRow ? <RequestMetadata {...supportingRequestMetadata(panelRow)} /> : undefined : undefined}
@@ -196,8 +212,8 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
     </> : loadError ? <ErrorState message={loadError} onRetry={() => { void load(); void onChanged(); }} /> : <LoadingState message="Loading request details…" />}
   </RecordPage></>;
   return <>{decisionDialog}<div className="space-y-5">
-    {view === 'requests' && !loading && !primaryLoading && !loadError && workload ? <div className="grid gap-4 md:grid-cols-3">
-      <AppointmentSummaryCard icon={UsersRound} title="Supervisory load" value="" description={`${workload.semesterCode ?? 'No active semester'}${workload.capacityPlanVersion ? ` · Plan v${workload.capacityPlanVersion}` : ' · Plan not configured'}${workload.capacityState === 'TEMPORARILY_UNAVAILABLE' && workload.unavailableUntil ? ` · Unavailable until ${formatMalaysiaDate(workload.unavailableUntil)}` : ''}`} badge={workload.capacityState ? capacityStateLabel(workload.capacityState) : 'Not configured'} tone={workload.selectable ? 'success' : 'warning'} progress={{ current: workload.currentStudents, max: workload.workloadLimit }} />
+    {!loading && !primaryLoading && !loadError && workload ? <div className="grid gap-4 md:grid-cols-3">
+      <AppointmentSummaryCard icon={UsersRound} title="Supervisory load" value="" description={`${workload.activeLoad ?? workload.currentStudents} active · ${workload.reservedLoad ?? 0} reserved · ${workload.availableSlots ?? '—'} available. ${workload.semesterCode ?? 'No active semester'}${workload.capacityPlanVersion ? ` · Plan v${workload.capacityPlanVersion}` : ' · Plan not configured'}${workload.capacityState === 'TEMPORARILY_UNAVAILABLE' && workload.unavailableUntil ? ` · Unavailable until ${formatMalaysiaDate(workload.unavailableUntil)}` : ''}`} badge={workload.capacityState === 'AVAILABLE' && workload.availableSlots === 1 ? '1 place remaining' : workload.capacityState ? capacityStateLabel(workload.capacityState) : 'Not configured'} tone={workload.selectable && workload.availableSlots !== 1 ? 'success' : 'warning'} progress={{ current: workload.workloadCount ?? (workload.activeLoad ?? workload.currentStudents) + (workload.reservedLoad ?? 0), max: workload.workloadLimit }} />
       <AppointmentSummaryCard icon={ClipboardCheck} title="Needs your review" value={String(reviewCount)} description="Primary and supporting requests needing your decision." tone={reviewCount ? 'warning' : 'success'} />
       <AppointmentSummaryCard icon={Clock3} title="Awaiting Coordinator" value={String(coordinatorCount)} description="Ongoing requests you can follow while final approval is pending." tone="info" />
     </div> : null}
@@ -205,7 +221,6 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
     <WorkspaceSectionHeader title="Appointment requests" description="Review supervision requests and follow their recorded progress and outcomes." actions={<RequestViewSwitch view={view} reviewCount={loading || primaryLoading || loadError ? 0 : reviewCount} onChange={value => setParams(current => lecturerRequestViewParams(current, value, rows), { replace: false })} />} />
     {notice ? <p role="status" className="card-description rounded-lg bg-slate-50 p-3">{notice}</p> : null}
     {loading || primaryLoading ? <LoadingState message="Loading appointment requests…" /> : loadError ? <ErrorState message={loadError} onRetry={() => { void load(); void onChanged(); }} /> : <>
-      {view === 'history' ? <p className="card-description">{rows.filter(row => requestGroup(row.status, row.canDecide) === 'history').length} final request outcomes</p> : null}
       <RequestFilters onReset={()=>setParams(current=>clearAppointmentFilterParams(current),{replace:true,state:location.state})} search={search} onSearch={value => setFilter('q', value)} type={type} onType={value => setFilter('type', value)} status={status} statuses={[...new Set(viewRows.map(row => row.status))]} onStatus={value => setFilter('status', value)} semester={semester} semesters={[...new Set(rows.map(row => row.semester).filter(Boolean))]} onSemester={value => setFilter('semester', value)} from={from} onFrom={value => setFilter('from', value)} />
       {visible.length ? <LecturerAppointmentRequestList rows={visible.slice((page - 1) * pageSize, page * pageSize)} history={view === 'history'} onOpen={row => onNavigateToRequest ? onNavigateToRequest(String(row.id), row.kind) : void open(row)} /> : <p className="card-description rounded-lg bg-slate-50 p-4">{search || type !== 'all' || status || semester || from ? 'No matching requests. Adjust the filters to see more records.' : view === 'history' ? 'No final request outcomes yet.' : 'No ongoing appointment requests.'}</p>}
       <WorkspacePagination page={page} pageCount={pageCount} total={visible.length} noun="requests" pageSize={pageSize} onPageSize={value => setFilter('size', String(value))} onPage={value => setParams(current => { const next = new URLSearchParams(current); next.set('page', String(value)); return next; })} />

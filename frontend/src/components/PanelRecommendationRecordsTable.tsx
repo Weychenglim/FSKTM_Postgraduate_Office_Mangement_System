@@ -1,6 +1,6 @@
 import { PortalSelect } from './PortalSelect';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Eye, Search } from 'lucide-react';
+import { UserRound, ChevronLeft, ChevronRight, Eye, Search } from 'lucide-react';
 import { PanelRecommendationDraft } from '../types';
 import { clampPage, paginate, paginationRange } from '../utils/pagination';
 import {
@@ -8,7 +8,7 @@ import {
   PanelRecommendationRecordGroup,
 } from '../utils/panelRecommendationRecords';
 import { PANEL_RECOMMENDATION_STATUS_LABELS } from '../utils/panelRecommendationWorkflow';
-import { StatusBadge } from './PortalPrimitives';
+import { PortalButton, StatusBadge } from './PortalPrimitives';
 import { panelStatusTone } from '../utils/panelPresentation';
 
 interface PanelRecommendationRecordsTableProps {
@@ -146,13 +146,9 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
                   <td className="data-td text-right">
                     <div className="flex flex-col items-end gap-1.5">
                       {onViewDossier && (
-                        <button
-                          type="button"
+                        <PortalButton variant="primary" icon={UserRound} size="sm"
                           onClick={() => onViewDossier(record)}
-                          className="text-[9px] font-black uppercase text-blue-700 hover:underline"
-                        >
-                          View student record
-                        </button>
+                        >View student record</PortalButton>
                       )}
                       <button
                         type="button"

@@ -7,15 +7,17 @@ import { useListState } from './ListState';
 import { RecordPage } from './RecordPage';
 import { useRecordDraft } from './RecordDraft';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BookOpen, ChevronDown, ClipboardList, FilePenLine, History, ListChecks, UsersRound } from 'lucide-react';
+import { ArrowRightLeft, BookOpen, ChevronDown, FilePenLine, History } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { cancelResearchAmendment, correctResearchProfile, decideResearchAmendment, getNextResearchAmendment, loadResearchAmendmentWorkspace, submitResearchAmendment } from '../services/researchAmendmentsApi';
 import type { ResearchAmendment, ResearchAmendmentOptions, ResearchRevision, ResearchPageQuery, ResearchPagination, ResearchNextTarget } from '../services/researchAmendmentsApi';
 import { PortalButton } from './PortalPrimitives';
-import { ApprovalProcess } from './ApprovalProcess';
-import { AppointmentIcon, appointmentDetailTypography } from './AppointmentPrimitives';
-import { RequestMetadata, RequestDetailCard, RequestSection, RequestAuditHistory, RequestField, requestBodyTextClass } from './RequestDetailPrimitives';
+import {ResearchChangeRequestDetail} from './ResearchChangeRequestDetail';
+import {AppointmentIcon} from './AppointmentPrimitives';
+import {RequestMetadata, PrimaryRequestDecisionButtons} from './RequestDetailPrimitives';
 import { RequestedChangesComparison } from './RequestedChangesComparison';
+import {ResearchProfileDetail} from './ResearchProfileDetail';
+import {SupervisionDetailSection} from './SupervisionDetailLayout';
 import { buildSupervisorApprovalProcess } from '../utils/approvalProcess';
 import { ErrorState, LoadingState } from './StateViews';
 import type { UserRole } from '../types/auth';
@@ -77,25 +79,18 @@ export function ResearchAmendmentCard({ row, busy, onAction, studentView = false
   }
   const stageEvent = [...row.events].reverse().find(event => event.newStatus === row.status && event.previousStatus !== event.newStatus);
   const steps = buildSupervisorApprovalProcess({ kind: row.kind === 'TRANSFER' ? 'transfer' : 'research', status: researchReviewStatus(row), submittedAt: row.createdAt, events: row.events, waitingDays: row.status.startsWith('PENDING') ? requestWaitingDays(stageEvent?.createdAt ?? row.createdAt) : null });
-  const actions = <div className="flex flex-wrap gap-2">{!studentView && row.canDecide ? <><PortalButton size="sm" variant="primary" disabled={busy} onClick={() => onAction(row, 'APPROVE')}>Approve request</PortalButton><PortalButton size="sm" disabled={busy} onClick={() => onAction(row, 'REJECT')}>Reject request</PortalButton></> : null}{row.canCancel ? <PortalButton size="sm" disabled={busy} onClick={() => onAction(row, 'CANCEL')}>Cancel request</PortalButton> : null}</div>;
-  const detail = <RequestDetailCard progress={<ApprovalProcess steps={steps} icon={ListChecks} />} actions={(!studentView && row.canDecide) || row.canCancel ? actions : undefined} audit={row.events.length?<RequestAuditHistory events={row.events} showTeamRetention={row.kind==='TRANSFER'}/>:undefined}>
-    <RequestSection title="Request summary" icon={ClipboardList} headingClassName={appointmentDetailTypography.heading} actions={onViewProfile?<PortalButton size="sm" icon={BookOpen} disabled={busy} onClick={onViewProfile}>View research profile</PortalButton>:undefined}>
-      <dl className="grid gap-4 sm:grid-cols-2">
-        <RequestField label="Student" value={`${row.studentName} · ${row.matricNo}`} />
-        <RequestField label="Change type" value={researchChangeLabel(row)} />
-        <RequestField label="Programme" value={row.sourceProgramme || row.before.programme} />
-      </dl>
-      {row.reason ? <p className={`${requestBodyTextClass} mt-4`}><span className="card-label">Reason:</span> {row.reason}</p> : null}
-    </RequestSection>
-    <RequestSection title="Requested changes" icon={FilePenLine} headingClassName={appointmentDetailTypography.heading}>
-      <RequestedChangesComparison before={row.before} after={row.after} applied={row.status === 'APPROVED'} />
-    </RequestSection>
-    {!studentView && row.kind === 'TRANSFER' ? <RequestSection title="Supervisory team at submission" icon={UsersRound} headingClassName={appointmentDetailTypography.heading}><TransferTeamSnapshot row={row} /></RequestSection> : null}
-  </RequestDetailCard>;
+  const actions = (!studentView && row.canDecide) || row.canCancel ? <div className="space-y-3">
+    {!studentView && row.canDecide ? <PrimaryRequestDecisionButtons positiveLabel="Approve request" disabled={busy} onPositive={()=>onAction(row,'APPROVE')} onReject={()=>onAction(row,'REJECT')}/> : null}
+    {row.canCancel ? <PortalButton size="sm" disabled={busy} onClick={()=>onAction(row,'CANCEL')}>Cancel request</PortalButton> : null}
+  </div> : undefined;
+  const detail = <ResearchChangeRequestDetail row={row} changeLabel={researchChangeLabel(row)} steps={steps} actions={actions}
+    profileAction={onViewProfile ? <PortalButton size="sm" icon={BookOpen} disabled={busy} onClick={onViewProfile}>View research profile</PortalButton> : undefined}
+    transferTeam={!studentView && row.kind==='TRANSFER' ? <TransferTeamSnapshot row={row}/> : undefined}/>;
   return studentView || lecturerView ? presentation === 'detail' ? detail : <article className="space-y-3 rounded-xl border border-slate-200 p-4"><h3 className="section-label">{researchChangeLabel(row)}</h3><details><summary className="card-value cursor-pointer text-blue-600">View details</summary><div className="mt-4">{detail}</div></details></article> : detail;
 }
 
 export type ResearchRouteView = 'list' | 'detail' | 'profile' | 'new';
+export type ResearchCreationKind = 'RESEARCH' | 'CORRECTION' | 'TRANSFER';
 
 type ResearchNavigationProps = {
   routeView?: ResearchRouteView;
@@ -103,7 +98,8 @@ type ResearchNavigationProps = {
   onNavigateToRequest?: (id: string) => void;
   onNavigateToList?: () => void;
   onNavigateToProfile?: (studentId?: number) => void;
-  onNavigateToNew?: () => void;
+  onNavigateToNew?: (kind?: ResearchCreationKind) => void;
+  initialChangeType?: ResearchCreationKind;
   requestView?: RequestListView;
   requestSearch?: string;
   requestPage?: number;
@@ -134,7 +130,7 @@ export function StudentResearchProfileCard({options,hasPending,onNavigateToProfi
     </div>
     <div className="flex flex-wrap gap-2 lg:shrink-0">
       <PortalButton size="sm" onClick={() => onNavigateToProfile?.()}>View research profile</PortalButton>
-      {options.canSubmitResearch && options.profile ? <PortalButton size="sm" variant="primary" onClick={onNavigateToNew}>Request research change</PortalButton> : null}
+      {options.canSubmitResearch && options.profile ? <PortalButton size="sm" variant="primary" onClick={()=>onNavigateToNew?.()}>Request research change</PortalButton> : null}
     </div>
   </section>;
 }
@@ -159,10 +155,15 @@ export function ResearchAmendmentRouteContent({ routeView, routeRequestId, role,
     if (options.profile && ((studentView && options.canSubmitResearch) || ((role === 'Programme Coordinator' || role === 'Office Staff/Admin') && (options.canCorrect || options.canTransfer)))) return <>{requestForm}</>;
     return <p className="card-description">{studentView && rows.some(row => row.status.startsWith('PENDING')) ? 'You have a request awaiting a decision. You can submit another after it is resolved.' : 'You cannot request a research change at this time.'}</p>;
   }
-  if (routeView === 'profile') return <>
-    {role==='Office Staff/Admin'&&options.profile&&(options.canCorrect||options.canTransfer)?<div><PortalButton icon={FilePenLine} disabled={busy} onClick={onNavigateToNew}>Correct research or request transfer</PortalButton></div>:null}
-    {options.profile ? <div className="space-y-3 rounded-xl border border-slate-200 p-4"><div className="flex items-center gap-3"><AppointmentIcon icon={BookOpen} tone="info" /><h3 className={appointmentDetailTypography.heading}>Current research profile</h3></div><RequestedChangesComparison before={options.profile} after={options.profile} initialRecord /></div> : <p className="card-description">{(lecturerView||role==='Office Staff/Admin') && options.students.length ? 'Select a student to view their current research profile and saved revisions.' : 'No current research profile is available.'}</p>}
-  </>;
+  if (routeView === 'profile') {
+    if(!options.profile)return <p className="card-description">{(lecturerView||role==='Office Staff/Admin') && options.students.length ? 'Select a student to view their current research profile and saved revisions.' : 'No current research profile is available.'}</p>;
+    const canNavigate=!!onNavigateToNew;
+    const actions=canNavigate && role==='Office Staff/Admin' && (options.canCorrect||options.canTransfer) ? <>
+      {options.canCorrect ? <PortalButton size="sm" variant="primary" icon={FilePenLine} disabled={busy} onClick={()=>onNavigateToNew('CORRECTION')}>Correct research text</PortalButton> : null}
+      {options.canTransfer ? <PortalButton size="sm" icon={ArrowRightLeft} disabled={busy} onClick={()=>onNavigateToNew('TRANSFER')}>Request programme transfer</PortalButton> : null}
+    </> : canNavigate && studentView && options.canSubmitResearch ? <PortalButton size="sm" variant="primary" icon={FilePenLine} disabled={busy} onClick={()=>onNavigateToNew('RESEARCH')}>Request research change</PortalButton> : undefined;
+    return <ResearchProfileDetail options={options} revisions={revisions} actions={actions}/>;
+  }
   const serverPaged = (role === 'Programme Coordinator'||role === 'Office Staff/Admin') && !!pagination;
   const visible = serverPaged ? rows : rows.filter(row => (requestGroup(researchReviewStatus(row), row.canDecide) === 'history') === (requestView === 'history')
     && `${row.studentName} ${row.matricNo} ${row.id} ${row.after.title} ${researchChangeLabel(row)} Research request #${row.id} Research amendment #${row.id} Request #${row.id}`.toLowerCase().includes(requestSearch.trim().toLowerCase()))
@@ -177,8 +178,12 @@ export function ResearchAmendmentRouteContent({ routeView, routeRequestId, role,
     const record = {...researchWorkspaceRecord(row, busy, () => onNavigateToRequest?.(String(row.id))), submittedAt:coordinatorHistory ? row.updatedAt : row.createdAt};
     return studentView ? { ...record, studentName: record.kind ?? 'Research change', matricNo: '', actionLabel: 'View request' } : record;
   })} />;
-  return <div className="space-y-5">
-    {!studentView && !lecturerView && options.profile ? <div className="flex flex-wrap gap-2"><PortalButton onClick={() => onNavigateToProfile?.()}>View research profile</PortalButton>{options.canCorrect || options.canTransfer ? <PortalButton onClick={onNavigateToNew}>Request research change</PortalButton> : null}</div> : null}
+  return <div className="space-y-6">
+    {!studentView && !lecturerView && options.profile ? <div className="flex flex-wrap gap-3">
+      {onNavigateToProfile ? <PortalButton icon={BookOpen} disabled={busy} onClick={()=>onNavigateToProfile()}>View research profile</PortalButton> : null}
+      {onNavigateToNew && options.canCorrect ? <PortalButton icon={FilePenLine} disabled={busy} onClick={()=>onNavigateToNew('CORRECTION')}>Correct research text</PortalButton> : null}
+      {onNavigateToNew && options.canTransfer ? <PortalButton icon={ArrowRightLeft} disabled={busy} onClick={()=>onNavigateToNew('TRANSFER')}>Request programme transfer</PortalButton> : null}
+    </div> : null}
     {studentView ? (paged.length ? table(paged) : null) : groups.map(group => {
       const selected = paged.filter(row => requestGroup(researchReviewStatus(row), row.canDecide) === group);
       return selected.length ? serverPaged && group === 'review' ? <section key={group} className="space-y-3" aria-label="Needs your decision"><h3 className="section-label">Needs your decision</h3>{table(selected)}</section> : <RequestGroupSection key={group} group={group} count={selected.length}>{table(selected)}</RequestGroupSection> : null;
@@ -212,15 +217,11 @@ export function ResearchNextRequestControl({nextId, loading = false, disabled = 
 
 export function ResearchProfileHistoryCard({ revisions, studentView }: { revisions: ResearchRevision[]; studentView: boolean }) {
   const ordered = [...revisions].sort((a, b) => b.revision - a.revision);
-  return <details aria-label="Research history" className="group/history mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-4 [&::-webkit-details-marker]:hidden">
-      <span className="flex min-w-0 items-center gap-3"><AppointmentIcon icon={History} tone="info" /><span className={appointmentDetailTypography.heading}>Research history <span className="card-description">· {ordered.length} {ordered.length === 1 ? 'revision' : 'revisions'}</span></span></span>
-      <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-500 group-open/history:rotate-180" />
-    </summary>
-    <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
-      {ordered.length ? ordered.map(revision => <ResearchRevisionCard key={revision.id} revision={revision} studentView={studentView} collapsible />) : <p className="card-description">No saved research revisions to display.</p>}
-    </div>
-  </details>;
+  return <section aria-label="Revision history" className="mt-7">
+    <SupervisionDetailSection title="Revision history" icon={History} actions={<p className="text-xs text-slate-600">{ordered.length} saved {ordered.length === 1 ? 'version' : 'versions'}</p>}>
+      {ordered.length ? <div className="divide-y divide-slate-200">{ordered.map(revision => <ResearchRevisionCard key={revision.id} revision={revision} studentView={studentView} collapsible />)}</div> : <p className="card-description">No saved research revisions to display.</p>}
+    </SupervisionDetailSection>
+  </section>;
 }
 
 export function ResearchRevisionCard({ revision, studentView = false, collapsible = false }: { revision: ResearchRevision; studentView?: boolean; lecturerView?: boolean; collapsible?: boolean }) {
@@ -230,9 +231,9 @@ export function ResearchRevisionCard({ revision, studentView = false, collapsibl
     <RequestedChangesComparison before={revision.before} after={revision.after} revision initialRecord={revision.kind === 'BASELINE'} />
     {revision.reason ? <p className="card-description whitespace-pre-wrap">{revision.reason}</p> : null}
   </>;
-  if (collapsible) return <details className="group/revision rounded-xl border border-slate-200 p-4">
+  if (collapsible) return <details className="group/revision py-5 first:pt-0 last:pb-0">
     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-4 [&::-webkit-details-marker]:hidden">
-      <span className="min-w-0 space-y-1 [overflow-wrap:anywhere]"><span className="section-label block">{title}</span><span className="card-description block">{metadata}</span></span>
+      <span className="min-w-0 space-y-1 [overflow-wrap:anywhere]"><span className="text-sm font-medium leading-6 text-slate-900 block">{title}</span><span className="text-xs font-normal leading-6 text-slate-600 block">{metadata}</span></span>
       <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-500 group-open/revision:rotate-180" />
     </summary>
     <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">{comparison}</div>
@@ -246,30 +247,49 @@ export function ResearchRevisionCard({ revision, studentView = false, collapsibl
   </article>;
 }
 
-export function ResearchAmendmentForm({ options, busy, onSave, studentView = false }: { options: ResearchAmendmentOptions; busy: boolean; studentView?: boolean; onSave: (kind: 'RESEARCH' | 'TRANSFER' | 'CORRECTION', values: { title: string; abstract: string; destinationProgramme: string; reason: string }) => void }) {
-  const [kind, setKind] = useState<'RESEARCH' | 'TRANSFER' | 'CORRECTION'>(options.canSubmitResearch ? 'RESEARCH' : 'CORRECTION');
+export function ResearchAmendmentForm({ options, busy, onSave, studentView = false, initialKind }: { options: ResearchAmendmentOptions; busy: boolean; studentView?: boolean; initialKind?: ResearchCreationKind; onSave: (kind: 'RESEARCH' | 'TRANSFER' | 'CORRECTION', values: { title: string; abstract: string; destinationProgramme: string; reason: string }) => void }) {
+  const defaultKind:ResearchCreationKind=options.canSubmitResearch ? 'RESEARCH' : options.canCorrect ? 'CORRECTION' : 'TRANSFER';
+  const permittedInitial=initialKind==='RESEARCH'?options.canSubmitResearch:initialKind==='CORRECTION'?options.canCorrect:initialKind==='TRANSFER'?options.canTransfer:false;
+  const startingKind=initialKind && permittedInitial ? initialKind : defaultKind;
+  const [kind, setKind] = useState<ResearchCreationKind>(startingKind);
   const [title, setTitle] = useState(options.profile?.title ?? '');
   const [abstract, setAbstract] = useState(options.profile?.abstract ?? '');
   const [destinationProgramme, setDestination] = useState('');
   const [reason, setReason] = useState('');
   const [unchanged, setUnchanged] = useState(false);
-  useRecordDraft(title !== (options.profile?.title ?? '') || abstract !== (options.profile?.abstract ?? '') || !!destinationProgramme || !!reason.trim() || unchanged || kind !== (options.canSubmitResearch ? 'RESEARCH' : 'CORRECTION'), busy);
+  useRecordDraft(title !== (options.profile?.title ?? '') || abstract !== (options.profile?.abstract ?? '') || !!destinationProgramme || !!reason.trim() || unchanged || kind !== startingKind, busy);
   if (!options.profile || !(options.canSubmitResearch || options.canCorrect || options.canTransfer)) return null;
   const allowed = kind === 'RESEARCH' ? options.canSubmitResearch : kind === 'CORRECTION' ? options.canCorrect : options.canTransfer;
-  const valid = allowed && reason.trim() && (kind === 'TRANSFER' ? destinationProgramme : title.trim() && abstract.trim() && (kind !== 'CORRECTION' || unchanged));
-  return <form className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-4" onSubmit={event => { event.preventDefault(); if (valid && !busy) onSave(kind, { title: title.trim(), abstract: abstract.trim(), destinationProgramme, reason: reason.trim() }); }}>
-    <h3 className="section-label">Request a change</h3>
-    {!studentView ? <label className="form-label block">Change type<PortalSelect className={inputClass} disabled={busy} value={kind} onChange={event => setKind(event.target.value as typeof kind)}>{options.canSubmitResearch ? <option value="RESEARCH">Research title / abstract amendment</option> : null}{options.canCorrect ? <option value="CORRECTION">Typographical correction</option> : null}{options.canTransfer ? <option value="TRANSFER">Programme transfer</option> : null}</PortalSelect></label> : null}
-    {kind === 'TRANSFER' ? <label className="form-label block">Destination programme<PortalSelect required className={inputClass} value={destinationProgramme} disabled={busy} onChange={event => setDestination(event.target.value)}><option value="">Select destination programme</option>{options.programmes.filter(programme => programme !== options.profile?.programme).map(programme => <option key={programme}>{programme}</option>)}</PortalSelect></label> : <><label className="form-label block">Research title<input required className={inputClass} value={title} disabled={busy} onChange={event => setTitle(event.target.value)} /></label><label className="form-label block">Research abstract<textarea required rows={5} className={inputClass} value={abstract} disabled={busy} onChange={event => setAbstract(event.target.value)} /></label></>}
-    <label className="form-label block">Reason<textarea required rows={2} className={inputClass} disabled={busy} value={reason} onChange={event => setReason(event.target.value)} /></label>
-    {kind === 'CORRECTION' ? <label className="card-description flex items-start gap-2 text-slate-700"><input type="checkbox" required disabled={busy} checked={unchanged} onChange={event => setUnchanged(event.target.checked)} />I confirm this corrects typography only and does not change the research meaning.</label> : <p className="card-description">{kind === 'RESEARCH' ? 'The primary supervisor makes the final decision on your research change request.' : 'The source programme coordinator reviews first, followed by the destination programme coordinator. Both must acknowledge the existing team and unfinished tasks.'}</p>}
-    <PortalButton type="submit" variant="primary" isLoading={busy} disabled={!valid}>{kind === 'CORRECTION' ? 'Save audited correction' : 'Submit request'}</PortalButton>
+  const proposed=kind==='TRANSFER' ? {...options.profile,programme:destinationProgramme} : {...options.profile,title:title.trim(),abstract:abstract.trim()};
+  const hasChanges=kind==='TRANSFER' ? !!destinationProgramme && destinationProgramme!==options.profile.programme : proposed.title!==options.profile.title || proposed.abstract!==options.profile.abstract;
+  const valid = allowed && hasChanges && reason.trim() && (kind === 'TRANSFER' ? destinationProgramme : title.trim() && abstract.trim() && (kind !== 'CORRECTION' || unchanged));
+  const formTitle=kind==='CORRECTION' ? 'Correct research text' : kind==='TRANSFER' ? 'Request programme transfer' : 'Request research change';
+  return <form data-research-change-form onSubmit={event=>{event.preventDefault();if(valid&&!busy)onSave(kind,{title:title.trim(),abstract:abstract.trim(),destinationProgramme,reason:reason.trim()});}}>
+    <SupervisionDetailSection title={formTitle} icon={FilePenLine}>
+      <fieldset disabled={busy} className="min-w-0 space-y-6">
+        <legend className="sr-only">Change details</legend>
+        {!studentView ? <label className="block space-y-2 text-xs font-medium text-slate-600">Change type<PortalSelect className="form-control form-control-md" value={kind} onChange={event=>setKind(event.target.value as typeof kind)}>{options.canSubmitResearch ? <option value="RESEARCH">Research title / abstract amendment</option> : null}{options.canCorrect ? <option value="CORRECTION">Typographical correction</option> : null}{options.canTransfer ? <option value="TRANSFER">Programme transfer</option> : null}</PortalSelect></label> : null}
+        {kind==='TRANSFER' ? <label className="block space-y-2 text-xs font-medium text-slate-600">Destination programme<PortalSelect required className="form-control form-control-md" value={destinationProgramme} onChange={event=>setDestination(event.target.value)}><option value="">Select destination programme</option>{options.programmes.filter(programme=>programme!==options.profile?.programme).map(programme=><option key={programme}>{programme}</option>)}</PortalSelect></label> : <>
+          <label className="block space-y-2 text-xs font-medium text-slate-600">Research title<input required maxLength={500} className="form-control form-control-md" value={title} onChange={event=>setTitle(event.target.value)}/></label>
+          <label className="block space-y-2 text-xs font-medium text-slate-600">Research abstract<textarea required rows={8} className="form-control form-control-md" value={abstract} onChange={event=>setAbstract(event.target.value)}/></label>
+        </>}
+        <div className="space-y-6 border-t border-slate-100 pt-6">
+          <label className="block space-y-2 text-xs font-medium text-slate-600">Reason for change<textarea required rows={3} className="form-control form-control-md" value={reason} onChange={event=>setReason(event.target.value)}/></label>
+          {kind==='CORRECTION' ? <label className="flex items-start gap-3 text-sm font-normal leading-6 text-slate-700"><input type="checkbox" required className="mt-1 shrink-0" checked={unchanged} onChange={event=>setUnchanged(event.target.checked)}/>I confirm this corrects typography only and does not change the research meaning.</label> : <p className="text-xs leading-6 text-slate-600">{kind==='RESEARCH' ? 'The primary supervisor makes the final decision on your research change request.' : 'The source programme coordinator reviews first, followed by the destination programme coordinator. Both must acknowledge the existing team and unfinished tasks.'}</p>}
+        </div>
+      </fieldset>
+      {hasChanges ? <details className="border-t border-slate-100 pt-5" data-change-preview><summary className="w-fit cursor-pointer rounded text-sm font-medium leading-6 text-brand-navy focus-visible:outline-2 focus-visible:outline-blue-600">Preview changes</summary><div className="mt-6"><RequestedChangesComparison before={options.profile} after={proposed}/></div></details> : null}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-6">
+        <p className="text-xs leading-6 text-slate-600" role="status">{hasChanges ? kind==='TRANSFER' ? 'Programme change ready for review.' : `${[proposed.title!==options.profile.title?'Title':null,proposed.abstract!==options.profile.abstract?'Abstract':null].filter(Boolean).join(' and ')} changed.` : 'No changes yet.'}</p>
+        <PortalButton type="submit" variant="primary" isLoading={busy} disabled={!valid}>{kind==='CORRECTION' ? 'Save audited correction' : 'Submit request'}</PortalButton>
+      </div>
+    </SupervisionDetailSection>
   </form>;
 }
 
 export function ResearchAmendments({ onChanged, role, refreshVersion = 0, hideHeader = false, showRefresh = true, onBusyChange, onDetailMetadata, onDetailTitle, routeView, routeRequestId, onNavigateToRequest, onNavigateToList, onNavigateToProfile, onNavigateToNew,
   requestView = 'requests', requestSearch = '', requestPage = 1, requestPageSize, onRequestViewChange, onRequestSearch, onRequestReset, onRequestPage, onRequestPageSize, studentFilter, onStudentFilter,
-  researchFilters, onResearchFilter, nextRequestQuery, onNavigateToNextRequest,
+  researchFilters, onResearchFilter, nextRequestQuery, onNavigateToNextRequest, initialChangeType,
 }: { onChanged?: () => void; role?: UserRole; refreshVersion?: number; hideHeader?: boolean; showRefresh?: boolean; onBusyChange?: (busy: boolean) => void; onDetailMetadata?: (metadata: React.ReactNode) => void; onDetailTitle?: (title: string | null) => void } & ResearchNavigationProps) {
   const studentView = role === 'Student';
   const lecturerView = role === 'Lecturer';
@@ -324,7 +344,7 @@ export function ResearchAmendments({ onChanged, role, refreshVersion = 0, hideHe
     catch (failure) { if (mounted.current && currentScope.current === operationScope) { setNotice(failure instanceof Error ? failure.message : 'The change could not be saved.'); if (failure instanceof ApiError && failure.status === 409) { setEdit(null); await load(); } } }
     finally { mutating.current = false; if (mounted.current) setBusy(false); }
   };
-  const requestForm = options ? <ResearchAmendmentForm key={`${scope}-${options.profile?.studentId}-${options.profile?.revision}`} options={options} busy={busy} studentView={studentView} onSave={(kind, values) => void run(() => kind === 'CORRECTION' ? correctResearchProfile({ studentId: options.profile!.studentId, title: values.title, abstract: values.abstract, reason: values.reason, meaningUnchanged: true, expectedRevision: options.profile!.revision }) : submitResearchAmendment({ kind, ...(kind === 'TRANSFER' ? { studentId: options.profile!.studentId, destinationProgramme: values.destinationProgramme } : { title: values.title, abstract: values.abstract }), reason: values.reason }), true)} /> : null;
+  const requestForm = options ? <ResearchAmendmentForm key={`${scope}-${options.profile?.studentId}-${options.profile?.revision}-${initialChangeType}`} initialKind={initialChangeType} options={options} busy={busy} studentView={studentView} onSave={(kind, values) => void run(() => kind === 'CORRECTION' ? correctResearchProfile({ studentId: options.profile!.studentId, title: values.title, abstract: values.abstract, reason: values.reason, meaningUnchanged: true, expectedRevision: options.profile!.revision }) : submitResearchAmendment({ kind, ...(kind === 'TRANSFER' ? { studentId: options.profile!.studentId, destinationProgramme: values.destinationProgramme } : { title: values.title, abstract: values.abstract }), reason: values.reason }), true)} /> : null;
   useRecordDraft(!!edit && (!!reason.trim() || retainTeam), busy);
   const pageLoading = loading || loadedScope !== scope;
   const detailRow = !pageLoading && !error && routedView === 'detail' ? rows.find(row => String(row.id) === routeRequestId) : undefined;
@@ -369,14 +389,13 @@ export function ResearchAmendments({ onChanged, role, refreshVersion = 0, hideHe
   const localRecord = rows.find(row => row.id === localDetail);
   return <>{decisionDialog}
   {studentView && routedView === 'list' && !pageLoading && !error && options ? <StudentResearchProfileCard options={options} hasPending={rows.some(row=>row.status.startsWith('PENDING'))} onNavigateToProfile={onNavigateToProfile} onNavigateToNew={onNavigateToNew}/> : null}
-  <section className={routedView === 'detail' ? 'space-y-5' : compactView || routedView ? 'space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm' : 'mt-6 space-y-4 border-t border-slate-200 pt-5'} aria-label={routedView === 'profile' ? 'Current research profile' : transferWorkspace && routedView === 'list' ? 'Programme transfer requests' : compactView || routedView ? 'Research change requests' : 'Research amendments and programme transfers'}>
+  <section className={routedView === 'profile' ? 'space-y-7' : routedView === 'detail' || routedView === 'new' ? 'space-y-7' : compactView || routedView ? 'space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm' : 'mt-6 space-y-4 border-t border-slate-200 pt-5'} aria-label={routedView === 'profile' ? 'Current research profile' : transferWorkspace && routedView === 'list' ? 'Programme transfer requests' : compactView || routedView ? 'Research change requests' : 'Research amendments and programme transfers'}>
     {!hideHeader && routedView && routedView !== 'list' ? <PortalButton size="sm" onClick={onNavigateToList}>Back to research changes</PortalButton> : null}
     {!hideHeader ? <WorkspaceSectionHeader title={hideHeader ? undefined : heading} description={compactView || routedView ? routedView === 'profile' ? 'View the current research record and saved revisions.' : routedView === 'new' ? 'The primary supervisor makes the final decision on research changes.' : routedView === 'detail' ? 'Compare changed fields and follow the recorded submissions and decisions for this request.' : studentView ? 'Track requests to update your research title or abstract. Open a request to see what changed and who reviewed it.' : transferWorkspace ? 'Review programme transfers awaiting your decision, or view final transfer outcomes.' : 'Review research changes and follow their recorded progress and outcomes.' : undefined}
       actions={<>{lecturerList && onRequestViewChange ? <RequestViewSwitch view={requestView} reviewCount={pageLoading || error ? 0 : (pagination?.reviewCount ?? rows.filter(row => requestGroup(researchReviewStatus(row), row.canDecide) === 'review').length)} onChange={onRequestViewChange} /> : null}</>} /> : null}
     {notice ? <p role="status" className="card-description rounded-lg bg-slate-50 p-3">{notice}</p> : null}
     {staffPaged && routedView === 'list' && onResearchFilter ? <CoordinatorResearchFilters query={JSON.parse(pageQuery)} pagination={pagination} onFilter={onResearchFilter} transferOnly={transferWorkspace} /> : null}
     {pageLoading ? <LoadingState message={transferWorkspace?'Loading programme transfers…':'Loading research changes…'} /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : options ? <>
-      {routedView === 'profile' && !studentView ? options.students.filter(student => student.id === options.profile?.studentId).map(student => <div key={student.id} className="space-y-1 border-b border-slate-200 pb-4"><h2 className="section-label">{student.name}</h2><p className="card-description">{student.matricNo} · {student.programme}</p></div>) : null}
       {!staffPaged && lecturerList && onRequestSearch ? <RequestFilters onReset={onRequestReset ?? (()=>{onRequestSearch('');setStudentId(undefined);onRequestPage?.(1);setEdit(null);})} search={requestSearch} onSearch={onRequestSearch}>{studentSelector}{studentId ? <PortalButton size="sm" onClick={() => onNavigateToProfile?.()}>View research profile</PortalButton> : null}</RequestFilters> : studentSelector ? <div className="flex flex-wrap items-end gap-3">{studentSelector}</div> : null}
       {!routedView ? studentView ? options.canSubmitResearch ? <details><summary className="card-value cursor-pointer text-blue-600">Request a research change</summary><div className="mt-3">{requestForm}</div></details> : rows.some(row => row.status.startsWith('PENDING')) ? <p className="card-description rounded-lg bg-slate-50 p-3">You have a request awaiting a decision. You can submit another after it is resolved.</p> : null : (options.canCorrect || options.canTransfer || options.canSubmitResearch) ? <PortalButton disabled={busy} onClick={() => setLocalNew(true)}>Request research change</PortalButton> : null : null}
       {coordinatorView && routedView === 'detail' && nextQueue && onNavigateToNextRequest ? <ResearchNextRequestControl nextId={nextRequest.scope === nextScope ? nextRequest.target?.id ?? null : null} loading={nextRequest.loading} disabled={pageLoading || busy || !!edit} error={nextRequest.scope === nextScope ? nextRequest.error : null} onNext={() => { if (!busy && !edit && !pageLoading && nextRequest.scope === nextScope && !nextRequest.loading && nextRequest.target) onNavigateToNextRequest(String(nextRequest.target.id),nextRequest.target.page); }} /> : null}

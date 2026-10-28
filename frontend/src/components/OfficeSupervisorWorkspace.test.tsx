@@ -36,8 +36,15 @@ assert.match(paged,/Target/);assert.match(paged,/Page 2 of 2 .* 12 requests/);as
 console.log('Office shared structure, all-stage paged monitoring and lifecycle record handoff pass');
 
 const profileTools=renderToStaticMarkup(<ResearchAmendmentRouteContent role="Office Staff/Admin" routeView="profile" options={{students:[],programmes:['Programme B'],profile:{studentId:7,title:'Title',abstract:'Abstract',programme:'Programme A',revision:1},canSubmitResearch:false,canCorrect:true,canTransfer:true}} rows={[]} revisions={[]} busy={false} onAction={noop} onNavigateToNew={noop} requestForm={null}/>);
-assert.match(profileTools,/Correct research or request transfer/);
+assert.match(profileTools,/Correct research text/);
+assert.match(profileTools,/Request programme transfer/);
 
 const {officeResearchCreationParams}=await import('./LecturerResearchWorkspace');
 const creation=officeResearchCreationParams(new URLSearchParams('profileStudent=7&q=kept&page=2'),7);
 assert.equal(creation.get('student'),'7');assert.equal(creation.has('profileStudent'),false);assert.equal(creation.get('q'),'kept');
+
+for(const kind of ['CORRECTION','TRANSFER'] as const){
+  const target=officeResearchCreationParams(new URLSearchParams('profileStudent=7&q=kept&page=2&changeType=RESEARCH'),7,kind);
+  assert.equal(target.get('changeType'),kind);assert.equal(target.get('student'),'7');assert.equal(target.get('q'),'kept');assert.equal(target.get('page'),'2');assert.equal(target.has('profileStudent'),false);
+}
+assert.equal(officeResearchCreationParams(new URLSearchParams('changeType=TRANSFER'),7).has('changeType'),false,'Legacy default creation cannot inherit a stale intent');

@@ -37,7 +37,7 @@ console.log('All roles share navigation, request tables and terminal research hi
 const sharedDetail = {...row,reason:'Recorded submission reason',events:[{id:1,action:'SUBMITTED',actorName:'Office Initiator',actorRole:'Office Staff/Admin',previousStatus:'',newStatus:'PENDING_SUPERVISOR',createdAt:row.createdAt,reason:'Recorded submission reason'}]};
 for (const role of ['Student','Lecturer','Office Staff/Admin','Programme Coordinator'] as const) {
   const html=renderToStaticMarkup(<ResearchAmendmentRouteContent role={role} routeView="detail" routeRequestId="1" options={options} rows={[sharedDetail]} revisions={[]} busy={false} requestForm={null} onAction={()=>{}} />);
-  for (const text of ['Request summary','Requested changes','Original abstract','Requested abstract','Approval progress','Audit history']) assert.ok(html.includes(text),`${role} uses shared research detail: ${text}`);
+  for (const text of ['Request overview','Requested changes','Before this request','Proposed abstract','Review and outcome','Approval progress','Audit history']) assert.ok(html.includes(text),`${role} uses shared research detail: ${text}`);
   assert.doesNotMatch(html,/Not applied|PENDING_SUPERVISOR|Copy reference/);
   assert.doesNotMatch(html,/Request #1|Research request #1/, 'The request reference belongs in the page metadata');
   assert.match(html,/Office Initiator/, 'The submitter is the recorded Office actor, not the student');

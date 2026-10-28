@@ -38,16 +38,16 @@ test('Exact request summary uses submitted particulars after a profile change', 
 test('Submitted particulars and results preserve all Section A evidence', () => {
   assert.ok(sectionModule);
   const particulars = renderToStaticMarkup(<sectionModule.SupervisorSectionAParticulars record={snapshot} loading={false} error={null} onRetry={() => {}} />);
-  for (const value of ['PASSPORT', 'SYNTHETIC-IDENTITY', 'submitted@example.test', 'SYNTHETIC-PHONE', 'Synthetic address', 'Second line']) assert.ok(particulars.includes(value), value);
-  const evidence = renderToStaticMarkup(<sectionModule.SupervisorSectionAEvidence record={snapshot} />);
-  for (const value of ['Results of courses taken', 'Research methods', 'TEST7001', 'Semester II 2025/2026', 'A-', 'Student-proposed', 'I confirm these submitted particulars.', 'Name when submitted']) assert.ok(evidence.includes(value), value);
+  for (const value of ['Passport number', 'SYNTHETIC-IDENTITY', 'submitted@example.test', 'SYNTHETIC-PHONE', 'Synthetic address', 'Second line']) assert.ok(particulars.includes(value), value);
+  const evidence = renderToStaticMarkup(<><sectionModule.SupervisorSubmittedCourses record={snapshot} /><sectionModule.SupervisorSubmittedDeclaration record={snapshot}/></>);
+  for (const value of ['Course results', 'Research methods', 'TEST7001', 'Semester II 2025/2026', 'A-', 'I confirm these submitted particulars.', 'Name when submitted']) assert.ok(evidence.includes(value), value);
   assert.match(evidence, /<th[^>]*scope="col"/);
   assert.doesNotMatch(evidence, /Verified results|Signed by hand/);
 });
 
 test('No-courses declarations and legacy missing evidence are explicit', () => {
   assert.ok(sectionModule);
-  const empty = renderToStaticMarkup(<sectionModule.SupervisorSectionAEvidence record={{ ...snapshot, noCoursesTaken: true, courseResults: [] }} />);
+  const empty = renderToStaticMarkup(<sectionModule.SupervisorSubmittedCourses record={{ ...snapshot, noCoursesTaken: true, courseResults: [] }} />);
   assert.match(empty, /No completed courses declared/);
   const legacy = renderToStaticMarkup(<sectionModule.SupervisorSectionAParticulars record={null} loading={false} error={null} onRetry={() => {}} />);
   assert.match(legacy, /No submitted Section A/);
@@ -65,4 +65,21 @@ test('Particulars load failures provide retry without asserting legacy data', ()
   assert.doesNotMatch(html, /No submitted Section A/);
   const loading = renderToStaticMarkup(<sectionModule.SupervisorSectionAParticulars record={null} loading error={null} onRetry={() => {}} />);
   assert.match(loading, /Loading submitted particulars/);
+});
+
+
+test('Sensitive contact particulars are available behind a closed disclosure', () => {
+  assert.ok(sectionModule);
+  const html=renderToStaticMarkup(<sectionModule.SupervisorSectionAParticulars record={snapshot} loading={false} error={null} onRetry={()=>{}}/>);
+  assert.match(html,/<details[^>]*>[\s\S]*Contact and identity details/);
+  assert.doesNotMatch(html,/<details[^>]*open/);
+  assert.ok(html.indexOf('SYNTHETIC-IDENTITY')>html.indexOf('<summary'));
+});
+
+
+test('Recorded NRIC type remains distinct from an unspecified identity type', () => {
+  assert.ok(sectionModule);
+  const renderType=(identityType: 'NRIC' | '')=>renderToStaticMarkup(<sectionModule.SupervisorSectionAParticulars record={{...snapshot,studentParticulars:{...snapshot.studentParticulars,identityType}}} loading={false} error={null} onRetry={()=>{}}/>);
+  assert.match(renderType('NRIC'),/<dt[^>]*>NRIC number<\/dt>/);
+  assert.match(renderType(''),/<dt[^>]*>NRIC \/ passport number<\/dt>/);
 });

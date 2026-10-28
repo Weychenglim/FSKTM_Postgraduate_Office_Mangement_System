@@ -33,4 +33,3 @@ class RevokeEmailTests(LetterRequestTestCase):
         letter_id = self.issued(student)
         self.assertEqual(self.revoke(letter_id).status_code, 200)
         self.assertEqual(len(mail.outbox), 0)
-

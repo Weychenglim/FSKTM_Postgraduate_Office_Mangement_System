@@ -1,7 +1,7 @@
 import {clearAppointmentFilterParams} from '../utils/appointmentFilters';
 import React from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ResearchAmendments } from './ResearchAmendments';
+import { ResearchAmendments, type ResearchCreationKind } from './ResearchAmendments';
 import { APP_ROUTES, routeForSupervisorResearchRequest } from '../constants/routes';
 import { workspacePageSize } from './RequestWorkspacePrimitives';
 import { recordReturn, recordFilterParams, type RecordReturn } from '../utils/recordNavigation';
@@ -17,10 +17,12 @@ export function researchQueueReturn(source: RecordReturn, page: number): RecordR
   return {path:`${APP_ROUTES.supervisorResearchChanges}?${params}`,label:source.label};
 }
 
-export function officeResearchCreationParams(current: URLSearchParams, studentId: number): URLSearchParams {
+export function officeResearchCreationParams(current: URLSearchParams, studentId: number, kind?:ResearchCreationKind): URLSearchParams {
   const next = new URLSearchParams(current);
   next.delete('profileStudent');
   next.set('student',String(studentId));
+  next.delete('changeType');
+  if(kind)next.set('changeType',kind);
   return next;
 }
 
@@ -69,7 +71,8 @@ export function LecturerResearchWorkspace(props: React.ComponentProps<typeof Res
     navigate(`${APP_ROUTES.supervisorResearchProfile}?${next}`, {state: location.state});
   };
   if (staffProfile && !(selected > 0)) return <ResearchProfileDirectory key={props.role ?? 'Lecturer'} onOpen={openProfile} refreshVersion={props.refreshVersion} />;
-  return <ResearchAmendments {...props} role={props.role ?? 'Lecturer'} requestView={params.get('view') === 'history' ? 'history' : 'requests'}
+  const creationType=params.get('changeType');
+  return <ResearchAmendments {...props} initialChangeType={props.routeView==='new' && (creationType==='CORRECTION'||creationType==='TRANSFER'||creationType==='RESEARCH') ? creationType : undefined} role={props.role ?? 'Lecturer'} requestView={params.get('view') === 'history' ? 'history' : 'requests'}
     requestSearch={params.get('q') ?? ''} requestPage={Number(params.get('page')) || 1} requestPageSize={workspacePageSize(params.get('size'))}
     onRequestViewChange={value => setParams(current => researchViewParams(current,value,props.role === 'Programme Coordinator'||props.role === 'Office Staff/Admin'),{replace:false,state:location.state})} onRequestSearch={value => setFilter('q', value)}
     onRequestReset={()=>setParams(current=>{const next=clearAppointmentFilterParams(current);next.delete('student');return next;},{replace:true,state:location.state})}
@@ -81,7 +84,7 @@ export function LecturerResearchWorkspace(props: React.ComponentProps<typeof Res
       const nextSource = researchQueueReturn(source,page);
       navigate(routeForSupervisorResearchRequest(id),{state:{...location.state,recordReturn:nextSource}});
     }}
-    onNavigateToNew={props.role==='Office Staff/Admin'?()=>{if(selected>0)navigate(`${APP_ROUTES.supervisorResearchNew}?${officeResearchCreationParams(params,selected)}`,{state:location.state});}:props.onNavigateToNew}
+    onNavigateToNew={props.role==='Office Staff/Admin'?(kind)=>{if(selected>0)navigate(`${APP_ROUTES.supervisorResearchNew}?${officeResearchCreationParams(params,selected,kind)}`,{state:location.state});}:props.onNavigateToNew}
     studentFilter={selected > 0 ? selected : undefined} onStudentFilter={value => setFilter(props.routeView === 'profile' ? 'profileStudent' : 'student', value ? String(value) : '')}
     onNavigateToProfile={studentId => { const next = new URLSearchParams(params); if (studentId ?? selected) next.set('profileStudent', String(studentId ?? selected));
       const source = recordReturn(location.state?.recordReturn, {path: APP_ROUTES.supervisorResearchChanges + location.search, label: workspaceLabel, historyIndex: window.history.state?.idx}, APP_ROUTES.supervisorAppointments);

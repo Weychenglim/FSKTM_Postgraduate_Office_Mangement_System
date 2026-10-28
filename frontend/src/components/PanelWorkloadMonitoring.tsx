@@ -2,9 +2,9 @@
 import { PortalSelect } from './PortalSelect';
 import { OfficeMonitoringNotice, useOfficeMonitoring } from './OfficeMonitoringContext';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Eye, Gauge } from 'lucide-react';
+import { Download, Eye, Gauge, ClipboardList } from 'lucide-react';
 import { RecordPage } from './RecordPage';
-import { PortalButton, PortalToast, ProgressBar, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
+import { PortalButton, PortalToast, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 import { ErrorState, LoadingState, EmptyState } from './StateViews';
 import { getPanelWorkloads } from '../services';
 import type { PanelWorkloadRecord } from '../types';
@@ -15,8 +15,7 @@ import { useReturnToFocusReload } from '../utils/returnToFocus';
 import { useListState } from './ListState';
 import { CoordinatorDataTable } from './CoordinatorBrowsePrimitives';
 import { WorkspacePagination, WorkspaceSectionHeader, workspacePageSize } from './RequestWorkspacePrimitives';
-import { appointmentDetailTypography as typography } from './AppointmentPrimitives';
-import { RequestDetailCard, RequestSection } from './RequestDetailPrimitives';
+import {WorkloadFact, WorkloadDetailSection, WorkloadLecturerOverview, WorkloadCapacityUsage, workloadBody} from './WorkloadDetailLayout';
 import { WorkloadMonitoringSummary } from './WorkloadMonitoringSummary';
 
 interface PanelWorkloadMonitoringProps {
@@ -41,39 +40,23 @@ export function getPanelWorkloadPage(records: PanelWorkloadRecord[], filters: Wo
   return { filtered, rows: filtered.slice((page - 1) * size, page * size), total: filtered.length, page, pageCount, size };
 }
 
-function WorkloadFact({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="min-w-0"><dt className={typography.label}>{label}</dt><dd className={`${typography.body} mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]`}>{children}</dd></div>;
-}
-
 export function PanelWorkloadDetails({ record }: { record: PanelWorkloadRecord }) {
   const hasConfiguration = configured(record);
-  return <RequestDetailCard padding="lg">
-    <RequestSection title="Lecturer and current semester" headingClassName={typography.heading}>
-      <div className="flex flex-wrap items-start justify-between gap-3"><h3 className={`${typography.name} [overflow-wrap:anywhere]`}>{record.name}</h3><StatusBadge tone={getStatusBadgeTone(stateOf(record))}>{labelOf(record)}</StatusBadge></div>
-      <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+  return <div className="space-y-7" data-workload-detail="panel">
+    <WorkloadLecturerOverview name={record.name} status={labelOf(record)} tone={getStatusBadgeTone(stateOf(record))}>
         <WorkloadFact label="Department">{record.department || 'Not recorded'}</WorkloadFact>
         <WorkloadFact label="Effective semester">{record.semesterCode || 'Not configured'}</WorkloadFact>
         <WorkloadFact label="Published policy">{record.capacityPlanVersion != null ? `Version ${record.capacityPlanVersion}` : 'Not configured'}</WorkloadFact>
-        <WorkloadFact label="Panel capacity">{hasConfiguration ? record.workloadLimit : 'Not configured'}</WorkloadFact>
         {record.unavailableUntil ? <WorkloadFact label="Unavailable until">{record.unavailableUntil}</WorkloadFact> : null}
-      </dl>
-    </RequestSection>
-    <RequestSection title="Current workload" headingClassName={typography.heading}>
-      <p className={typography.body}>Active appointments and pending nominations across semesters both occupy Panel capacity. Final approval converts a reservation to an active appointment without adding another occupied seat.</p>
-      <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <WorkloadFact label="Active appointments">{record.confirmedAppointments}</WorkloadFact>
-        <WorkloadFact label="Pending reservations">{record.pendingNominations}</WorkloadFact>
-        <WorkloadFact label="Active + reserved">{record.currentStudents}</WorkloadFact>
-        <WorkloadFact label="Available slots">{hasConfiguration ? record.availableSlots ?? 'Not recorded' : 'Not configured'}</WorkloadFact>
-      </dl>
-      {hasConfiguration ? <div className="space-y-2"><p className={typography.body}>Capacity utilization: {getPanelWorkloadUtilization(record)}%</p><ProgressBar value={record.currentStudents} max={record.workloadLimit} tone={getStatusBadgeTone(stateOf(record))} /></div>
-        : <p className={typography.body}>Current semester capacity is not configured. Availability and utilization cannot be determined from a missing plan.</p>}
-    </RequestSection>
-    <RequestSection title="Workload items" headingClassName={typography.heading}>
-      {record.workloadItems.length ? <CoordinatorDataTable label="Lecturer Panel workload items" columns={['Student', 'Research title', 'Workload type', 'Recorded date']} rows={record.workloadItems.map((item, index) => ({ key: `${item.type}:${item.studentId}:${index}`, cells: [<><p className={typography.name}>{item.studentName}</p><p className={typography.body}>{item.studentId}</p></>, <p className={`${typography.name} whitespace-pre-wrap [overflow-wrap:anywhere]`}>{item.researchTitle || 'Not recorded'}</p>, <StatusBadge tone={item.type === 'Confirmed Appointment' ? 'success' : 'warning'}>{item.type === 'Confirmed Appointment' ? 'Active appointment' : 'Pending reservation'}</StatusBadge>, <p className={typography.body}>{item.date || 'Not recorded'}</p>] }))} />
-        : <p className={typography.body}>No active appointments or pending nominations for this lecturer.</p>}
-    </RequestSection>
-  </RequestDetailCard>;
+    </WorkloadLecturerOverview>
+    <WorkloadCapacityUsage configured={hasConfiguration} used={record.currentStudents} limit={record.workloadLimit} available={record.availableSlots}
+      utilization={getPanelWorkloadUtilization(record)} tone={getStatusBadgeTone(stateOf(record))} usedLabel="Active + reserved" capacityLabel="Panel capacity"
+      breakdown={<><WorkloadFact label="Active appointments">{record.confirmedAppointments}</WorkloadFact><WorkloadFact label="Pending reservations">{record.pendingNominations}</WorkloadFact></>} hint="Active appointments and pending nominations count across semesters. Approval converts a reservation into an appointment without using another slot."/>
+    <WorkloadDetailSection title="Workload items" icon={ClipboardList} count={record.workloadItems.length}>
+      {record.workloadItems.length ? <div className="[&_td:nth-child(2)]:col-span-2"><CoordinatorDataTable label="Lecturer Panel workload items" columns={['Student', 'Research title', 'Workload type', 'Recorded date']} rows={record.workloadItems.map((item, index) => ({ key: `${item.type}:${item.studentId}:${index}`, cells: [<><p className={workloadBody}>{item.studentName}</p><p className="text-xs leading-5 text-slate-500">{item.studentId}</p></>, <p className={`${workloadBody} whitespace-pre-wrap [overflow-wrap:anywhere]`}>{item.researchTitle || 'Not recorded'}</p>, <StatusBadge tone={item.type === 'Confirmed Appointment' ? 'success' : 'warning'}>{item.type === 'Confirmed Appointment' ? 'Active appointment' : 'Pending reservation'}</StatusBadge>, <p className="text-xs leading-5 text-slate-500">{item.date || 'Not recorded'}</p>] }))} /></div>
+        : <p className="rounded-xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">No active appointments or pending nominations for this lecturer.</p>}
+    </WorkloadDetailSection>
+  </div>;
 }
 
 export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = ({ onBack, onOpenCapacity, initialLecturerId, backLabel = 'Back to Panel Appointments' }) => {

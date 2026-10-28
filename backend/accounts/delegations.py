@@ -6,6 +6,7 @@ from django.db import connection, models, transaction
 from django.utils import timezone
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 
+from .authorization import office_actor
 from .models import Coordinator, CoordinatorDelegation, Lecturer, Student, User
 
 
@@ -19,7 +20,7 @@ def today():
 
 
 def is_office(user):
-    return user.is_active and user.role == User.Role.OFFICE_ADMIN and user.is_staff
+    return office_actor(user)
 
 
 def require_office(user):

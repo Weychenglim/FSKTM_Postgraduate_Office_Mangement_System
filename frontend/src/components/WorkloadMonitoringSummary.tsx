@@ -22,9 +22,10 @@ export function WorkloadMonitoringSummary(props: WorkloadSummaryProps) {
   }
 
   const occupied = props.records.reduce((total, record) => total + record.currentStudents, 0);
+  const reserved = props.kind === 'supervisor' ? props.records.reduce((total, record) => total + (record.reservedLoad ?? 0), 0) : 0;
   const workloadDescription = props.kind === 'panel'
     ? `${props.records.reduce((total, record) => total + record.confirmedAppointments, 0)} active appointments; ${props.records.reduce((total, record) => total + record.pendingNominations, 0)} pending reservations.`
-    : 'Primary and supporting appointments. Pending requests do not reserve capacity.';
+    : `Primary and supporting appointments; ${reserved} reserved ${reserved === 1 ? 'place' : 'places'} awaiting Coordinator approval. Submission alone does not reserve a place.`;
 
   return <section aria-label={`${props.kind === 'panel' ? 'Panel' : 'Supervisor'} workload summary`} className="space-y-3">
     <p className="card-description">Summary follows the current filters across all result pages.</p>

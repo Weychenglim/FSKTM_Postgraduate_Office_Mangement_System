@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IconHeading } from './IconHeading';
 import React from 'react';
 import { AlertTriangle, GraduationCap, Info } from 'lucide-react';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
@@ -58,20 +59,12 @@ export const RegistryImportProgrammes: React.FC<RegistryImportProgrammesProps> =
       aria-labelledby="registry-import-programmes-title"
       className="mb-4 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 text-left space-y-3"
     >
-      <div className="flex items-start gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-white text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
-          <GraduationCap className="w-4 h-4" />
-        </div>
-        <div>
-          <h4 id="registry-import-programmes-title" className="text-[10px] uppercase font-black tracking-wider text-indigo-700">
-            Programme Names In This File
-          </h4>
-          <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
-            These names are not on the approved list. Choose the programme each one means, or skip its rows. A choice
-            covers every row with that name and is remembered for the next import.
-          </p>
-        </div>
-      </div>
+      <IconHeading as="h4" titleId="registry-import-programmes-title" title="Programme Names In This File"
+        titleClassName="text-[10px] uppercase font-black tracking-wider text-indigo-700"
+        description="These names are not on the approved list. Choose the programme each one means, or skip its rows. A choice covers every row with that name and is remembered for the next import."
+        descriptionClassName="text-[11px] font-semibold text-slate-600 mt-0.5"
+        icon={<span className="w-8 h-8 rounded-lg bg-white text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0"><GraduationCap className="w-4 h-4" /></span>}
+      />
 
       <ul className="divide-y divide-indigo-100/70 rounded-xl border border-indigo-100 bg-white">
         {values.map((value) => (

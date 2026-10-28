@@ -16,10 +16,12 @@ class AcademicConfigurationAdminBoundaryTests(TestCase):
     availability_values = fixture.CapacityModelTests.availability_values
 
     def admin_client(self):
-        self.office.is_superuser = True
-        self.office.save(update_fields=["is_superuser"])
+        from accounts.models import User
+        technical, _ = User.objects.get_or_create(email='academic.inspect@example.test', defaults={
+            'role': User.TECHNICAL_ADMIN, 'is_staff': True, 'is_superuser': True,
+        })
         client = Client(raise_request_exception=False)
-        client.force_login(self.office)
+        client.force_login(technical)
         return client
 
     def test_semester_lifecycle_cannot_bypass_closure_and_audit_services(self):
@@ -77,7 +79,8 @@ class AcademicConfigurationAdminBoundaryTests(TestCase):
         window = LecturerAvailabilityWindow.objects.create(**self.availability_values())
         client = self.admin_client()
         request = RequestFactory().get("/admin/")
-        request.user = self.office
+        from accounts.models import User
+        request.user = User.objects.get(pk=client.session['_auth_user_id'])
         for record in (self.semester, plan, entry, window):
             with self.subTest(model=record._meta.model_name):
                 model_admin = admin.site._registry[type(record)]

@@ -32,10 +32,12 @@ assert.doesNotMatch(renderPanel({...panel,readinessState:'FACULTY_PROCESSING'}),
 
 const requirements: SupervisorDocumentRequirement[] = [{id:1,code:'PROPOSAL',label:'Research proposal',description:'Configured description',isRequired:true,isActive:true,displayOrder:1,isUsed:false}, {id:2,code:'CV',label:'Research CV',description:'',isRequired:false,isActive:true,displayOrder:2,isUsed:false}];
 const guide = (hasSupervisor: boolean, values = requirements) => renderToStaticMarkup(<SupervisorAppointmentGuidanceView requirements={values} loading={false} error={null} hasSupervisor={hasSupervisor} onRetry={() => {}} />);
-assert.match(guide(true), /Appointment guidance|Research proposal|Required|Research CV|Optional|10 MB|replacement|reason/);
+assert.match(guide(true), /What happens next|Changing your supervisor|Postgraduate Office/);
+assert.doesNotMatch(guide(true), /Documents for a new application|Research proposal|Research CV|10 MB/);
+assert.match(guide(false), /Research proposal|Required|Research CV|Optional|10 MB/);
 assert.doesNotMatch(guide(true), /<details|Submission prerequisites|Approval process|Need Assistance|turnaround/);
 assert.doesNotMatch(guide(false), /Changing your supervisor/);
 assert.match(guide(false, []), /not configured|Postgraduate Office/);
-const failed = renderToStaticMarkup(<SupervisorAppointmentGuidanceView requirements={[]} loading={false} error="Unavailable" hasSupervisor={true} onRetry={() => {}} />);
+const failed = renderToStaticMarkup(<SupervisorAppointmentGuidanceView requirements={[]} loading={false} error="Unavailable" hasSupervisor={false} onRetry={() => {}} />);
 assert.match(failed, /Retry|Unavailable/);
 console.log('Student appointment consistency, visible useful guidance and pending Panel privacy passed');

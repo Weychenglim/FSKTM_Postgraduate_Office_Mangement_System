@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IconHeading } from './IconHeading';
 import React from 'react';
 import { AlertTriangle, ArrowRight, AtSign, Check, Columns3, History, Info, Rows3 } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
@@ -150,17 +151,11 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
       className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs space-y-5 text-left"
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
-            <Columns3 className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 id="registry-import-match-title" className="section-label">Match Columns</h3>
-            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-              Check which column of your file holds each detail. Nothing is created until you check the rows and import.
-            </p>
-          </div>
-        </div>
+        <IconHeading as="h3" titleId="registry-import-match-title" title="Match Columns"
+          description="Check which column of your file holds each detail. Nothing is created until you check the rows and import."
+          descriptionClassName="text-[11px] text-slate-500 font-semibold mt-0.5"
+          icon={<span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0"><Columns3 className="w-5 h-5" /></span>}
+        />
         <ImportSteps current={1} />
       </div>
 
@@ -277,15 +272,12 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
       </div>
 
       <div className="rounded-xl border border-slate-150 bg-slate-50/50 px-4 py-4 space-y-3">
-        <div className="flex items-start gap-2">
-          <Rows3 className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" />
-          <div>
-            <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-500">For Every Row</h4>
-            <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
-              Fills cells that are blank in your file, or a column it does not have. Values already in the file are kept.
-            </p>
-          </div>
-        </div>
+        <IconHeading as="h4" className="gap-x-2" title="For Every Row"
+          titleClassName="text-[10px] uppercase font-black tracking-wider text-slate-500"
+          description="Fills cells that are blank in your file, or a column it does not have. Values already in the file are kept."
+          descriptionClassName="text-[11px] font-semibold text-slate-500 mt-0.5"
+          icon={<Rows3 className="w-4 h-4 text-slate-400 shrink-0" />}
+        />
         <div className="grid gap-3 md:grid-cols-3">
           <div>
             <p className="form-label">Programme</p>
@@ -332,8 +324,8 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
       </div>
 
       <div className="rounded-xl border border-slate-150 bg-slate-50/50 px-4 py-4 space-y-3">
-        <div className="flex items-start gap-2">
-          <AtSign className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" />
+        <div className="flex items-center gap-2">
+          <AtSign aria-hidden="true" className="w-4 h-4 text-slate-400 shrink-0" />
           <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-500">Student Emails And IDs</h4>
         </div>
         <label className="flex items-start gap-3 cursor-pointer">

@@ -372,7 +372,8 @@ class Command(BaseCommand):
             panel = data.pop("panel", None)
 
             data["must_change_password"] = False
-            data["is_staff"] = data["role"] == User.Role.OFFICE_ADMIN
+            data["is_staff"] = False
+            data["is_superuser"] = False
 
             user, created = User.objects.update_or_create(
                 email=email,
@@ -383,7 +384,7 @@ class Command(BaseCommand):
 
             if user.role == User.Role.OFFICE_ADMIN:
                 user.user_permissions.add(
-                    *Permission.objects.filter(content_type__app_label="marks")
+                    Permission.objects.get(content_type__app_label="marks", codename="change_markentry")
                 )
 
             if student is not None:

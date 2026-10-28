@@ -545,6 +545,9 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 "capacityPlanVersion": 1,
                 "capacityState": "AVAILABLE",
                 "workloadCount": 1,
+                "activeLoad": 1,
+                "reservedLoad": 0,
+                "pendingRequests": 0,
                 "selectable": True,
                 "unavailableUntil": None,
             },
@@ -1117,7 +1120,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         self.assertEqual(resubmitted.status_code, status.HTTP_201_CREATED)
         self.assertEqual(SupervisorApplication.objects.count(), 2)
 
-    def test_supervisor_can_review_pending_request_but_final_approval_rechecks_full_capacity(
+    def test_acceptance_and_final_approval_both_recheck_full_capacity(
         self,
     ):
         application_id = self.submit_application().data["id"]
@@ -1149,11 +1152,11 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
 
         accepted = self.accept_by_supervisor(application_id)
 
-        self.assertEqual(accepted.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            accepted.data["status"],
-            SupervisorApplication.Status.PENDING_COORDINATOR,
-        )
+        self.assertEqual(accepted.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(SupervisorApplication.objects.get(pk=application_id).status,
+                         SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR)
+        # Existing accepted promises must also recheck before final activation.
+        SupervisorApplication.objects.filter(pk=application_id).update(status="PENDING_COORDINATOR")
         self.authenticate(self.coordinator)
         blocked = self.client.post(
             f"/api/appointments/supervisor/applications/{application_id}/coordinator-approve/"
