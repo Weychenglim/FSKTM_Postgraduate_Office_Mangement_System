@@ -1,3 +1,4 @@
+import {appointmentMarkingRoute} from './utils/appointmentMarking';
 import {recordPathWithSearch} from './utils/recordNavigation';
 /**
  * @license
@@ -494,7 +495,7 @@ export default function App() {
             <OfficeMonitoringProvider enabled={currentUser.role === 'Office Staff/Admin'}>
             {activeSidebarItem === SIDEBAR_ITEMS.MARKS_ENTRY ? (
               isLecturerWorkspace ? (
-                <LecturerMarksEntry
+                <LecturerMarksEntry key={location.search} contextSearch={location.search}
                   onBackToDashboard={() => navigate(APP_ROUTES.dashboard)}
                   onNavigateToDossier={openDossier}
                   onNavigateToRequirements={() => openSupervisorRecord(routeForSupervisorRequirements(),isSupervisorSuperviseesRoute?APP_ROUTES.supervisorAppointmentSupervisees:APP_ROUTES.supervisorAppointments,'Records administration')}
@@ -554,7 +555,7 @@ export default function App() {
                   onNavigateToSubmitted={() => navigate(routeForPanelSubmittedRecommendations())}
                   onNavigateToReviewed={() => navigate(routeForPanelReviewedRequests())}
                   onNavigateToAssignment={(studentId,appointmentId) => openPanelRecord(`${routeForPanelAssignment(studentId)}${appointmentId?`?appointment=${appointmentId}`:""}`)}
-                  onNavigateToMarks={()=>navigate(APP_ROUTES.marks)}
+                  onNavigateToMarks={target=>navigate(target?appointmentMarkingRoute(target):APP_ROUTES.marks)}
                   onNavigateToDossier={openDossier}
                 />
               ) : (
@@ -630,7 +631,7 @@ export default function App() {
               ) : isLecturerUnsupportedSupervisorRoute ? (
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />
               ) : isLecturerWorkspace ? (
-                <LecturerSupervisorAppointments
+                <LecturerSupervisorAppointments onNavigateToMarks={target=>navigate(target?appointmentMarkingRoute(target):APP_ROUTES.marks)}
                   lecturerId={currentUser.id}
                   requestBackLabel={`Back to ${supervisorReturn(APP_ROUTES.supervisorAppointments, 'Appointment requests').label}`}
                   initialApplicationId={supervisorApplicationId}

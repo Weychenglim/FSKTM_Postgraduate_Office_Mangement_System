@@ -14,8 +14,8 @@ import {ErrorState, LoadingState} from './StateViews';
 import {RequestSummaryField} from './AppointmentRequestSections';
 import {appointmentDetailTypography as text} from './AppointmentPrimitives';
 
-export function PrimarySupervisorReplacementActions({role,team,active,busy,onChange}:{
-  role?:UserRole;team:SupervisoryTeam;active:boolean;busy:boolean;onChange?:()=>void;
+export function PrimarySupervisorReplacementActions({role,team,active,busy,onChange,variant='primary'}:{
+  role?:UserRole;team:SupervisoryTeam;active:boolean;busy:boolean;onChange?:()=>void;variant?:'primary'|'secondary';
 }) {
   if (role !== 'Office Staff/Admin' || !active) return null;
   if (team.pendingPrimaryReplacement) return <div role="status" className="space-y-1">
@@ -23,7 +23,7 @@ export function PrimarySupervisorReplacementActions({role,team,active,busy,onCha
     <p className="card-description">{requestStatusLabel(team.pendingPrimaryReplacement.status)}</p>
   </div>;
   return team.canChangePrimarySupervisor && team.primaryAppointmentId && onChange
-    ? <PortalButton variant="primary" icon={UserRoundPen} disabled={busy} onClick={onChange}>Change supervisor</PortalButton> : null;
+    ? <PortalButton variant={variant} icon={UserRoundPen} disabled={busy} onClick={onChange}>Request supervisor change</PortalButton> : null;
 }
 
 export function OfficeSupervisorReplacementFields({context,selectedId,reason,busy,onCandidateChange,onReasonChange,onRefresh,errors={}}:{
@@ -58,8 +58,8 @@ export function OfficeSupervisorReplacementFields({context,selectedId,reason,bus
   </fieldset>;
 }
 
-export function OfficeSupervisorReplacementForm({appointmentId,onBack,onSubmitted,onBusyChange}:{
-  appointmentId:number;onBack:()=>void;onSubmitted:(application:SupervisorApplicationRecord)=>void;onBusyChange?:(busy:boolean)=>void;
+export function OfficeSupervisorReplacementForm({appointmentId,onBack,onSubmitted,onBusyChange,backLabel="Back to supervision"}:{
+  appointmentId:number;backLabel?:string;onBack:()=>void;onSubmitted:(application:SupervisorApplicationRecord)=>void;onBusyChange?:(busy:boolean)=>void;
 }) {
   const [context,setContext]=useState<OfficeSupervisorReplacementContext|null>(null);
   const [loading,setLoading]=useState(true);
@@ -107,7 +107,7 @@ export function OfficeSupervisorReplacementForm({appointmentId,onBack,onSubmitte
     onSubmitted(application);
   };
 
-  return <RecordPage title="Change supervisor" backLabel="Back to supervision" onBack={onBack} pageKey={`primary-replacement:${appointmentId}`} dirty={!!selectedId||!!reason.trim()} busy={working} navigationComplete={navigationComplete}>
+  return <RecordPage title="Change supervisor" backLabel={backLabel} onBack={onBack} pageKey={`primary-replacement:${appointmentId}`} dirty={!!selectedId||!!reason.trim()} busy={working} navigationComplete={navigationComplete}>
     {submitError?<p role="alert" className="card-description rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800">{submitError}</p>:null}
     {loading?<LoadingState message="Loading current supervision…"/>:loadError?<ErrorState message={loadError} onRetry={()=>void load()}/>:context?<PortalCard padding="lg">
       <form onSubmit={submit} className="space-y-6">

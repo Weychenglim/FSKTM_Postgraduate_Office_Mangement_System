@@ -5,6 +5,11 @@ import {PANEL_RECOMMENDATION_STATUS_LABELS} from './panelRecommendationWorkflow'
 import {appointmentRequestStatusLabel,appointmentRequestStatusTone,requestReviewStepLabel} from './appointmentRequestStatus';
 
 export type PanelPresentation = Omit<PanelRecommendationDraft, 'status'> & {status: PanelRecommendationStatus | 'UNKNOWN' | 'NOT_SUBMITTED'};
+/** Request lists keep their source nomination even after an appointment is created. */
+export function panelBrowseRecordKey(record:PanelPresentation,section:'requests'|'appointments'):string {
+  if(section==='requests' && record.id != null)return `recommendation-${record.id}`;
+  return record.appointmentLifecycle?`appointment-${record.appointmentLifecycle.appointmentId}`:record.id != null?`recommendation-${record.id}`:`profile-${record.studentId}`;
+}
 export const panelStatusLabel = (status: string): string => ({ACTIVE:'Active',ENDED:'Ended',COMPLETED:'Completed',WITHDRAWN:'Withdrawn',REPLACED:'Replaced',OTHER:'Other',Approved:'Approved',Ended:'Ended',Pending:appointmentRequestStatusLabel('PENDING_COORDINATOR'),Recommendation:appointmentRequestStatusLabel('SUBMITTED_TO_PANEL'),'No Panel':'Not appointed',Rejected:'Rejected',Cancelled:'Cancelled'}[status] ?? PANEL_RECOMMENDATION_STATUS_LABELS[status as PanelRecommendationStatus] ?? appointmentRequestStatusLabel(status));
 export const panelStatusTone = (status: string) => ['ACTIVE','COMPLETED','Approved'].includes(status) ? 'success' as const : status==='Rejected'?'danger' as const:status==='Pending'||status==='Recommendation'?'warning' as const:appointmentRequestStatusTone(status);
 export const panelRequestPending = (status:string) => ['SUBMITTED_TO_PANEL','PENDING_COORDINATOR'].includes(status);
@@ -55,9 +60,9 @@ export function buildPanelApprovalSteps(record:PanelPresentation):ApprovalStep[]
     else if(approved)state=recorded?'completed':'unknown';
     else if(current!=null)state=index===current?'current':index>current?'upcoming':recorded?'completed':'unknown';
     const event=state==='rejected'?terminal:state==='completed'?stage.event:undefined;
-    steps.push({id:stage.id,label:requestReviewStepLabel(stage.reviewer,state,recorded,index===0?'accepted':'approved'),state,...details(event,state==='completed'||state==='rejected'?stage.date:undefined),description:state==='current'?`Awaiting ${index===0?'Panel review':'Coordinator approval'}.${Number.isSafeInteger(record.waitingDays)&&record.waitingDays!>=0?` ${record.waitingDays} calendar ${record.waitingDays===1?'day':'days'} at this stage.`:''}`:state==='not_reached'?'Not reached before the request ended.':state==='unknown'?'Stage history: Not recorded.':undefined});
+    steps.push({id:stage.id,label:requestReviewStepLabel(stage.reviewer,state,recorded,index===0?'accepted':'approved'),state,reason:event?.reason||undefined,...details(event,state==='completed'||state==='rejected'?stage.date:undefined),description:state==='current'?`Awaiting ${index===0?'Panel review':'Coordinator approval'}.${Number.isSafeInteger(record.waitingDays)&&record.waitingDays!>=0?` ${record.waitingDays} calendar ${record.waitingDays===1?'day':'days'} at this stage.`:''}`:state==='not_reached'?'Not reached before the request ended.':state==='unknown'?'Stage history: Not recorded.':undefined});
   }
-  steps.push({id:'outcome',label:'Outcome',state:approved?'completed':rejected?'rejected':cancelled?'cancelled':current!=null?'upcoming':'unknown',...details(terminal),showRecordedDetails:cancelled||!terminal,description:approved?'Request approved.':cancelled?panelStatusLabel(record.status):rejected?'Request rejected; no appointment was created.':current!=null?'Awaiting a final decision.':'Recorded outcome; detailed review history is unavailable.'});
+  steps.push({id:'outcome',label:'Outcome',state:approved?'completed':rejected?'rejected':cancelled?'cancelled':current!=null?'upcoming':'unknown',...details(terminal),showRecordedDetails:cancelled||!terminal,reason:cancelled?terminal?.reason||undefined:undefined,description:approved?'Request approved.':cancelled?panelStatusLabel(record.status):rejected?'Request rejected; no appointment was created.':current!=null?'Awaiting a final decision.':'Recorded outcome; detailed review history is unavailable.'});
   return steps;
 }
 

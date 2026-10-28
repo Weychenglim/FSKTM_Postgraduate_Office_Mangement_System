@@ -11,6 +11,7 @@ import { RecordPage } from './RecordPage';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   UserRound,
+  UserRoundPen,
   Users,
   UserX,
   FileText, 
@@ -55,6 +56,7 @@ import { formatRequestStageWaiting } from '../utils/requestStageWaiting';
 import { RequestMetadata, ViewStudentRecordAction } from './RequestDetailPrimitives';
 import { SupervisorRequestDetail, supervisorRequestMetadata, type SupervisorRequestPresentation } from './SupervisorRequestDetail';
 import {OfficeSupervisorReplacementForm} from './OfficeSupervisorReplacementForm';
+import {getOfficeSupervisorReplacement, type OfficeSupervisorReplacementContext} from '../services/officeSupervisorReplacementApi';
 import { SupervisorAppointmentRecordCard, toOfficeAppointmentPresentation } from './SupervisorAppointmentRecordCard';
 
 export function officeRequestPresentation(record: SupervisorRecord): SupervisorRequestPresentation {
@@ -73,9 +75,31 @@ export function officeRequestPresentation(record: SupervisorRecord): SupervisorR
     waitingDays:record.waitingDays,waitingOn:record.waitingOn,events,documents:record.documents};
 }
 
-export function OfficeAppointmentAdministration({record:r,onEnd}:{record:SupervisorRecord;onEnd:React.ComponentProps<typeof AppointmentEndControl>['onSubmit']}) {
+function OfficeRequestReplacementAction({appointmentId,studentId,onChange}:{appointmentId:number;studentId:string;onChange:()=>void}) {
+  const [context,setContext]=useState<OfficeSupervisorReplacementContext|null>(null);
+  const [failed,setFailed]=useState(false);
+  const [attempt,setAttempt]=useState(0);
+  useEffect(()=>{
+    let cancelled=false;
+    setContext(null);setFailed(false);
+    getOfficeSupervisorReplacement(appointmentId).then(result=>{
+      if(result.appointmentId!==appointmentId||result.studentId!==studentId)throw new Error('Replacement context does not match this appointment.');
+      if(!cancelled)setContext(result);
+    }).catch(()=>{if(!cancelled)setFailed(true);});
+    return()=>{cancelled=true;};
+  },[appointmentId,studentId,attempt]);
+  if(failed)return <div role="alert" className="space-y-2"><p className="card-description">Supervisor change availability could not be checked.</p><PortalButton onClick={()=>setAttempt(value=>value+1)}>Retry availability check</PortalButton></div>;
+  if(!context||context.appointmentId!==appointmentId||context.studentId!==studentId)return null;
+  if(!context.canSubmit||context.pendingApplicationId)return context.blockedReason?<p role="status" className="card-description">{context.blockedReason}</p>:null;
+  return <PortalButton icon={UserRoundPen} onClick={onChange}>Request supervisor change</PortalButton>;
+}
+
+export function OfficeAppointmentAdministration({record:r,onEnd,onChange,refreshVersion=0}:{record:SupervisorRecord;onEnd:React.ComponentProps<typeof AppointmentEndControl>['onSubmit'];onChange?:()=>void;refreshVersion?:number}) {
   const hasAppointment=!!r.appointmentLifecycle||!!r.appointmentId;
-  return hasAppointment?<SupervisorAppointmentRecordCard record={toOfficeAppointmentPresentation(r)} onEnd={r.appointmentLifecycle?.status==='ACTIVE'?onEnd:undefined}/>:null;
+  const active=r.appointmentLifecycle?.status==='ACTIVE';
+  const appointmentId=r.appointmentLifecycle?.appointmentId;
+  return hasAppointment?<SupervisorAppointmentRecordCard compact record={toOfficeAppointmentPresentation(r)} onEnd={active?onEnd:undefined}
+    actions={active&&appointmentId&&onChange?<OfficeRequestReplacementAction key={`${appointmentId}:${r.studentId}:${refreshVersion}`} appointmentId={appointmentId} studentId={r.studentId} onChange={onChange}/>:undefined}/>:null;
 }
 
 export function filterOfficeSupervisorRecords(records: SupervisorRecord[], filters: { search: string; programme: string; semester: string; status: string }) {
@@ -131,7 +155,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [primaryReplacement,setPrimaryReplacement]=useState<{appointmentId:number;studentId:string}|null>(null);
   const [replacementNotice,setReplacementNotice]=useState<string|null>(null);
-  useEffect(()=>{setPrimaryReplacement(null);setReplacementNotice(null);},[routeTeamStudentId,routeView]);
+  useEffect(()=>{setPrimaryReplacement(null);setReplacementNotice(null);},[routeTeamStudentId,routeView,routeRecordId,providedRecord?.studentId]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -280,10 +304,17 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     }
 
     const r = selectedRouteRecord;
+    if(primaryReplacement?.studentId===r.studentId&&primaryReplacement.appointmentId===r.appointmentLifecycle?.appointmentId)return <OfficeSupervisorReplacementForm
+      appointmentId={primaryReplacement.appointmentId} backLabel="Back to appointment request" onBack={()=>setPrimaryReplacement(null)}
+      onSubmitted={()=>{
+        setPrimaryReplacement(null);setReplacementNotice('Replacement requested. The proposed supervisor will review it next.');setTeamRefresh(value=>value+1);
+        Promise.resolve(providedRecord?onProvidedRecordRefresh?.():loadRecords(true)).catch(()=>showToast('Replacement requested, but the record could not be refreshed. Reload to check its status.'));
+      }}/>;
     const request=officeRequestPresentation(r);
     const hasRequest=r.applicationId!=null||!!r.workflow?.length;
     const ended=r.status==='Ended'||r.appointmentLifecycle?.status==='ENDED';
-    const administration=<OfficeAppointmentAdministration record={r} onEnd={async(outcome,reason)=>{
+    const administration=<OfficeAppointmentAdministration record={r} refreshVersion={teamRefresh}
+      onChange={r.appointmentLifecycle?.status==='ACTIVE'?()=>{setReplacementNotice(null);setPrimaryReplacement({appointmentId:r.appointmentLifecycle!.appointmentId,studentId:r.studentId});}:undefined} onEnd={async(outcome,reason)=>{
       return await completeDecision(()=>endSupervisorAppointment(r.appointmentLifecycle!.appointmentId,outcome,reason),async()=>{
         if(providedRecord)await onProvidedRecordRefresh?.();else await loadRecords(true);
       });
@@ -292,6 +323,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
       metadata={<RequestMetadata {...supervisorRequestMetadata(request)} statusLabel={ended?'Appointment ended':hasRequest?supervisorRequestMetadata(request).statusLabel:r.status} statusTone={ended||!hasRequest?'neutral':supervisorRequestMetadata(request).statusTone}/>}
       backLabel={backLabel} onBack={navigateToList}>
       <PortalToast message={toastMessage}/>
+      {replacementNotice?<p role="status" className="card-description rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">{replacementNotice}</p>:null}
       <SupervisorRequestDetail request={request} showApproval={hasRequest} contextAction={onNavigateToDossier?<ViewStudentRecordAction studentId={r.studentId} onOpen={onNavigateToDossier}/>:undefined} administration={administration}/>
     </RecordPage>;
   }

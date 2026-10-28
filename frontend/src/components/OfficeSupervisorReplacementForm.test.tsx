@@ -38,17 +38,17 @@ const team = {studentId:1,matricNo:'PG001',primaryAppointmentId:7,canChangePrima
 const actions=(role='Office Staff/Admin',overrides={})=>renderToStaticMarkup(<PrimarySupervisorReplacementActions role={role as 'Office Staff/Admin'} team={team} active busy={false} onChange={()=>{}} {...overrides}/>);
 
 test('only Office sees the action for an active server-authorized appointment',()=>{
-  assert.match(actions(),/>Change supervisor</);
-  for(const role of ['Student','Lecturer','Programme Coordinator']) assert.doesNotMatch(actions(role),/>Change supervisor</);
-  assert.doesNotMatch(actions('Office Staff/Admin',{active:false}),/>Change supervisor</);
-  assert.doesNotMatch(actions('Office Staff/Admin',{team:{...team,canChangePrimarySupervisor:false}}),/>Change supervisor</);
+  assert.match(actions(),/>Request supervisor change</);
+  for(const role of ['Student','Lecturer','Programme Coordinator']) assert.doesNotMatch(actions(role),/>Request supervisor change</);
+  assert.doesNotMatch(actions('Office Staff/Admin',{active:false}),/>Request supervisor change</);
+  assert.doesNotMatch(actions('Office Staff/Admin',{team:{...team,canChangePrimarySupervisor:false}}),/>Request supervisor change</);
 });
 
 test('pending replacement shows its stage instead of a second creation action',()=>{
   const html=actions('Office Staff/Admin',{team:{...team,pendingPrimaryReplacement:{applicationId:20,status:'PENDING_COORDINATOR',supervisorName:'Dr Proposed'}}});
   assert.match(html,/Dr Proposed/);
   assert.match(html,/Awaiting Coordinator approval/);
-  assert.doesNotMatch(html,/>Change supervisor</);
+  assert.doesNotMatch(html,/>Request supervisor change</);
 });
 
 test('Student guidance directs exceptional changes to Office without inviting replacement submission',()=>{

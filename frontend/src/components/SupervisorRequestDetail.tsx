@@ -1,3 +1,4 @@
+import {SupervisionDetailSection} from './SupervisionDetailLayout';
 import React, {useId} from 'react';
 import {BookOpen, ListChecks, Paperclip} from 'lucide-react';
 import {IconHeading} from './IconHeading';
@@ -10,7 +11,7 @@ import { buildSupervisorApprovalProcess } from '../utils/approvalProcess';
 import { requestStatusLabel } from '../utils/lecturerRequests';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { ApprovalProcess } from './ApprovalProcess';
-import { RequestAuditHistory, RequestMetadata, RequestDetailActions } from './RequestDetailPrimitives';
+import { RequestMetadata, RequestDetailActions } from './RequestDetailPrimitives';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
 import { appointmentRequestStatusTone } from '../utils/appointmentRequestStatus';
 import { SupervisorSubmittedCourses, SupervisorSubmittedDeclaration, SupervisorSectionAParticulars, useSupervisorSectionA, withSubmittedSupervisorParticulars } from './SubmittedSupervisorSectionA';
@@ -92,8 +93,8 @@ export function SupervisorRequestDetail({ request, actions, administration, cont
   const studentTitleId=useId();
   const researchTitleId=useId();
   const documentsTitleId=useId();
-  const reviewTitleId=useId();
   const hasReview = showApproval || !!(request.replacementReason || request.rejectionReason || request.cancellationReason || actions || request.events?.length);
+  const hasSidebar = hasReview || !!administration;
   const hasNotes = !!(request.replacementReason || request.rejectionReason || request.cancellationReason);
   const capacity = request.acceptanceCapacity;
   const capacityAvailability = !capacity || capacity.limit == null || capacity.state === 'NOT_CONFIGURED'
@@ -124,7 +125,7 @@ export function SupervisorRequestDetail({ request, actions, administration, cont
       {request.initiatedByOffice ? <p className="mt-4 text-xs text-slate-600">Office-initiated replacement</p> : null}
     </PortalCard>
 
-    <div data-request-columns className={hasReview ? 'grid min-w-0 items-start gap-7 xl:grid-cols-[minmax(0,1fr)_20rem]' : 'min-w-0'}>
+    <div data-request-columns className={hasSidebar ? 'grid min-w-0 items-start gap-7 xl:grid-cols-[minmax(0,1fr)_20rem]' : 'min-w-0'}>
       <div className="min-w-0 space-y-7">
         <PortalCard padding="lg" role="region" aria-labelledby={researchTitleId}>
           <IconHeading titleId={researchTitleId} title="Research details" titleClassName="text-base font-semibold text-brand-navy" icon={<AppointmentIcon icon={BookOpen} tone="info"/>}/>
@@ -149,19 +150,17 @@ export function SupervisorRequestDetail({ request, actions, administration, cont
           </div>
         </PortalCard>
       </div>
-    {hasReview ? <PortalCard padding="lg" role="region" aria-labelledby={reviewTitleId}>
-      <IconHeading titleId={reviewTitleId} title="Review and outcome" titleClassName="text-base font-semibold text-brand-navy" icon={<AppointmentIcon icon={ListChecks} tone="info"/>}/>
-      <div className="mt-5 space-y-5">
+    {hasSidebar ? <aside data-request-sidebar aria-label="Request review and appointment" className="min-w-0 space-y-7">
+    {hasReview ? <SupervisionDetailSection title="Review and outcome" icon={ListChecks}>
+        {showApproval ? <ApprovalProcess steps={progress} headingAs="h3"/> : null}
         {hasNotes ? <div className="space-y-4">{[
           ['Requested replacement',request.replacementReason],['Decision reason',request.rejectionReason],['Cancellation reason',request.cancellationReason],
         ].filter(([,reason])=>reason).map(([title,reason])=><section key={title} aria-label={title!} className="space-y-2"><h3 className="text-sm font-semibold text-brand-navy">{title}</h3><p className="whitespace-pre-wrap text-sm font-normal leading-7 text-slate-900 [overflow-wrap:anywhere]">{reason}</p></section>)}</div> : null}
-        {showApproval ? <ApprovalProcess steps={progress} headingAs="h3"/> : null}
         {capacity ? <p className="card-description" aria-label="Current request capacity">{capacity.activeLoad} active · {capacity.reservedLoad} reserved · {capacityAvailability}{capacity.limit != null ? ` · Limit ${capacity.limit}` : ' · Limit not configured'}</p> : null}
-        {actions ? <div className="border-t border-slate-200 pt-5"><RequestDetailActions>{actions}</RequestDetailActions></div> : null}
-        {request.events?.length ? <div className="border-t border-slate-200 pt-5"><RequestAuditHistory events={request.events}/></div> : null}
-      </div>
-    </PortalCard> : null}
-    </div>
+        {actions ? <div className="border-t border-slate-100 pt-6"><RequestDetailActions>{actions}</RequestDetailActions></div> : null}
+    </SupervisionDetailSection> : null}
     {administration}
+    </aside> : null}
+    </div>
   </div>;
 }

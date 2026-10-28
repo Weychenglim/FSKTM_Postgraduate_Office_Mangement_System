@@ -1,27 +1,21 @@
+import {AppointmentHistoryCard} from './AppointmentSidebar';
 import React from 'react';
-import {ClipboardList,UsersRound} from 'lucide-react';
-import {ApprovalProcess,formatRequestDisplayDate} from './ApprovalProcess';
+import {ClipboardList,UsersRound,FileText} from 'lucide-react';
+import {formatRequestDisplayDate} from './ApprovalProcess';
 import {RequestAuditHistory,RequestDetailActions,ViewStudentRecordAction} from './RequestDetailPrimitives';
 import {PanelAppointmentRecordCard} from './PanelRecordDetails';
 import {PanelDetailFact,PanelStudentOverview,PanelResearchDetails,PanelMemberDetails} from './PanelDetailLayout';
 import {SupervisionDetailSection,SupervisionPerson,supervisionDetailBody as body} from './SupervisionDetailLayout';
 import {PortalButton,StatusBadge} from './PortalPrimitives';
-import {buildPanelApprovalSteps,panelRequestPending,panelStatusLabel,type PanelPresentation} from '../utils/panelPresentation';
+import {panelRequestPending,panelStatusLabel,type PanelPresentation} from '../utils/panelPresentation';
 
 import type {PanelAcademicTeam} from '../types/appointment';
 
 /** Authorised appointment data only; caller owns lifecycle and navigation capabilities. */
-export function PanelAssignmentDetails({record,contextAction,actions,academicTeam}:{record:PanelPresentation;academicTeam?:PanelAcademicTeam|null;contextAction?:React.ReactNode;actions?:React.ReactNode}) {
+export function PanelAssignmentDetails({record,contextAction,actions,academicTeam,onViewRequest,busy=false,markingAction}:{record:PanelPresentation;academicTeam?:PanelAcademicTeam|null;busy?:boolean;markingAction?:React.ReactNode;onViewRequest?:(id:string)=>void;contextAction?:React.ReactNode;actions?:React.ReactNode}) {
   const lifecycle=record.appointmentLifecycle;
-  const nominationHistory=<details data-panel-nomination-history><summary className="cursor-pointer rounded text-sm font-medium leading-6 text-brand-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">Nomination and review history</summary>
-            <div className="mt-6 min-w-0 space-y-6">
-              {record.justification?<dl><PanelDetailFact title="Nomination justification" value={record.justification}/></dl>:null}
-              {record.replacesAppointmentId||record.replacementReason?<div className="space-y-5"><h3 className="text-sm font-semibold text-brand-navy">Requested replacement</h3><dl className="space-y-5">{record.replacedPanelMember?<PanelDetailFact title="Previous Panel member" value={record.replacedPanelMember}/>:null}{record.replacementReason?<PanelDetailFact title="Replacement reason" value={record.replacementReason}/>:null}</dl></div>:null}
-              <ApprovalProcess steps={buildPanelApprovalSteps(record)} headingAs="h3"/>
-              {record.rejectionReason||record.cancellationReason?<dl><PanelDetailFact title={record.rejectionReason?'Rejection reason':'Cancellation reason'} value={record.rejectionReason||record.cancellationReason}/></dl>:null}
-              {record.workflow?.length?<RequestAuditHistory title="Nomination audit history" events={record.workflow}/>:null}
-            </div>
-          </details>;
+  const sourceAction=record.status==='APPROVED'&&record.id != null&&onViewRequest?<PortalButton variant="primary" icon={FileText} size="sm" disabled={busy} onClick={()=>onViewRequest(String(record.id))}>View approved application</PortalButton>:null;
+  const changes=(lifecycle?.lifecycle??[]).filter(event=>event.action!=='ACTIVATED');
   return <div data-panel-assignment-detail className="space-y-7">
     <PanelStudentOverview record={record} actions={contextAction} assignment={academicTeam !== undefined}/>
     <div data-panel-assignment-columns className="grid min-w-0 items-start gap-7 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -38,12 +32,12 @@ export function PanelAssignmentDetails({record,contextAction,actions,academicTea
         {record.unavailableUntil?<p className="text-sm leading-6 text-amber-800">Unavailable for new appointments until {formatRequestDisplayDate(record.unavailableUntil)}. This recorded appointment remains available.</p>:null}
         <PanelResearchDetails record={record}/>
       </div>
-      <aside aria-label="Appointment information" className="min-w-0">
-        {lifecycle?<PanelAppointmentRecordCard compact record={record} actions={actions}>
-          {nominationHistory}
-        </PanelAppointmentRecordCard>:<SupervisionDetailSection title="Appointment record" icon={ClipboardList}><p className={body}>No appointment lifecycle record is available.</p>{nominationHistory}</SupervisionDetailSection>}
+      <aside aria-label="Appointment information" className="min-w-0 space-y-7">
+        {lifecycle?<PanelAppointmentRecordCard markingAction={markingAction} compact showHistory={false} record={record} sourceAction={sourceAction} actions={actions}/>:<SupervisionDetailSection title="Appointment record" icon={ClipboardList}><p className={body}>No appointment lifecycle record is available.</p>{sourceAction?<RequestDetailActions>{sourceAction}</RequestDetailActions>:null}</SupervisionDetailSection>}
+
       </aside>
     </div>
+    {changes.length?<AppointmentHistoryCard><RequestAuditHistory sidebar title="View changes" events={changes.map(event=>({...event,reason:event.reason??undefined}))}/></AppointmentHistoryCard>:null}
   </div>;
 }
 
@@ -60,7 +54,7 @@ export function PanelAppointmentOverview({record,onOpenStudent,onViewRequest,onV
       <aside className="min-w-0" aria-label="Panel appointment status"><SupervisionDetailSection title="Appointment status" icon={ClipboardList}>
         <StatusBadge tone={active?'success':'neutral'}>{active?'Active Panel appointment':'No active Panel appointment'}</StatusBadge>
         {active&&onViewAppointment?<PortalButton size="sm" onClick={()=>onViewAppointment(record.appointmentLifecycle!.appointmentId)}>View appointment</PortalButton>:null}
-        {pending?<div className="space-y-5 border-t border-slate-100 pt-6"><h3 className="text-sm font-semibold text-brand-navy">Ongoing request</h3><StatusBadge tone="info">{panelStatusLabel(record.status)}</StatusBadge><dl><PanelDetailFact title="Proposed Panel member" value={record.recommendedMember}/></dl>{record.id!=null&&onViewRequest?<RequestDetailActions><PortalButton size="sm" onClick={()=>onViewRequest(String(record.id))}>View request</PortalButton></RequestDetailActions>:null}</div>:!active?<p className={body}>No ongoing request.</p>:null}
+        {pending?<div className="space-y-5 border-t border-slate-100 pt-6"><h3 className="text-sm font-semibold text-brand-navy">Pending request</h3><StatusBadge tone="info">{panelStatusLabel(record.status)}</StatusBadge><dl><PanelDetailFact title="Proposed Panel member" value={record.recommendedMember}/></dl>{record.id!=null&&onViewRequest?<RequestDetailActions><PortalButton size="sm" onClick={()=>onViewRequest(String(record.id))}>View request</PortalButton></RequestDetailActions>:null}</div>:!active?<p className={body}>No pending request.</p>:null}
       </SupervisionDetailSection></aside>
     </div>
   </div>;

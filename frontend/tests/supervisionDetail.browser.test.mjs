@@ -36,7 +36,7 @@ test('Supervision detail across roles',{timeout:240000},async()=>{
     const encoded=stdout.match(/<pre id="test-results"[^>]*>([\s\S]*?)<\/pre>/)?.[1];assert.ok(encoded&&encoded!=='RUNNING',stdout.slice(-2000));
     const result=JSON.parse(encoded.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&'));
     console.log(result.results.map(row=>`${row.error?'FAIL':'PASS'} ${width}px ${row.name}${row.error?`: ${row.error}`:''}`).join('\n'));
-    assert.equal(result.width,width);assert.equal(result.results.length,13);assert.deepEqual(result.results.filter(row=>row.error),[]);
+    assert.equal(result.width,width);assert.equal(result.results.length,14);assert.deepEqual(result.results.filter(row=>row.error),[]);
   }
   }finally{await new Promise(resolve=>server.close(resolve));const resolved=await realpath(directory),within=relative(await realpath(tmpdir()),resolved);assert.ok(!isAbsolute(within)&&!within.startsWith('..')&&basename(resolved).startsWith('supervision-layout-'));await rm(resolved,{recursive:true,force:true,maxRetries:5,retryDelay:200});}
 });

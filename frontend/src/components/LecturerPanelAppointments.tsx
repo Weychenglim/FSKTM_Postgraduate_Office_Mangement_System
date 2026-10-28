@@ -1,3 +1,4 @@
+import type {AppointmentMarkingTarget} from '../utils/appointmentMarking';
 import {PanelSuperviseesWorkspace,PanelNominationRecords} from "./PanelSuperviseesWorkspace";
 import { PortalSelect } from './PortalSelect';
 import {PanelBrowse} from './PanelBrowse';
@@ -323,12 +324,15 @@ export const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReview
   onOpenStudent, onAppointmentEnded, onReload, backLabel = 'Back to Panel Appointments',
   presentation = 'request',
 }) => {
+  const [sourceRequest,setSourceRequest]=useState(false);
+  const appointmentView=presentation==='appointment'&&!sourceRequest;
   const [rejecting, setRejecting] = useState(false);
   const [confirmingAcceptance, setConfirmingAcceptance] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionError, setRejectionError] = useState<string | null>(null);
 
   useEffect(() => {
+    setSourceRequest(false);
     setRejecting(false);
     setConfirmingAcceptance(false);
     setRejectionReason('');
@@ -342,13 +346,13 @@ export const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReview
     && canActOnPanelRecord(recommendation, reviewerRole);
   const lifecycle = recommendation.appointmentLifecycle;
   const lifecycleActions = recommendation.canEndAppointment && lifecycle?.status === 'ACTIVE'
-    ? <AppointmentEndControl label="Panel appointment" context={<>{recommendation.studentName} · {recommendation.programme}</>} decisionKey={lifecycle.appointmentId} onReload={onAppointmentEnded} onSubmit={(outcome, reason) => completeDecision(() => endPanelAppointment(lifecycle.appointmentId, outcome, reason), onAppointmentEnded)}/>
+    ? <AppointmentEndControl buttonLabel="End panel appointment" label="Panel appointment" context={<>{recommendation.studentName} · {recommendation.programme}</>} decisionKey={lifecycle.appointmentId} onReload={onAppointmentEnded} onSubmit={(outcome, reason) => completeDecision(() => endPanelAppointment(lifecycle.appointmentId, outcome, reason), onAppointmentEnded)}/>
     : undefined;
-  return <RecordPage title={presentation==='appointment'?'Panel appointment':'Panel recommendation'} metadata={presentation==='appointment'?undefined:<RequestMetadata {...panelRecordMetadata(recommendation)}/>} backLabel={backLabel} onBack={onClose} pageKey={routed ? undefined : `panel-review:${recommendation.id}`} dirty={!!rejectionReason.trim()} busy={busy}>
-    {presentation==='appointment'?<PanelAssignmentDetails record={recommendation} contextAction={<ViewStudentRecordAction studentId={recommendation.studentId} onOpen={onOpenStudent} disabled={busy}/>} actions={lifecycleActions}/>:<PanelRecommendationDetail record={recommendation} contextAction={<ViewStudentRecordAction studentId={recommendation.studentId} onOpen={onOpenStudent} disabled={busy}/>} actions={canAct||recommendation.participantEligible===false?<>
+  return <RecordPage title={appointmentView?'Panel appointment':'Panel recommendation'} metadata={appointmentView?undefined:<RequestMetadata {...panelRecordMetadata(recommendation)}/>} backLabel={sourceRequest?'Back to Panel appointment':backLabel} onBack={sourceRequest?()=>setSourceRequest(false):onClose} pageKey={routed ? undefined : `panel-review:${recommendation.id}`} dirty={!!rejectionReason.trim()} busy={busy}>
+    {appointmentView?<PanelAssignmentDetails busy={busy} onViewRequest={()=>setSourceRequest(true)} record={recommendation} contextAction={<ViewStudentRecordAction studentId={recommendation.studentId} onOpen={onOpenStudent} disabled={busy}/>} actions={lifecycleActions}/>:<PanelRecommendationDetail record={recommendation} contextAction={<ViewStudentRecordAction studentId={recommendation.studentId} onOpen={onOpenStudent} disabled={busy}/>} actions={canAct||recommendation.participantEligible===false?<>
       {recommendation.participantEligible===false?<p className="card-description text-amber-800">This Student is {recommendation.participantLifecycleStatus?.toLowerCase()}; decisions require an eligible Student.</p>:null}
       {canAct?<PrimaryRequestDecisionButtons positiveLabel={reviewerRole==='SELECTED_PANEL'?'Accept request':'Approve request'} disabled={busy} onPositive={()=>setConfirmingAcceptance(true)} onReject={()=>setRejecting(true)}/>:null}
-    </>:undefined} administration={<PanelAppointmentRecordCard record={recommendation} actions={lifecycleActions}/>}/>}
+    </>:undefined} administration={<PanelAppointmentRecordCard compact record={recommendation} actions={lifecycleActions}/>}/>}
             <DecisionDialog isOpen={rejecting || confirmingAcceptance} decisionKey={recommendation.id}
               title={rejecting ? 'Reject Panel recommendation?' : reviewerRole === 'SELECTED_PANEL' ? 'Accept Panel nomination?' : 'Approve Panel recommendation?'}
         context={<>{recommendation.studentName} · {recommendation.programme}</>}
@@ -385,7 +389,7 @@ interface LecturerPanelAppointmentsProps {
   onNavigateToSubmitted?: () => void;
   onNavigateToReviewed?: () => void;
   onNavigateToAssignment?: (studentId: string, appointmentId?:number) => void;
-  onNavigateToMarks?:()=>void;
+  onNavigateToMarks?:(target?:AppointmentMarkingTarget)=>void;
   onNavigateToDossier?: (studentId: string) => void;
 }
 

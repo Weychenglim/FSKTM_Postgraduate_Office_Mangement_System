@@ -111,7 +111,7 @@ export function CoordinatorAppointmentLifecycleRecords({records,detail=false,onO
 export function CoordinatorApplicationLifecycle({record,onNavigateToDossier,onEnd}: {
   record:SupervisorApplicationRecord;onNavigateToDossier?:(matricNo:string)=>void;onEnd:React.ComponentProps<typeof CoordinatorAppointmentLifecycleRecords>['onEnd'];
 }) {
-  return record.status==='APPROVED'&&record.appointmentLifecycle?<SupervisorAppointmentRecordCard record={toCoordinatorAppointmentPresentation(record)}
+  return record.status==='APPROVED'&&record.appointmentLifecycle?<SupervisorAppointmentRecordCard compact record={toCoordinatorAppointmentPresentation(record)}
     onEnd={record.appointmentLifecycle.status==='ACTIVE'?(outcome,reason)=>onEnd(record,outcome,reason):undefined}
     actions={onNavigateToDossier?<ViewStudentRecordAction studentId={record.studentId} onOpen={onNavigateToDossier}/>:undefined}/>:null;
 }
@@ -300,7 +300,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
             const pending = records.some(item => String(item.id) === String(record.id));
             const isRejecting = String(rejectingRecordId) === String(record.id);
 
-            return <SupervisorRequestDetail key={record.id} request={toSupervisorRequestPresentation(record)} contextAction={<ViewStudentRecordAction studentId={record.studentId} onOpen={onNavigateToDossier} disabled={busy}/>} actions={pending || record.participantEligible === false ? <CoordinatorPrimaryRequestActions record={record} pending={pending} busy={busy} isRejecting={isRejecting} onAction={action=>{
+            return <SupervisorRequestDetail key={record.id} request={toSupervisorRequestPresentation(record)} administration={<CoordinatorApplicationLifecycle record={record} onEnd={(row,outcome,reason)=>endPrimaryAppointment(row,outcome,reason)} />} contextAction={<ViewStudentRecordAction studentId={record.studentId} onOpen={onNavigateToDossier} disabled={busy}/>} actions={pending || record.participantEligible === false ? <CoordinatorPrimaryRequestActions record={record} pending={pending} busy={busy} isRejecting={isRejecting} onAction={action=>{
               if(action==='reject')setRejectingRecordId(record.id);
               setPrimaryDecision({record,action});setRejectionReason('');
             }}/> : null} />;
@@ -328,7 +328,6 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
   if (applicationId) return <>{decisionDialogs}<RecordPage pageKey={!initialApplicationId ? `coordinator-primary-${applicationId}` : undefined} title="Appointment request" metadata={!loading && !error && selected ? <RequestMetadata {...supervisorRequestMetadata(toSupervisorRequestPresentation(selected))} /> : undefined} actions={nextAction} backLabel={backLabel} onBack={closeRecord} dirty={!!rejectionReason.trim()} busy={busy}>
     <PortalToast message={toast} />
     {!loading && !error && !selected ? <p className="card-description">This request is unavailable or outside your authorised scope.</p> : requestContent}
-    {!loading && !error && selected ? <CoordinatorApplicationLifecycle record={selected} onEnd={endPrimaryAppointment} /> : null}
   </RecordPage></>;
   if (supportingId) return <>{decisionDialogs}<RecordPage pageKey={!initialSupportingId ? `coordinator-supporting-${supportingId}` : undefined} title="Supporting supervisor request" metadata={!loading && !error && supporting ? <RequestMetadata {...supportingRequestMetadata(supporting)} /> : undefined} actions={nextAction} backLabel={backLabel} onBack={closeRecord} dirty={!!supportingReason.trim()} busy={busy}>
     <PortalToast message={toast} />

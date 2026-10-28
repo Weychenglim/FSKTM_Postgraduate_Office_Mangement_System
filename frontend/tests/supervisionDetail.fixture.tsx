@@ -21,13 +21,13 @@ const details=(title:string)=>[...document.querySelectorAll<HTMLDetailsElement>(
 let calls:string[]=[];
 window.fetch=async()=>{throw Error('Pure layout checks must not call any live API');};
 
-async function mount(role:UserRole,nextTeam=team,busy=false){
+async function mount(role:UserRole,nextTeam=team,busy=false,withMarks=false){
   calls=[];
   const lecturer=role==='Lecturer',office=role==='Office Staff/Admin';
   const visible={...nextTeam,canNominate:lecturer,canChangePrimarySupervisor:office,panel:nextTeam.panel?{...nextTeam.panel,canReplace:lecturer}:undefined,appointments:nextTeam.appointments.map(row=>({...row,canEnd:lecturer&&row.status==='ACTIVE'}))};
   const workspace:SupervisoryWorkspace={teams:[visible],appointments:visible.appointments,nominations:visible.nominations,primaryApplication:primary};
-  flushSync(()=>root.render(<SupervisoryTeamRouteContent workspace={workspace} role={role} view={role==='Student'?'studentOverview':'detail'} routeStudentId={visible.matricNo} busy={busy} search="" page={1} onSearch={()=>{}} onPage={()=>{}} studentActions={<button onClick={()=>calls.push('own-request')}>View request</button>}
-    onNavigateToApplication={id=>calls.push(`application:${id}`)} onNavigateToDossier={id=>calls.push(`student:${id}`)} onNavigateToPanelRequest={(id,key)=>calls.push(`panel:${id}:${key}`)} onNavigateToPanelRecommendation={id=>calls.push(`recommend:${id}`)} onChangePrimarySupervisor={id=>calls.push(`change:${id}`)} onEndPrimary={async()=>{}}
+  flushSync(()=>root.render(<SupervisoryTeamRouteContent key={`${role}:${visible.matricNo}`} workspace={workspace} role={role} view={role==='Student'?'studentOverview':'detail'} routeStudentId={visible.matricNo} busy={busy} search="" page={1} onSearch={()=>{}} onPage={()=>{}} studentActions={<button onClick={()=>calls.push('own-request')}>View request</button>}
+    onNavigateToMarks={withMarks?target=>calls.push(`marks:${target?.studentId}:${target?.role}:${target?.taskId}`):undefined} onNavigateToApplication={id=>calls.push(`application:${id}`)} onNavigateToDossier={id=>calls.push(`student:${id}`)} onNavigateToPanelRequest={(id,key)=>calls.push(`panel:${id}:${key}`)} onNavigateToPanelRecommendation={id=>calls.push(`recommend:${id}`)} onChangePrimarySupervisor={id=>calls.push(`change:${id}`)} onEndPrimary={async()=>{}}
     onNominate={row=>calls.push(`nominate:${row.matricNo}`)} onEnd={row=>calls.push(`end:${row.id}`)} onReplace={(_,row)=>calls.push(`replace:${row.id}`)} onNominationAction={(row,action)=>calls.push(`nomination:${row.id}:${action}`)}/>));
   await tick();
 }
@@ -64,6 +64,8 @@ function geometry(){
     const a=columns.children[0].getBoundingClientRect(),b=columns.querySelector('aside')!.getBoundingClientRect();
     check(innerWidth>=1280?b.left>=a.right+24&&Math.abs(a.top-b.top)<=1:b.top>=a.bottom+24,'Appointment information is not arranged correctly');
   }
+  const appointmentCard=root.querySelector('[data-supervisor-appointment-record]'),historyCard=root.querySelector('[data-appointment-history]');
+  if(historyCard)check(!historyCard.closest('aside'),'Appointment history belongs below the workspace');
   check(!root.querySelector('[data-supervision-research] details'),'Current research is hidden behind a disclosure');
 }
 const results:{name:string,error?:string}[]=[];
@@ -72,11 +74,11 @@ async function scenario(name:string,fn:()=>Promise<void>){try{await fn();results
 for(const role of ['Lecturer','Programme Coordinator','Office Staff/Admin'] as const)await scenario(`${role} gets separated surfaces and its own controls`,async()=>{
   await mount(role);geometry();
   for(const label of ['View approved application','View student record']){const action=button(label)!;check(action.classList.contains('bg-brand-navy')&&getComputedStyle(action).color==='rgb(255, 255, 255)'&&action.querySelector('svg'),'Overview navigation must use dark buttons with icons');}
-  for(const expected of ['Supervisory team','Research profile','Appointment record','Activity and dates','First saved paragraph.','A complete second paragraph'])check(text().includes(expected),expected);
+  for(const expected of ['Supervisory team','Research profile','Appointment record','Appointment changes','First saved paragraph.','A complete second paragraph'])check(text().includes(expected),expected);
   check(!document.querySelector('[data-supervisor-appointment-record]')!.textContent!.includes('Example postgraduate'),'Student identity is repeated in appointment metadata');
   check(!document.querySelector('[data-supervisor-appointment-record]')!.textContent!.includes('Dr Primary'),'Primary supervisor is repeated in appointment metadata');
   check(!!button('Nominate co-supervisor')===(role==='Lecturer'),'Supporting nomination capability changed');
-  check(!!button('Change supervisor')===(role==='Office Staff/Admin'),'Primary change capability changed');
+  check(!!button('Request supervisor change')===(role==='Office Staff/Admin'),'Primary change capability changed');
   button('View approved application')!.click();check(calls.includes('application:1'),'Approved application target changed');
   check(!!button('Replace Panel')===(role==='Lecturer'),'Panel recommendation capability changed');
   const panel=document.querySelector('[aria-label="Panel member"]')!;
@@ -91,10 +93,13 @@ for(const role of ['Lecturer','Programme Coordinator','Office Staff/Admin'] as c
     }
   }
 
-  check(!!button('End Appointment')===(role!=='Lecturer'),'Primary ending capability changed');
+  check(!!button('End supervisor appointment')===(role!=='Lecturer'),'Primary ending capability changed');
   button('View student record')!.click();button('View Panel details')!.click();
   check(calls.includes('student:PREVIEW-007')&&calls.includes('panel:5:panel-5'),'Navigation targets changed');
-  if(role==='Lecturer'){const record=document.querySelector('[data-supervisor-appointment-record]')!,fact=[...record.querySelectorAll('dd')].at(-1)!;check(record.getBoundingClientRect().bottom-fact.getBoundingClientRect().bottom<60,'Read-only appointment card has an empty action area');}
+  const management=[...document.querySelectorAll<HTMLDetailsElement>('[data-supervisor-appointment-record] details')].find(node=>node.querySelector('summary')?.textContent?.trim()==='Manage appointment');
+  check(!!management===(role!=='Lecturer'),'Management visibility does not match capability');
+  if(management){check(!management.open,'Management should start collapsed');management.querySelector('summary')!.click();await tick();check(management.open,'Management cannot be expanded');geometry();}
+  if(role==='Lecturer'){const record=document.querySelector('[data-supervisor-appointment-record]')!;check(record.querySelector('[data-detail-actions]')?.textContent?.includes('View approved application'),'Read-only appointment source link missing');check(!record.textContent?.includes('End supervisor appointment'),'Read-only source link gained management controls');}
   if(role==='Lecturer'){button('Nominate co-supervisor')!.click();button('Replace')!.click();button('Replace Panel')!.click();check(calls.includes('nominate:PREVIEW-007')&&calls.includes('replace:2')&&calls.includes('recommend:PREVIEW-007'),'Mutation-intent callbacks changed');}
 });
 await scenario('Student sees own current team and research without private staff details',async()=>{
@@ -116,12 +121,14 @@ await scenario('Pending supporting and Panel replacements retain current appoint
 await scenario('Busy state disables navigation and all supplied mutation controls',async()=>{
   await mount('Lecturer',team,true);
   for(const label of ['View approved application','View student record','View Panel details','Nominate co-supervisor','Replace Panel','Replace'])check(button(label)?.matches(':disabled'),`Busy action active: ${label}`);
-  await mount('Office Staff/Admin',team,true);check(button('End Appointment')?.matches(':disabled')&&button('Change supervisor')?.matches(':disabled'),`Office controls active during saving: ${[...document.querySelectorAll('button')].map(node=>node.textContent+':'+node.matches(':disabled')).join(', ')}`);
+  await mount('Office Staff/Admin',team,true);check(button('End supervisor appointment')?.matches(':disabled')&&button('Request supervisor change')?.matches(':disabled'),`Office controls active during saving: ${[...document.querySelectorAll('button')].map(node=>node.textContent+':'+node.matches(':disabled')).join(', ')}`);
 });
-await scenario('Activity disclosures retain complete saved evidence and separate semester dates',async()=>{
+await scenario('Only real historical changes appear below the workspace; pending nominations stay beside the team',async()=>{
   await mount('Office Staff/Admin');
-  for(const label of ['Supporting appointment history (2)','Appointment activity (1)','Semester dates (1)']){const node=details(label);check(node&&!node.open,`Missing or expanded ${label}`);node!.querySelector('summary')!.click();await tick();check(node!.open,`Disclosure did not open: ${label}`);}
-  for(const expected of ['Private saved justification','Private recorded reason','Supervisor application approved','Semester milestone','do not measure this student'])check(text().includes(expected),expected);geometry();
+  const history=document.querySelector('[data-appointment-history]')!;check(history&& !history.closest('aside'),'History is still squeezed into the sidebar');
+  check(!text().includes('Semester milestone')&&!text().includes('Semester dates')&&!text().includes('Appointment activity'),'Shared dates or summary activity remained');
+  const node=details('Supporting appointment history (1)')!;check(node&&!node.open,'Missing or expanded past supporting history');node.querySelector('summary')!.click();await tick();check(text().includes('Private recorded reason'),'Recorded ending was lost');
+  check(document.querySelector('[data-supervision-members]')?.textContent?.includes('Private proposed candidate'),'Pending nomination was hidden in history');geometry();
 });
 await scenario('Student without a saved profile or appointments gets honest empty content',async()=>{
   calls=[];flushSync(()=>root.render(<SupervisoryTeamRouteContent workspace={{teams:[],appointments:[],nominations:[]}} role="Student" view="studentOverview" busy={false} search="" page={1} onSearch={()=>{}} onPage={()=>{}} onNominate={()=>{}} onEnd={()=>{}} onReplace={()=>{}} onNominationAction={()=>{}}/>));await tick();
@@ -135,7 +142,7 @@ await scenario('Unavailable Panel and blank research remain explicit without fab
 await scenario('Historical appointment presentation keeps its identity and saved outcome',async()=>{
   flushSync(()=>root.render(<SupervisorAppointmentRecordCard record={{studentName:'Historical Student',studentId:'HISTORY-1',supervisor:'Historical Supervisor',status:'ENDED',approvedAt:'2026-09-01',endedAt:'2026-10-01',endReason:'Completed research',endOutcome:'COMPLETED',events:[]}}/>));await tick();
   for(const expected of ['Historical Student','Historical Supervisor','Completed research','Ended on'])check(text().includes(expected),expected);
-  check(!button('End Appointment'),'Ended historical record gained controls');
+  check(!button('End supervisor appointment'),'Ended historical record gained controls');
 });
 await scenario('A current team with no appointment metadata or activity has no empty sidebar',async()=>{
   await mount('Programme Coordinator',{...team,primaryAppointmentId:99,timeline:[],nominations:[],appointments:[]});
@@ -155,6 +162,15 @@ await scenario('Co-supervisor form retains student context and readable fields',
   for(const label of ['Cancel','Submit nomination'])check(button(label)!.getBoundingClientRect().height>=44,'Form action is too short');
   geometry();
   button('Cancel')!.click();check(cancelled,'Cancel callback did not run');
+});
+await scenario('Lecturer supervisee details open the assigned Supervisor task; staff never fetch personal tasks',async()=>{
+  let reads=0;
+  const task={id:811,studentId:team.matricNo,studentName:team.studentName,initials:'EP',researchTitle:team.research.title,semester:'S1',deadline:'',status:'NOT STARTED',evaluatorRole:'SUPERVISOR',canEdit:true,taskLifecycleStatus:'ACTIVE'};
+  window.fetch=async input=>{reads++;return Response.json(String(input).endsWith('/my-submitted-evaluations/')?[]:[task,{...task,id:812,evaluatorRole:'PANEL'}]);};
+  await mount('Lecturer',team,false,true);for(let i=0;i<100&&!button('Enter marks');i++)await tick();
+  check(!!button('Enter marks'),'Supervisor shortcut missing');button('Enter marks')!.click();check(calls.includes(`marks:${team.matricNo}:SUPERVISOR:811`),'Wrong supervisee marking target');
+  reads=0;await mount('Office Staff/Admin',team,false,true);await tick();check(reads===0&&!button('Enter marks'),'Office fetched Lecturer tasks or gained marking');
+  window.fetch=async()=>{throw Error('Unexpected HTTP request');};
 });
 await mount('Lecturer');
 parent.postMessage({type:'supervision-layout-results',width:innerWidth,results},location.origin);

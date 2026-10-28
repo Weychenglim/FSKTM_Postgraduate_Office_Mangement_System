@@ -3,8 +3,8 @@ import {createRoot} from 'react-dom/client';
 import {flushSync} from 'react-dom';
 import {SupervisorRequestDetail, toSupervisorRequestPresentation, toStudentSupervisorRequestPresentation} from '../src/components/SupervisorRequestDetail';
 import {LecturerPrimaryRequestActions} from '../src/components/LecturerAppointmentRequests';
-import {CoordinatorPrimaryRequestActions} from '../src/components/CoordinatorSupervisorApprovals';
-import {officeRequestPresentation} from '../src/components/SupervisorAppointmentManagement';
+import {CoordinatorPrimaryRequestActions, CoordinatorApplicationLifecycle, CoordinatorSupervisorApprovals} from '../src/components/CoordinatorSupervisorApprovals';
+import {officeRequestPresentation, OfficeAppointmentAdministration, SupervisorAppointmentManagement} from '../src/components/SupervisorAppointmentManagement';
 import {officeApplicationRecord} from '../src/components/OfficeSupervisorWorkspace';
 import {toStudentSupervisorApplication} from '../src/services/appointmentsApi';
 import {canStudentCancelSupervisorApplication} from '../src/utils/workflowTracking';
@@ -22,7 +22,13 @@ const pending: (()=>void)[]=[];
 window.fetch=async(input,init)=>{
   const path=new URL(String(input),location.origin).pathname;
   reads.push(path);
+  if(path.endsWith('/appointments/991/replacement/')){
+    if(init?.method==='POST'){const payload=JSON.parse(String(init.body));if(payload.proposedSupervisorId!=='L2'||payload.reason!=='Supervisor is taking extended leave.')throw Error('Incorrect replacement payload');mode='replacement-pending';return Response.json({...base,id:702,initiatedByOffice:true});}
+    if(mode==='replacement-error'&&!recovered)return Response.json({detail:'Availability check unavailable'},{status:503});
+    return Response.json({appointmentId:991,studentId:base.studentId,studentName:base.studentName,programme:base.programme,currentSupervisor:base.proposedSupervisor,researchTitle:base.researchTitle,researchArea:base.researchArea,researchAbstract:base.researchAbstract,projectCourseCodes:'TEST7002',canSubmit:mode!=='replacement-pending',blockedReason:mode==='replacement-pending'?'A replacement is already awaiting review.':null,pendingApplicationId:mode==='replacement-pending'?702:null,candidates:[{id:'L2',name:'Dr Replacement',filled:0,total:5,selectable:true}]});
+  }
   if(init?.method && init.method!=='GET')throw Error('Presentation checks must not mutate data');
+  if(path.endsWith('/requests/primary/701/'))return Response.json({...base,status:'APPROVED',canDecide:false,coordinatorDecisionAt:'2026-10-20T08:00:00Z',appointmentLifecycle:{appointmentId:991,status:'ACTIVE',endOutcome:null,endReason:null,endedAt:null,endedBy:null,supersedesAppointmentId:null,replacementAppointmentId:null}});
   if(path.endsWith('/section-a/')){
     if(mode==='stale'&&path.includes('/701/'))await new Promise<void>(resolve=>pending.push(resolve));
     if(mode==='read-error'&&!recovered)return Response.json({detail:'Submitted particulars temporarily unavailable'},{status:503});
@@ -169,4 +175,75 @@ await scenario('A record without an application does not invent an approval proc
 
 // Leave a representative production layout visible in the screenshot.
 await mount('Lecturer');
+await scenario('Office and Coordinator appointment records stay inside the review sidebar',async()=>{
+  const approved:SupervisorApplicationRecord={...base,status:'APPROVED',coordinatorDecisionAt:'2026-10-20T08:00:00Z',appointmentLifecycle:{appointmentId:991,status:'ACTIVE',endOutcome:null,endReason:null,endedAt:null,endedBy:null,supersedesAppointmentId:null,replacementAppointmentId:null}};
+  for(const role of ['Office','Coordinator']){
+    await mount(role,'',approved);
+    const administration=role==='Office'?<OfficeAppointmentAdministration record={officeApplicationRecord(approved)} onEnd={async()=>{}}/>:<CoordinatorApplicationLifecycle record={approved} onEnd={async()=>{}}/>;
+    flushSync(()=>root.render(<SupervisorRequestDetail request={toSupervisorRequestPresentation(approved)} administration={administration}/>));await tick();
+    await until(()=>!text().includes('Loading submitted'));
+    const aside=document.querySelector<HTMLElement>('[data-request-sidebar]')!;
+    const card=aside?.querySelector<HTMLElement>('[data-supervisor-appointment-record]');check(card,`${role}: record detached from sidebar`);
+    const region=aside.querySelector<HTMLElement>('[role="region"]')!.getBoundingClientRect(),box=card!.getBoundingClientRect();
+    check(Math.abs(box.width-aside.getBoundingClientRect().width)<2,'Appointment and review widths differ');
+    check(box.top-region.bottom>=27,'Appointment card crowds review');
+    if(innerWidth>=1280)check(box.width<=321,'Appointment card spans content width');
+    check(!card!.querySelector('.sm\\:grid-cols-2'),'Sidebar keeps wide two-column facts');
+    check(!!button('End supervisor appointment'),'Existing lifecycle control missing');verifyLayout();
+  }
+});
+await scenario('Actual routed Coordinator request puts exactly one lifecycle card inside its sidebar',async()=>{
+  flushSync(()=>root.unmount());root=createRoot(document.getElementById('root')!);mode='';reads=[];
+  flushSync(()=>root.render(<CoordinatorSupervisorApprovals initialApplicationId="701" backLabel="Back to history"/>));
+  await until(()=>!!document.querySelector('[data-supervisor-appointment-record]'));
+  await until(()=>!text().includes('Loading submitted'));
+  const cards=document.querySelectorAll<HTMLElement>('[data-supervisor-appointment-record]');check(cards.length===1,'Routed host duplicates appointment record');
+  const sidebar=cards[0].closest<HTMLElement>('[data-request-sidebar]');check(sidebar,'Actual route appends lifecycle outside the shared layout');
+  check(Math.abs(cards[0].getBoundingClientRect().width-sidebar!.getBoundingClientRect().width)<2,'Routed record width differs');
+  check(reads.some(path=>path.endsWith('/requests/primary/701/')),'Actual Coordinator API route was not exercised');verifyLayout();
+});
+await scenario('Office approved request opens the existing change form and returns to its request',async()=>{
+  flushSync(()=>root.unmount());root=createRoot(document.getElementById('root')!);mode='';reads=[];
+  const approved={...base,status:'APPROVED' as const,appointmentLifecycle:{appointmentId:991,status:'ACTIVE' as const,endOutcome:null,endReason:null,endedAt:null,endedBy:null,supersedesAppointmentId:null,replacementAppointmentId:null}};
+  let refreshes=0;
+  flushSync(()=>root.render(<SupervisorAppointmentManagement routeView="detail" routeRecordId={base.studentId} providedRecord={officeApplicationRecord(approved)} onProvidedRecordRefresh={()=>{refreshes++;}}/>));
+  await until(()=>button('Request supervisor change'));
+  check(reads.some(path=>path.endsWith('/appointments/991/replacement/')),'Eligibility was not checked on the server');
+  check(disclosure('Manage appointment')?.contains(button('Request supervisor change')!),'Change control is outside management');
+  disclosure('Manage appointment')!.querySelector('summary')!.click();await click('Request supervisor change');
+  await until(()=>document.querySelector('#replacement-supervisor'));
+  await click('Back to appointment request');await until(()=>button('Request supervisor change'));
+  disclosure('Manage appointment')!.querySelector('summary')!.click();await click('Request supervisor change');
+  await until(()=>document.querySelector('#replacement-supervisor'));
+  const select=document.querySelector<HTMLSelectElement>('select')!;
+  select.value='L2';select.dispatchEvent(new Event('change',{bubbles:true}));
+  const reason=document.querySelector<HTMLTextAreaElement>('#primary-replacement-reason')!;
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(reason,'Supervisor is taking extended leave.');reason.dispatchEvent(new Event('input',{bubbles:true}));
+  await until(()=>!button('Send for review')?.disabled);await click('Send for review');
+  await until(()=>text().includes('Replacement requested. The proposed supervisor will review it next.'));
+  await until(()=>text().includes('A replacement is already awaiting review.'));
+  check(!button('Request supervisor change'),'Submitted replacement still offers another change');
+  check(refreshes===1,'Source request was not refreshed after submission');
+  check(!!document.querySelector('[data-request-sidebar]'),'Did not return to approved request');
+});
+await scenario('Office change action fails closed and can retry eligibility; pending and ended appointments stay protected',async()=>{
+  const lifecycle={appointmentId:991,status:'ACTIVE' as const,endOutcome:null,endReason:null,endedAt:null,endedBy:null,supersedesAppointmentId:null,replacementAppointmentId:null};
+  const approved={...base,status:'APPROVED' as const,appointmentLifecycle:lifecycle};
+  for(const nextMode of ['replacement-error','replacement-pending']){
+    flushSync(()=>root.unmount());root=createRoot(document.getElementById('root')!);mode=nextMode;recovered=false;
+    flushSync(()=>root.render(<OfficeAppointmentAdministration record={officeApplicationRecord(approved)} onChange={()=>{}} onEnd={async()=>{}}/>));
+    await until(()=>nextMode==='replacement-error'?button('Retry availability check'):text().includes('A replacement is already awaiting review.'));
+    check(!button('Request supervisor change'),'Unavailable appointment gained a change action');
+    if(nextMode==='replacement-error'){recovered=true;await click('Retry availability check');await until(()=>button('Request supervisor change'));}
+  }
+  flushSync(()=>root.unmount());root=createRoot(document.getElementById('root')!);reads=[];
+  flushSync(()=>root.render(<OfficeAppointmentAdministration record={officeApplicationRecord({...approved,appointmentLifecycle:{...lifecycle,status:'ENDED'}})} onChange={()=>{}} onEnd={async()=>{}}/>));await tick();
+  check(!button('Request supervisor change')&&!reads.length,'Ended appointment checked or offered a replacement');
+});
+// Leave the Office request and its new management action visible for visual review.
+flushSync(()=>root.unmount());root=createRoot(document.getElementById('root')!);mode='';
+flushSync(()=>root.render(<SupervisorAppointmentManagement routeView="detail" routeRecordId={base.studentId} providedRecord={officeApplicationRecord({...base,status:'APPROVED',appointmentLifecycle:{appointmentId:991,status:'ACTIVE',endOutcome:null,endReason:null,endedAt:null,endedBy:null,supersedesAppointmentId:null,replacementAppointmentId:null}})}/>));
+await until(()=>button('Request supervisor change'));
+disclosure('Manage appointment')!.querySelector('summary')!.click();await tick();
+document.querySelector('[data-supervisor-appointment-record]')!.scrollIntoView({block:'center'});
 parent.postMessage({type:'supervisor-detail-results',width:innerWidth,results},location.origin);

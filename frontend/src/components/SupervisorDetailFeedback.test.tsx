@@ -49,8 +49,8 @@ const supervision=(role:'Lecturer'|'Office Staff/Admin'|'Programme Coordinator',
 const common=normalized(supervision('Lecturer'));
 for(const role of ['Office Staff/Admin','Programme Coordinator'] as const)assert.equal(normalized(supervision(role)),common,`${role} and Lecturer share the exact same student supervision layout for equivalent data`);
 assert.doesNotMatch(common,/Appointment reference|Appointment ID|SV-APT-|SV-REQ-|Copy reference/);
-assert.doesNotMatch(supervision('Lecturer',true),/>End Appointment</,'A callback cannot grant a Lecturer a staff-only primary ending action');
-for(const role of ['Office Staff/Admin','Programme Coordinator'] as const)assert.match(supervision(role,true),/>End Appointment</);
+assert.doesNotMatch(supervision('Lecturer',true),/>End supervisor appointment</,'A callback cannot grant a Lecturer a staff-only primary ending action');
+for(const role of ['Office Staff/Admin','Programme Coordinator'] as const)assert.match(supervision(role,true),/>End supervisor appointment</);
 const lecturerContext={appointmentId:5,studentId:record.studentId,studentName:record.studentName,programme:record.programme,semester:record.semester,email:'',researchTitle:record.researchTitle,researchArea:record.researchArea,researchAbstract:record.researchAbstract,supervisorName:record.proposedSupervisor,appointmentDate:'14 Oct 2026',status:'Active'};
 const lecturerPayload=(context=lecturerContext)=>render(<SupervisoryTeamRouteContent workspace={{...workspace,primaryApplication:null}} detailContext={context} view="detail" routeStudentId="PG009" role="Lecturer" busy={false} search="" page={1} onSearch={()=>{}} onPage={()=>{}} onNominate={()=>{}} onEnd={()=>{}} onReplace={()=>{}} onNominationAction={()=>{}}/>);
 assert.match(lecturerPayload(),/Appointment record/);

@@ -13,6 +13,8 @@ test('Authorized staff get a clear approved-application action without duplicati
   for(const role of ['Lecturer','Programme Coordinator','Office Staff/Admin']){
     const html=render({role,onNavigateToApplication:noop,workspace:{teams:[{...team,approvedApplicationId:12}],appointments:[],nominations:[]}});
     assert.match(html,/>View approved application</);
+    assert.equal((html.match(/>View approved application</g)??[]).length,1);
+    assert.doesNotMatch(html,/data-supervisor-appointment-record/);
     assert.match(html,/Current approved research/);
     assert.doesNotMatch(html,/Research Intent|Submitted declaration|Course results/);
   }

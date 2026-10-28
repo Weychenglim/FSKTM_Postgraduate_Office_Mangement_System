@@ -1,3 +1,5 @@
+import {parseAppointmentMarkingTarget,mergeMarkingTasks} from '../utils/appointmentMarking';
+import {markingRole} from '../utils/lecturerMarking';
 import { MarksHeading, MarksSummaryCard } from './MarksPrimitives';
 import { PortalSelect } from './PortalSelect';
 import { WorkspaceFilterCard } from './RequestWorkspacePrimitives';
@@ -9,7 +11,7 @@ import { useListState } from './ListState';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UserRound, CheckSquare, Clock, FilePenLine, CheckCircle, Search, type LucideIcon } from 'lucide-react';
 import { MarkEntryDetail } from './MarkEntryDetail';
 import { MarksEntryHistory } from './MarksEntryHistory';
@@ -21,7 +23,7 @@ import { formatDeadlineText } from '../utils/workflowAgeing';
 import { replaceEvaluationTask } from '../utils/marksProductionManagement';
 import { getMarkTaskSemesters, filterMarkTasks } from '../utils/marksSemesterFilters';
 import { EvaluationTask, EvaluationStatus, EvaluationTaskRole } from '../types';
-import { getEvaluationTasks, saveMarkDraft, submitMarkEntry } from '../services';
+import { getEvaluationTasks, getSubmittedEvaluations, saveMarkDraft, submitMarkEntry } from '../services';
 import { initialMarkingRole, markingWorkspaces, orderMarkingTasks, tasksForMarkingRole } from '../utils/lecturerMarking';
 
 // ==================== TYPE DEFINITIONS ====================
@@ -30,6 +32,7 @@ import { initialMarkingRole, markingWorkspaces, orderMarkingTasks, tasksForMarki
 // are served by marksApi (getEvaluationTasks).
 
 interface LecturerMarksEntryProps {
+  contextSearch?:string;
   onBackToDashboard?: () => void;
   onNavigateToDossier?: (studentId: string) => void;
 }
@@ -64,8 +67,11 @@ const StatusChip: React.FC<{ type: EvaluationStatus }> = ({ type }) => {
 // ==================== MAIN COMPONENT ====================
 
 export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
-  onNavigateToDossier,
+  onNavigateToDossier,contextSearch='',
 }) => {
+  const [target,setTarget]=useState(()=>parseAppointmentMarkingTarget(contextSearch));
+  const [linkedSubmitted,setLinkedSubmitted]=useState<EvaluationTask[]>([]);
+  const targetOpened=useRef(false);
   // Evaluation tasks are loaded from the persisted lecturer assignment API.
   const [tasks, setTasks] = useState<EvaluationTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,17 +83,17 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   const loadTasks = useCallback((propagateError = false) => {
     setLoading(true);
     setError(null);
-    return getEvaluationTasks()
-      .then(loaded => {
-        setTasks(loaded);
-        setRememberedRole(current => initialMarkingRole(loaded, current));
+    return Promise.all([getEvaluationTasks(),target?getSubmittedEvaluations():Promise.resolve([] as EvaluationTask[])])
+      .then(([loaded,submitted]) => {
+        setTasks(loaded);setLinkedSubmitted(submitted);
+        setRememberedRole(current => target?.role??initialMarkingRole(loaded, current));
       })
       .catch((e) => { setError(e instanceof Error ? e.message : 'Failed to load evaluation tasks.'); if (propagateError) throw e; })
       .finally(() => setLoading(false));
-  }, [setRememberedRole]);
+  }, [setRememberedRole,target]);
 
   useEffect(() => {
-    if (currentView === 'dashboard') loadTasks();
+    if (target || currentView === 'dashboard') loadTasks();
   }, [loadTasks, currentView]);
 
   // 2. Filters & Searches State
@@ -95,8 +101,20 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   const [selectedSemester, setSelectedSemester] = useListState('LecturerMarksEntry', 'selectedSemester', 'All Semesters');
   const [selectedStatus, setSelectedStatus] = useListState('LecturerMarksEntry', 'selectedStatus', 'All Statuses');
   
+  useEffect(()=>{
+    if(!target)return;
+    setSearchTerm('');setSelectedSemester('All Semesters');setSelectedStatus('All Statuses');setCurrentView('dashboard');
+  },[target,setSearchTerm,setSelectedSemester,setSelectedStatus,setCurrentView]);
+
   // Active form view state
   const [activeFormTask, setActiveFormTask] = useState<EvaluationTask | null>(null);
+
+  useEffect(()=>{
+    if(!target?.taskId||targetOpened.current||loading||error)return;
+    const exact=mergeMarkingTasks(tasks,linkedSubmitted).find(task=>task.id===target.taskId&&task.studentId===target.studentId&&markingRole(task)===target.role);
+    targetOpened.current=true;
+    if(exact)setActiveFormTask(exact);
+  },[target,loading,error,tasks,linkedSubmitted]);
 
   // Submit Feedback notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -114,9 +132,9 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
     setSelectedStatus('All Statuses');
   };
 
-  const selectedRole = initialMarkingRole(tasks, rememberedRole);
+  const selectedRole = target?.role??initialMarkingRole(tasks, rememberedRole);
   const workspace = markingWorkspaces[selectedRole];
-  const roleTasks = tasksForMarkingRole(tasks, selectedRole);
+  const roleTasks = tasksForMarkingRole(target?mergeMarkingTasks(tasks,linkedSubmitted):tasks, selectedRole).filter(task=>!target||task.studentId===target.studentId);
   const semesterOptions = getMarkTaskSemesters(tasks);
   const filteredTasks = orderMarkingTasks(filterMarkTasks(roleTasks, searchTerm.trim(), selectedSemester, selectedStatus));
   const summaryTasks = filterMarkTasks(roleTasks, '', selectedSemester, 'All Statuses');
@@ -134,9 +152,10 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
     <div id="lecturer-marks-entry-container" className="marks-workspace space-y-6">
       
       <PortalToast message={toastMessage} tone="success" />
+      {target?<PortalCard padding="md"><div className="flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-sm text-slate-700">{target.taskId&&!loading&&!error&&!roleTasks.some(task=>task.id===target.taskId)?'The selected marking task is no longer available.':`Marking tasks for ${roleTasks[0]?.studentName??target.studentId} · ${target.role==='SUPERVISOR'?'Supervisor':'Panel'}`}</p><PortalButton size="sm" onClick={()=>{setTarget(null);setActiveFormTask(null);clearFilters();setCurrentView('dashboard');}}>Show all tasks</PortalButton></div></PortalCard>:null}
 
       <>
-        {currentView === 'history' ? (
+        {!target&&currentView === 'history' ? (
             <MarksEntryHistory
               onBack={() => setCurrentView('dashboard')}
               onSelectRecord={task => setActiveFormTask(task)}
@@ -152,7 +171,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
               className="select-none"
             />
 
-            <LecturerMarkingNavigation tasks={tasks} role={selectedRole} onChange={setRememberedRole}
+            <LecturerMarkingNavigation tasks={tasks} role={selectedRole} onChange={role=>{setTarget(null);setRememberedRole(role);setCurrentView('dashboard');}}
               controls="lecturer-marking-workspace" countsKnown={!loading && !error} />
 
             <section id="lecturer-marking-workspace" aria-label={workspace.title} className="space-y-5">
@@ -183,7 +202,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             <PortalCard id="mark-entry-tasks-list-block" padding="md" className="space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <MarksHeading icon={CheckSquare}>{workspace.title}</MarksHeading>
-                <PortalButton onClick={() => setCurrentView('history')}>View submission history</PortalButton>
+                <PortalButton onClick={() => {setTarget(null);setCurrentView('history');}}>View submission history</PortalButton>
               </div>
 
             <WorkspaceFilterCard onReset={clearFilters} fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">

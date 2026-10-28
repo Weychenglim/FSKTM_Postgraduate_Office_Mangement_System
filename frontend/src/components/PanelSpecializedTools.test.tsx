@@ -28,7 +28,8 @@ test('workload facts distinguish active and reserved seats and retain missing co
   assert.equal(typeof workload.PanelWorkloadDetails, 'function');
   const html = renderToStaticMarkup(<workload.PanelWorkloadDetails record={lecturer} />);
   for (const fact of ['2026/2027-1', 'Active appointments', 'Pending reservations', 'Active + reserved', 'Student One', 'A long research title']) assert.ok(html.includes(fact), fact);
-  assert.ok(html.includes(typography.heading));
+  assert.match(html, /<h3 class="text-lg font-semibold leading-7[^"]*">Dr Panel<\/h3>/);
+  for (const section of ["Lecturer overview", "Capacity usage"]) assert.ok(html.includes(`aria-label="${section}"`), section);
   const unconfigured = renderToStaticMarkup(<workload.PanelWorkloadDetails record={{ ...lecturer, capacityState: 'NOT_CONFIGURED', semesterCode: undefined, capacityPlanVersion: undefined, availableSlots: undefined }} />);
   assert.match(unconfigured, /Not configured/);
   assert.doesNotMatch(unconfigured, /2 available slots|Capacity utilization/);

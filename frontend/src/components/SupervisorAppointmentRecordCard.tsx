@@ -1,3 +1,4 @@
+import {AppointmentRecordSection} from './AppointmentSidebar';
 import React from 'react';
 import type {AppointmentLifecycle,SupervisorApplicationRecord,SupervisorRecord} from '../types';
 import type {ApprovalEvent} from '../utils/approvalProcess';
@@ -52,14 +53,29 @@ function recordedDate(value?:string|null):string {
   return date==='Not recorded'?'Date unavailable':formatMalaysiaDate(value!);
 }
 
-export function SupervisorAppointmentRecordCard({record,onEnd,actions,compact=false}:{record:SupervisorAppointmentPresentation;onEnd?:React.ComponentProps<typeof AppointmentEndControl>['onSubmit'];actions?:React.ReactNode;compact?:boolean}) {
+export function SupervisorAppointmentRecordCard({record,onEnd,actions,compact=false,showHistory=true,markingAction,sourceAction}:{record:SupervisorAppointmentPresentation;onEnd?:React.ComponentProps<typeof AppointmentEndControl>['onSubmit'];actions?:React.ReactNode;compact?:boolean;showHistory?:boolean;markingAction?:React.ReactNode;sourceAction?:React.ReactNode}) {
   const active=record.status==='ACTIVE';
+  const events=record.events.filter(event=>event.action!=='ACTIVATED');
   const label=compact ? supervisionDetailLabel : appointmentDetailTypography.label;
   const body=compact ? supervisionDetailBody : appointmentDetailTypography.body;
-  const controls=actions||onEnd?<div className={`flex flex-wrap items-start ${compact?'gap-3':'gap-2'}`}>{actions}{onEnd?<AppointmentEndControl label="Supervisor appointment" context={<>{record.studentName} · {record.studentId}</>} decisionKey={record.studentId} disabled={!active} onSubmit={onEnd}/>:null}</div>:undefined;
+  const controls=actions||(onEnd&&active)?<div className={`flex flex-wrap items-start ${compact?'gap-3':'gap-2'}`}>{actions}{onEnd&&active?<AppointmentEndControl buttonLabel={compact?"End supervisor appointment":undefined} label="Supervisor appointment" context={<>{record.studentName} · {record.studentId}</>} decisionKey={record.studentId} disabled={!active} onSubmit={onEnd}/>:null}</div>:undefined;
+  if(compact)return <div data-supervisor-appointment-record><AppointmentRecordSection actions={controls} history={showHistory&&events.length?<RequestAuditHistory title="Appointment changes" events={events}/>:undefined}>
+    <dl className="space-y-5">
+      <div className="space-y-2"><dt className={label}>Appointment status</dt><dd><StatusBadge tone={active?'success':'neutral'}>{readableRecordStatus(record.status)}</StatusBadge></dd></div>
+      <div className="space-y-2"><dt className={label}>Approved on</dt><dd className={body}>{recordedDate(record.approvedAt)}</dd></div>
+      {!active?<>
+        <div className="space-y-2"><dt className={label}>Ended on</dt><dd className={body}>{recordedDate(record.endedAt)}</dd></div>
+        {record.endOutcome?<div className="space-y-2"><dt className={label}>Outcome</dt><dd className={body}>{readableRecordStatus(record.endOutcome)}</dd></div>:null}
+        {record.endReason?<div className="space-y-2"><dt className={label}>Reason</dt><dd className={`${body} whitespace-pre-wrap`}>{record.endReason}</dd></div>:null}
+        {record.endedBy?<div className="space-y-2"><dt className={label}>Recorded by</dt><dd className={body}>{record.endedBy}</dd></div>:null}
+      </>:null}
+    </dl>
+    {markingAction}
+    {sourceAction?<div className="border-t border-slate-100 pt-6"><RequestDetailActions>{sourceAction}</RequestDetailActions></div>:null}
+  </AppointmentRecordSection></div>;
   return <div data-supervisor-appointment-record className="[&_.section-label]:font-semibold [&_.card-value]:font-semibold [&_.card-description]:font-normal"><RequestDetailCard padding="lg"
     actions={compact&&controls?<RequestDetailActions>{controls}</RequestDetailActions>:controls}
-    audit={record.events.length?<RequestAuditHistory title="Appointment history" events={record.events}/>:undefined}>
+    audit={showHistory&&events.length?<RequestAuditHistory title="Appointment changes" events={events}/>:undefined}>
     <RequestSection title="Appointment record" icon={compact?CalendarClock:undefined} headingClassName={appointmentDetailTypography.heading}><dl className={`grid gap-x-10 gap-y-6 pt-3 ${compact?'':'sm:grid-cols-2'}`}>
       {!compact ? <>
       <div><dt className={appointmentDetailTypography.label}>Student</dt><dd className={`${appointmentDetailTypography.name} mt-2`}>{record.studentName}</dd><dd className="card-caption mt-1">{record.studentId}</dd></div>

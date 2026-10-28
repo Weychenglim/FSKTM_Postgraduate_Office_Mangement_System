@@ -55,9 +55,9 @@ await scenario('Replacement distinguishes the active member and terminal histori
   for(const pending of [true,false]){await mount(<PanelRecommendationDetail record={{...record,status:pending?'PENDING_COORDINATOR':'APPROVED',replacesAppointmentId:12,replacementReason:'Additional educational analytics expertise is required.',replacedPanelMember:'Dr Previous Member',replacedAppointmentStatus:pending?'ACTIVE':'ENDED'}}/>);
     check(container.textContent?.includes(pending?'Panel member being replaced':'Previous Panel member'),'Wrong member label');check(container.textContent?.includes('continues until this replacement is approved')===pending,'Wrong continuation message');check(container.textContent?.includes(record.recommendedMember),'Proposed member missing');geometry();}
 });
-await scenario('Terminal reasons and expandable audit remain outside current research',async()=>{
+await scenario('Terminal reasons remain visible without duplicate audit history',async()=>{
   for(const cancelled of [false,true]){const row={...record,status:cancelled?'CANCELLED_BY_SUPERVISOR' as const:'REJECTED_BY_COORDINATOR' as const,rejectionReason:cancelled?undefined:'The proposed member cannot meet the evaluation schedule.',cancellationReason:cancelled?'The nomination was withdrawn after discussion.':undefined};await mount(<PanelRecommendationDetail record={row}/>);
-    const aside=container.querySelector('[data-panel-review]')!;check(aside.textContent?.includes(row.rejectionReason||row.cancellationReason!),'Decision explanation missing');const audit=aside.querySelector('details')!;check(!audit.open,'Audit starts expanded');audit.querySelector('summary')!.click();check(audit.open,'Audit cannot expand');check(!aside.querySelector('button'),'Terminal controls invented');geometry();}
+    const aside=container.querySelector('[data-panel-review]')!;check(aside.textContent?.includes(row.rejectionReason||row.cancellationReason!),'Decision explanation missing');check(!aside.textContent?.includes('Audit history'),'Request repeats the approval trail');check(!aside.querySelector('button'),'Terminal controls invented');geometry();}
 });
 await scenario('Office host shares the presentation and existing student navigation',async()=>{
   let student='';const office={id:record.studentId,studentName:record.studentName,programme:record.programme,semester:record.semester,supervisor:record.supervisorName,panelMember:record.recommendedMember,status:'Recommendation',recommendation:record} as PanelRecord;
@@ -74,5 +74,17 @@ await scenario('Legacy, missing and long content remain honest and wrap fully',a
   const long={...record,status:'APPROVED' as const,studentName:'LongStudentName'.repeat(30),recommendedMember:'LongPanelMember'.repeat(20),proposedTopic:'ResearchTerm'.repeat(80),justification:'NominationReason'.repeat(80),abstract:'AbstractTerm'.repeat(150)+'\n\nComplete final paragraph.',workflow:[]};await mount(<PanelRecommendationDetail record={long}/>);check(container.textContent?.includes(long.abstract),'Abstract clipped');check(container.textContent?.includes('Detailed approval history is unavailable'),'Invented legacy history');check(!container.querySelector('[data-panel-review] details'),'Empty audit');geometry();
 });
 
-await mount(<PanelRecommendationReviewDrawer isOpen routed recommendation={record} reviewerRole="SELECTED_PANEL" onClose={()=>{}} onOpenStudent={()=>{}}/>);
+await scenario('Office and Coordinator keep approved appointment records below review in the same sidebar',async()=>{
+  const appointed={...record,status:'APPROVED' as const,appointmentLifecycle:{appointmentId:992,status:'ACTIVE' as const,endOutcome:null,endReason:null,endedAt:null,endedBy:null,supersedesAppointmentId:null,replacementAppointmentId:null},appointmentDate:'2026-10-20'};
+  for(const role of ['Office','Coordinator']){
+    const office={recordId:'appointment-992',updatedDate:'20 Oct 2026',id:record.studentId,studentName:record.studentName,programme:record.programme,semester:record.semester,supervisor:record.supervisorName,panelMember:record.recommendedMember,status:'Approved',recommendation:appointed,appointmentLifecycle:appointed.appointmentLifecycle} as PanelRecord;
+    await mount(role==='Office'?<PanelAppointmentDetail record={office} onBack={()=>{}}/>:<PanelRecommendationReviewDrawer isOpen routed recommendation={appointed} reviewerRole="PROGRAMME_COORDINATOR" onClose={()=>{}}/>);
+    const aside=container.querySelector<HTMLElement>('[data-panel-review]')!,card=aside?.querySelector<HTMLElement>('[data-panel-appointment-record]');check(card,`${role}: detached appointment record`);
+    const first=aside.firstElementChild!.getBoundingClientRect(),box=card!.getBoundingClientRect();
+    check(Math.abs(box.width-aside.getBoundingClientRect().width)<2,'Appointment and review widths differ');check(box.top-first.bottom>=27,'Appointment card crowds review');
+    if(innerWidth>=1280)check(box.width<=321,'Appointment spans content width');
+    check(!card!.textContent?.includes('Aina Sofea Rahman'),'Compact record repeats student summary');geometry();
+  }
+});
+await mount(<PanelRecommendationReviewDrawer isOpen routed recommendation={{...record,status:"APPROVED",appointmentLifecycle:{appointmentId:992,status:"ACTIVE",endOutcome:null,endReason:null,endedAt:null,endedBy:null,supersedesAppointmentId:null,replacementAppointmentId:null},appointmentDate:"2026-10-20"}} reviewerRole="PROGRAMME_COORDINATOR" onClose={()=>{}} onOpenStudent={()=>{}}/>);
 parent.postMessage({type:'panel-request-results',width:innerWidth,results},location.origin);

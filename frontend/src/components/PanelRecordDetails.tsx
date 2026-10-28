@@ -1,5 +1,6 @@
+import {AppointmentRecordSection} from './AppointmentSidebar';
 import React from 'react';
-import {BookOpen, CalendarDays, ListChecks, UserRound} from 'lucide-react';
+import {BookOpen, ListChecks, UserRound} from 'lucide-react';
 import {ApprovalProcess,formatRequestDisplayDate} from './ApprovalProcess';
 import {RequestAuditHistory,RequestDetailActions,RequestDetailCard,RequestSection} from './RequestDetailPrimitives';
 import {appointmentDetailTypography as text} from './AppointmentPrimitives';
@@ -16,9 +17,11 @@ export function panelRecordMetadata(record:PanelPresentation) {
 }
 export function PanelRecommendationDetail({record,actions,administration,contextAction}:{record:PanelPresentation;actions?:React.ReactNode;administration?:React.ReactNode;contextAction?:React.ReactNode}) {
   const started=record.status!=='NOT_SUBMITTED';
+  const progress=buildPanelApprovalSteps(record).map(step=>step.reason&&(step.reason===record.rejectionReason||step.reason===record.cancellationReason)?{...step,reason:undefined}:step);
   const replacement=!!(record.replacesAppointmentId||record.replacementReason);
   const continuing=replacement&&['SUBMITTED_TO_PANEL','PENDING_COORDINATOR'].includes(record.status)&&record.replacedAppointmentStatus==='ACTIVE';
   const hasReview=!!(started||actions||record.workflow?.length||record.rejectionReason||record.cancellationReason);
+  const hasSidebar=hasReview||!!administration;
   const contacts=[['Student email',record.studentEmail],['Supervisor email',record.supervisorEmail]].filter(([,value])=>value);
   const fact=(title:string,value?:string|null)=><div key={title} className="min-w-0 space-y-2"><dt className={label}>{title}</dt><dd className={`${body} whitespace-pre-wrap`}>{value?.trim()||'Not recorded'}</dd></div>;
   return <div data-panel-recommendation-detail className="space-y-7">
@@ -34,7 +37,7 @@ export function PanelRecommendationDetail({record,actions,administration,context
       {!started?<p className={`${body} mt-5`}>No Panel recommendation has been submitted for this record.</p>:null}
       {!started&&record.unavailableUntil?<p className="mt-5 text-sm leading-6 text-amber-800">Unavailable for new appointments until {formatRequestDisplayDate(record.unavailableUntil)}. This recorded recommendation remains available.</p>:null}
     </PortalCard>
-    <div data-panel-request-columns className={hasReview?'grid min-w-0 items-start gap-7 xl:grid-cols-[minmax(0,1fr)_20rem]':'min-w-0'}>
+    <div data-panel-request-columns className={hasSidebar?'grid min-w-0 items-start gap-7 xl:grid-cols-[minmax(0,1fr)_20rem]':'min-w-0'}>
       <div className="min-w-0 space-y-7">
         {started||replacement||record.justification?<SupervisionDetailSection title="Nomination details" icon={UserRound}>
           <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
@@ -58,32 +61,31 @@ export function PanelRecommendationDetail({record,actions,administration,context
           <dl className="border-t border-slate-100 pt-6"><div className="space-y-3"><dt className={label}>Abstract</dt><dd><ResearchAbstract value={record.abstract} inset={false}/></dd></div></dl>
         </SupervisionDetailSection></div>
       </div>
-      {hasReview?<aside data-panel-review aria-label="Recommendation review" className="min-w-0"><SupervisionDetailSection title="Review and outcome" icon={ListChecks}>
-        {started?<ApprovalProcess steps={buildPanelApprovalSteps(record)} headingAs="h3"/>:null}
+      {hasSidebar?<aside data-panel-review aria-label="Recommendation review and appointment" className="min-w-0 space-y-7">{hasReview?<SupervisionDetailSection title="Review and outcome" icon={ListChecks}>
+        {started?<ApprovalProcess steps={progress} headingAs="h3"/>:null}
         {record.rejectionReason||record.cancellationReason?<dl className="border-t border-slate-100 pt-6">{fact(record.rejectionReason?'Rejection reason':'Cancellation reason',record.rejectionReason||record.cancellationReason)}</dl>:null}
         {actions?<div className="border-t border-slate-100 pt-6"><RequestDetailActions>{actions}</RequestDetailActions></div>:null}
-        {record.workflow?.length?<div className="border-t border-slate-100 pt-6"><RequestAuditHistory events={record.workflow}/></div>:null}
-      </SupervisionDetailSection></aside>:null}
+      </SupervisionDetailSection>:null}
+      {administration}
+      </aside>:null}
     </div>
-    {administration}
   </div>;
 }
-export function PanelAppointmentRecordCard({record,actions,compact=false,children}:{record:PanelPresentation;actions?:React.ReactNode;compact?:boolean;children?:React.ReactNode}) {
+export function PanelAppointmentRecordCard({record,actions,compact=false,showHistory=true,children,markingAction,sourceAction}:{record:PanelPresentation;actions?:React.ReactNode;compact?:boolean;showHistory?:boolean;children?:React.ReactNode;markingAction?:React.ReactNode;sourceAction?:React.ReactNode}) {
   const lifecycle=record.appointmentLifecycle;
   if(!lifecycle)return null;
   const active=lifecycle.status==='ACTIVE';
   const approved=record.coordinatorDecisionAt||lifecycle.lifecycle?.find(e=>e.action==='ACTIVATED')?.createdAt||record.appointmentDate;
-  const events=(lifecycle.lifecycle??[]).map(e=>({...e,reason:e.reason??undefined}));
-  if(compact)return <div data-panel-appointment-record><SupervisionDetailSection title="Appointment record" icon={CalendarDays}>
+  const events=(lifecycle.lifecycle??[]).filter(event=>event.action!=='ACTIVATED').map(e=>({...e,reason:e.reason??undefined}));
+  if(compact)return <div data-panel-appointment-record><AppointmentRecordSection actions={actions} history={(showHistory&&events.length>0)||children?<>{showHistory&&events.length?<RequestAuditHistory title="Appointment changes" events={events}/>:null}{children}</>:undefined}>
     <dl className="space-y-5"><div className="space-y-2"><dt className={label}>Appointment status</dt><dd><StatusBadge tone={active?'success':'neutral'}>{panelStatusLabel(lifecycle.status)}</StatusBadge></dd></div>
       <PanelDetailFact title="Appointment date" value={formatRequestDisplayDate(panelRecordedDate(approved))}/>
       {!active?<><PanelDetailFact title="Ended on" value={formatRequestDisplayDate(lifecycle.endedAt)}/>{lifecycle.endOutcome?<PanelDetailFact title="Outcome" value={panelStatusLabel(lifecycle.endOutcome)}/>:null}{lifecycle.endReason?<PanelDetailFact title="Reason" value={lifecycle.endReason}/>:null}{lifecycle.endedBy?<PanelDetailFact title="Recorded by" value={lifecycle.endedBy}/>:null}</>:null}
     </dl>
-    {actions?<div className="border-t border-slate-100 pt-6"><RequestDetailActions>{actions}</RequestDetailActions></div>:null}
-    {events.length?<div className="border-t border-slate-100 pt-6"><RequestAuditHistory title="Appointment history" events={events}/></div>:null}
-    {children?<div className="border-t border-slate-100 pt-6">{children}</div>:null}
-  </SupervisionDetailSection></div>;
-  return <div data-panel-appointment-record><RequestDetailCard padding="lg" actions={actions} audit={events.length?<RequestAuditHistory title="Appointment history" events={events}/>:undefined}>
+    {markingAction}
+    {sourceAction?<div className="border-t border-slate-100 pt-6"><RequestDetailActions>{sourceAction}</RequestDetailActions></div>:null}
+  </AppointmentRecordSection></div>;
+  return <div data-panel-appointment-record><RequestDetailCard padding="lg" actions={actions} audit={events.length?<RequestAuditHistory title="Appointment changes" events={events}/>:undefined}>
     <RequestSection title="Appointment record" headingClassName={text.heading}><dl className="grid gap-x-10 gap-y-6 pt-3 sm:grid-cols-2"><Fact label="Student" value={record.studentName} name/><Fact label="Appointed Panel member" value={record.recommendedMember} name/><div><dt className={text.label}>Appointment status</dt><dd className="mt-2"><StatusBadge tone={active?'success':'neutral'}>{panelStatusLabel(lifecycle.status)}</StatusBadge></dd></div><Fact label="Appointment date" value={formatRequestDisplayDate(panelRecordedDate(approved))}/>{!active?<Fact label="Ended on" value={formatRequestDisplayDate(lifecycle.endedAt)}/>:null}</dl></RequestSection>
     {!active&&(lifecycle.endOutcome||lifecycle.endReason)?<RequestSection title="Appointment outcome" headingClassName={text.heading}>{lifecycle.endOutcome?<p className={text.body}>{panelStatusLabel(lifecycle.endOutcome)}</p>:null}{lifecycle.endReason?<p className={`${text.body} max-w-prose whitespace-pre-wrap break-words`}>{lifecycle.endReason}</p>:null}{lifecycle.endedBy?<p className="card-caption">Recorded by {lifecycle.endedBy}</p>:null}</RequestSection>:null}
   </RequestDetailCard></div>;

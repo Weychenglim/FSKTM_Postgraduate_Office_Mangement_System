@@ -1,3 +1,4 @@
+import {SupervisorRequestDisclosure} from './SupervisorRequestFields';
 import React, { useId } from 'react';
 import { UserRound, Check, X, type LucideIcon } from 'lucide-react';
 import { IconHeading } from './IconHeading';
@@ -18,16 +19,18 @@ function readableAction(value: string): string {
   return labels[value] ?? (words ? words.charAt(0).toUpperCase()+words.slice(1) : 'Recorded activity');
 }
 
-export function RequestAuditHistory({ events, title = 'Audit history', showTeamRetention = false }: { events: ApprovalEvent[]; title?: string; showTeamRetention?: boolean }) {
+export function RequestAuditHistory({ events, title = 'Audit history', showTeamRetention = false, sidebar = false }: { events: ApprovalEvent[]; title?: string; showTeamRetention?: boolean; sidebar?:boolean }) {
   if (!events.length) return null;
-  return <details className="group"><summary className="section-label cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">{title}<span className="card-caption ml-2 font-normal text-slate-500">({events.length} {events.length === 1 ? 'event' : 'events'})</span></summary>
-    <ol className="mt-4 divide-y divide-slate-200">{orderApprovalEvents(events).map(event => <li key={event.id} className="space-y-2 py-4 first:pt-0 last:pb-0 [overflow-wrap:anywhere]">
+  const content=<ol className="mt-4 divide-y divide-slate-200">{orderApprovalEvents(events).map(event => <li key={event.id} className="space-y-2 py-4 first:pt-0 last:pb-0 [overflow-wrap:anywhere]">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><p className="card-value">{readableAction(event.action)}</p>{formatRequestRecordedAt(event.createdAt)!=='Not recorded'?<p className="card-caption text-slate-500">{formatRequestDisplayDate(event.createdAt)}</p>:null}</div>
       {event.actorName||event.actorRole?<p className="card-description">{[event.actorName,event.actorRole].filter(Boolean).join(' · ')}</p>:null}
       {event.newStatus?<p className="card-caption text-slate-500">{event.previousStatus ? `${readableRecordStatus(event.previousStatus)} → ` : ''}{readableRecordStatus(event.newStatus)}</p>:null}
       {event.reason ? <p className="card-description whitespace-pre-wrap"><span className="font-semibold">Reason: </span>{event.reason}</p> : null}
       {event.retainTeam != null && (showTeamRetention || event.retainTeam) ? <p className="card-description">{event.retainTeam ? 'Team retention acknowledged.' : 'Team retention was not acknowledged.'}</p> : null}
-    </li>)}</ol>
+    </li>)}</ol>;
+  if(sidebar)return <SupervisorRequestDisclosure title={`${title} (${events.length} ${events.length===1?'event':'events'})`}>{content}</SupervisorRequestDisclosure>;
+  return <details className="group"><summary className="section-label cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">{title}<span className="card-caption ml-2 font-normal text-slate-500">({events.length} {events.length === 1 ? 'event' : 'events'})</span></summary>
+    {content}
   </details>;
 }
 

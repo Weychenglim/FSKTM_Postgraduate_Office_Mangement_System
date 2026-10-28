@@ -18,9 +18,9 @@ test('Assignments prioritise appointed member and current research with compact 
   const html=render(<PanelAssignmentDetail assignment={assignment} onBack={()=>{}} onOpenMarksEntry={()=>{}} onOpenStudent={()=>{}}/>);
   assert.match(html,/data-panel-assignment-columns/);
   for(const title of ['Academic team','Current research','Appointment record'])assert.ok(html.includes(`>${title}</h2>`),title);
-  assert.match(html,/Nomination and review history/);
-  assert.match(html,/Relevant subject expertise/);
-  assert.match(html,/Open Marks Entry/);
+  assert.match(html,/View approved application/);
+  assert.doesNotMatch(html,/Approval progress/);
+  assert.doesNotMatch(html,/Open Marks Entry/);
   assert.equal((html.match(/Aina Sofea Rahman/g)||[]).length,1,'No repeated student in compact lifecycle');
   assert.doesNotMatch(html,/>Nomination details<|>Review and outcome</);
 });
@@ -54,8 +54,8 @@ test('Office explicit appointment view differs from its unchanged recommendation
 test('Missing lifecycle stays honest while preserving available nomination evidence',()=>{
   const html=render(<PanelAssignmentDetail assignment={{...assignment,recommendation:{...recommendation,appointmentLifecycle:null}}} onBack={()=>{}} onOpenMarksEntry={()=>{}}/>);
   assert.match(html,/No appointment lifecycle record is available/);
-  assert.match(html,/Nomination and review history/);
-  assert.match(html,/Relevant subject expertise/);
+  assert.match(html,/View approved application/);
+  assert.doesNotMatch(html,/Approval progress/);
   assert.doesNotMatch(html,/Open Marks Entry|End Appointment/);
 });
 

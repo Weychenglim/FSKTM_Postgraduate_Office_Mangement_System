@@ -1,3 +1,4 @@
+import type {AppointmentMarkingTarget} from '../utils/appointmentMarking';
 import { useReturnToFocusReload } from '../utils/returnToFocus';
 /**
  * @license
@@ -510,6 +511,7 @@ interface LecturerSupervisorAppointmentsProps {
   onNavigateToPanelRequest?: (id: string,recordKey?:string) => void;
   onNavigateToPanelRecommendation?: (studentId: string) => void;
   onNavigateToSupervisees?: () => void;
+  onNavigateToMarks?:(target?:AppointmentMarkingTarget)=>void;
   researchView?: 'list' | 'detail' | 'profile' | 'new';
   researchRequestId?: string;
   onNavigateToResearchRequest?: (id: string) => void;
@@ -521,7 +523,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   lecturerId,
   initialApplicationId, initialSupportingId, onNavigateToRequest, requestBackLabel, routeView = 'list', routeSuperviseeStudentId,
   onNavigateToList, onNavigateToSupervisee, onNavigateToDossier,
-  onNavigateToPanelRequest, onNavigateToPanelRecommendation, onNavigateToSupervisees,
+  onNavigateToPanelRequest, onNavigateToPanelRecommendation, onNavigateToSupervisees, onNavigateToMarks,
   researchView = 'list', researchRequestId, onNavigateToResearchRequest, onNavigateToResearchList, onNavigateToResearchProfile,
 }) => {
   const [capacity, setCapacity] = useState<SupervisorWorkloadSummary | null>(null);
@@ -561,7 +563,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   </RecordPage>;
   if (isSupervisionDetail) return <RecordPage title="Supervision details" backLabel="Back to My supervisees" onBack={onNavigateToSupervisees ?? (() => {})}>
     {loading ? <LoadingState message="Loading supervision details…" /> : error ? <ErrorState message={error} onRetry={loadData} /> : <>
-      <SupervisoryTeamManagement key={routeSuperviseeStudentId} role="Lecturer" view="detail" routeStudentId={routeSuperviseeStudentId} detailContext={selectedSupervisee} onNavigateToApplication={onNavigateToRequest?id=>onNavigateToRequest(id,'primary'):undefined} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} onNavigateToPanelRecommendation={onNavigateToPanelRecommendation} showResearchChanges={false} showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={teamRefresh} onChanged={refresh} />
+      <SupervisoryTeamManagement key={routeSuperviseeStudentId} role="Lecturer" view="detail" routeStudentId={routeSuperviseeStudentId} detailContext={selectedSupervisee} onNavigateToApplication={onNavigateToRequest?id=>onNavigateToRequest(id,'primary'):undefined} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} onNavigateToPanelRecommendation={onNavigateToPanelRecommendation} onNavigateToMarks={onNavigateToMarks} showResearchChanges={false} showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={teamRefresh} onChanged={refresh} />
     </>}
   </RecordPage>;
   return <div id="lecturer-portal-workspace" className="space-y-6 text-left font-sans pb-12">

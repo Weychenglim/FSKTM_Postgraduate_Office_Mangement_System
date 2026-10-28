@@ -12,7 +12,7 @@ const noop=()=>{};
 test('Staff supervision detail separates overview, team, visible research and appointment activity',()=>{
   const html=renderToStaticMarkup(<SupervisoryStudentDetailCard team={team} busy={false} collapsible={false} context={{semester:'Semester I'}} actions={<button>View student record</button>} management={<SupervisorAppointmentRecordCard compact record={{studentName:team.studentName,studentId:team.matricNo,supervisor:'Dr Primary',status:'ACTIVE',approvedAt:'2026-10-01',events:[]}}/>} onNominate={noop} onEnd={noop} onReplace={noop} onNominationAction={noop}/>);
   assert.match(html,/data-supervision-layout/);
-  for(const title of ['Supervisory team','Research profile','Appointment record','Activity and dates'])assert.ok(html.includes(title),title);
+  for(const title of ['Supervisory team','Research profile','Appointment record'])assert.ok(html.includes(title),title);
   assert.doesNotMatch(html,/<summary[^>]*>Research profile<\/summary>/,'Current research is readable without opening a disclosure');
   assert.equal((html.match(/Example postgraduate/g)??[]).length,1,'Appointment metadata does not repeat student identity');
   assert.equal((html.match(/Dr Primary/g)??[]).length,1,'Primary supervisor is not repeated in management metadata');
@@ -23,7 +23,7 @@ test('Staff supervision detail separates overview, team, visible research and ap
 
 test('Compact appointment presentation preserves lifecycle facts and authorized controls',()=>{
   const html=renderToStaticMarkup(<SupervisorAppointmentRecordCard compact record={{studentName:'Hidden duplicate',studentId:'DUP',supervisor:'Hidden supervisor',status:'ENDED',approvedAt:'2026-10-01',endedAt:'2026-10-20',endOutcome:'COMPLETED',endReason:'Saved outcome reason',endedBy:'Office actor',events:[{id:1,action:'ENDED',newStatus:'ENDED',actorName:'Office actor',createdAt:'2026-10-20'}]}} actions={<button>Authorized action</button>}/>);
-  for(const label of ['Approved on','Ended on','Saved outcome reason','Office actor','Appointment history','Authorized action'])assert.ok(html.includes(label),label);
+  for(const label of ['Approved on','Ended on','Saved outcome reason','Office actor','Appointment changes','Authorized action'])assert.ok(html.includes(label),label);
   assert.doesNotMatch(html,/Hidden duplicate|Hidden supervisor|>DUP</);
   const historical=renderToStaticMarkup(<SupervisorAppointmentRecordCard record={{studentName:'Historical student',studentId:'OLD',supervisor:'Historical supervisor',status:'ENDED',events:[]}}/>);
   assert.match(historical,/Historical student/);assert.match(historical,/Historical supervisor/);
