@@ -4,7 +4,7 @@ import {IconHeading} from './IconHeading';
 import {AppointmentIcon} from './AppointmentPrimitives';
 import {PortalCard} from './PortalPrimitives';
 import {ResearchAbstract} from './ResearchAbstract';
-import type { StudentSupervisorApplication, SupervisorApplicationDocument, SupervisorApplicationRecord } from '../types';
+import type { StudentSupervisorApplication, SupervisorApplicationDocument, SupervisorApplicationRecord, SupervisorAcceptanceCapacity } from '../types';
 import type { ApprovalEvent } from '../utils/approvalProcess';
 import { buildSupervisorApprovalProcess } from '../utils/approvalProcess';
 import { requestStatusLabel } from '../utils/lecturerRequests';
@@ -22,6 +22,7 @@ export interface SupervisorRequestPresentation {
   applicationId?: number | string;
   reference?: string;
   status: string;
+  acceptanceCapacity?: SupervisorAcceptanceCapacity | null;
   submittedAt?: string;
   submittedBy?: string;
   studentName?: string;
@@ -46,6 +47,7 @@ export interface SupervisorRequestPresentation {
 export function toSupervisorRequestPresentation(record: SupervisorApplicationRecord): SupervisorRequestPresentation {
   return {
     initiatedByOffice:record.initiatedByOffice,
+    acceptanceCapacity: record.acceptanceCapacity,
     applicationId: record.id, reference: `SV-REQ-${String(record.id).padStart(5, '0')}`,
     status: record.status, submittedAt: record.submittedAt, submittedBy: record.workflow?.find(event=>['SUBMIT','SUBMITTED'].includes(event.action.toUpperCase()))?.actorName,
     studentName: record.studentName, studentId: record.studentId, programme: record.programme, semester: record.semester,
@@ -60,6 +62,7 @@ export function toSupervisorRequestPresentation(record: SupervisorApplicationRec
 export function toStudentSupervisorRequestPresentation(record: StudentSupervisorApplication): SupervisorRequestPresentation {
   return {
     initiatedByOffice:record.initiatedByOffice,
+    acceptanceCapacity: record.acceptanceCapacity,
     applicationId: record.applicationId, reference: record.applicationId!=null?`SV-REQ-${String(record.applicationId).padStart(5,'0')}`:record.id, status: record.workflowStatus ?? 'UNKNOWN',
     submittedAt: record.submittedAt, submittedBy: record.workflow?.find(event=>['SUBMIT','SUBMITTED'].includes(event.action.toUpperCase()))?.actorName,
     studentName: record.studentName, studentId: record.studentId, programme: record.programme, semester: record.semester,
@@ -92,6 +95,12 @@ export function SupervisorRequestDetail({ request, actions, administration, cont
   const reviewTitleId=useId();
   const hasReview = showApproval || !!(request.replacementReason || request.rejectionReason || request.cancellationReason || actions || request.events?.length);
   const hasNotes = !!(request.replacementReason || request.rejectionReason || request.cancellationReason);
+  const capacity = request.acceptanceCapacity;
+  const capacityAvailability = !capacity || capacity.limit == null || capacity.state === 'NOT_CONFIGURED'
+    ? 'Availability not configured'
+    : ['TEMPORARILY_UNAVAILABLE','INELIGIBLE'].includes(capacity.state)
+      ? 'Unavailable for new requests'
+      : `${capacity.availableSlots} available`;
   return <div className="supervisor-request-detail space-y-7">
     <PortalCard padding="lg" role="region" aria-label="Request overview" data-request-summary>
       <div className="flex flex-wrap items-start justify-between gap-5">
@@ -147,6 +156,7 @@ export function SupervisorRequestDetail({ request, actions, administration, cont
           ['Requested replacement',request.replacementReason],['Decision reason',request.rejectionReason],['Cancellation reason',request.cancellationReason],
         ].filter(([,reason])=>reason).map(([title,reason])=><section key={title} aria-label={title!} className="space-y-2"><h3 className="text-sm font-semibold text-brand-navy">{title}</h3><p className="whitespace-pre-wrap text-sm font-normal leading-7 text-slate-900 [overflow-wrap:anywhere]">{reason}</p></section>)}</div> : null}
         {showApproval ? <ApprovalProcess steps={progress} headingAs="h3"/> : null}
+        {capacity ? <p className="card-description" aria-label="Current request capacity">{capacity.activeLoad} active · {capacity.reservedLoad} reserved · {capacityAvailability}{capacity.limit != null ? ` · Limit ${capacity.limit}` : ' · Limit not configured'}</p> : null}
         {actions ? <div className="border-t border-slate-200 pt-5"><RequestDetailActions>{actions}</RequestDetailActions></div> : null}
         {request.events?.length ? <div className="border-t border-slate-200 pt-5"><RequestAuditHistory events={request.events}/></div> : null}
       </div>

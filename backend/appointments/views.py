@@ -2,6 +2,7 @@ from .request_visibility import can_view_supervisor_application, routine_supervi
 from .section_a import validate_section_a_proposal
 from .supervisor_replacement import is_office_replacement, assert_current_predecessor
 from .capacity_reassessment import lock_request, assert_not_archived, ReassessmentConflict
+from .capacity_closure import acceptance_capacity, supervisor_workload_summary
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -53,7 +54,6 @@ from .models import (
     SupervisorDocumentRequirement,
     SupervisorDocumentRequirementAudit,
     count_supervisor_workload,
-    supervisor_workload_limit,
 )
 from .appointment_lifecycle import (
     AppointmentLifecycleConflict,
@@ -266,13 +266,19 @@ def panel_workload_availability(count, limit):
 
 def capacity_workload_payload(*, lecturer, academic_semester, role, fallback_load):
     if academic_semester is None:
+        from academics.capacity import _workloads
+        active, reserved = _workloads(user=lecturer, role=role)
+        pending = SupervisorApplication.objects.filter(proposed_supervisor=lecturer, status="SUBMITTED_TO_SUPERVISOR").count() if role == CapacityRole.SUPERVISOR else 0
         return {
             "semesterId": None,
             "semesterCode": None,
             "capacityPlanId": None,
             "capacityPlanVersion": None,
             "capacityState": CapacityState.NOT_CONFIGURED,
-            "workloadCount": fallback_load,
+            "workloadCount": active + reserved,
+            "activeLoad": active,
+            "reservedLoad": reserved,
+            "pendingRequests": pending,
             "workloadLimit": 0,
             "availableSlots": 0,
             "selectable": False,
@@ -290,6 +296,9 @@ def capacity_workload_payload(*, lecturer, academic_semester, role, fallback_loa
         "capacityPlanVersion": resolution.plan_version,
         "capacityState": resolution.state,
         "workloadCount": resolution.active_load + resolution.reserved_load,
+        "activeLoad": resolution.active_load,
+        "reservedLoad": resolution.reserved_load,
+        "pendingRequests": resolution.pending_requests,
         "workloadLimit": resolution.limit or 0,
         "availableSlots": resolution.available_slots,
         "selectable": resolution.state == CapacityState.AVAILABLE,
@@ -333,7 +342,7 @@ def supervisor_workload_row(lecturer, academic_semester=None):
         "lecturerId": staff_no_for_user(lecturer),
         "lecturerName": lecturer.full_name,
         "department": department_for_user(lecturer),
-        "currentStudents": workload_count,
+        "currentStudents": capacity["activeLoad"],
         "workloadLimit": workload_limit,
         "availability": panel_workload_availability(
             workload_count,
@@ -680,7 +689,7 @@ def own_supervisor_workload_view(request):
     )
     return Response(
         {
-            "currentStudents": capacity["workloadCount"],
+            "currentStudents": capacity["activeLoad"],
             **capacity,
         }
     )
@@ -1823,6 +1832,7 @@ def supervisor_requests_view(request):
         proposed_supervisor=request.user,
         status=SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
     ).select_related("student", "student__user", "proposed_supervisor", "academic_semester")
+    capacity_cache = {}
     rows = [
         {
             "applicationId": application.pk,
@@ -1838,6 +1848,7 @@ def supervisor_requests_view(request):
             "participantLifecycleStatus": application.student.status.upper(),
             "participantEligible": student_is_workflow_eligible(application.student),
             "abstract": application.research_abstract,
+            "acceptanceCapacity": acceptance_capacity(application, cache=capacity_cache),
             **supervisor_waiting_metadata(application),
         }
         for application in applications
@@ -1874,6 +1885,13 @@ def supervisor_accept_view(request, pk):
         if not student_is_workflow_eligible(application.student):
             return participant_ineligible_response()
         assert_current_predecessor(application)
+        # Acceptance promises a place; serialize it with every activation path.
+        Lecturer.objects.select_for_update().get(pk=application.proposed_supervisor_id)
+        from .capacity_reassessment import assert_request_capacity
+        try:
+            assert_request_capacity(application)
+        except CapacityConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         previous_status = application.status
         application.status = SupervisorApplication.Status.PENDING_COORDINATOR
         application.supervisor_decided_at = timezone.now()
@@ -2006,6 +2024,7 @@ def supervisor_coordinator_history_view(request):
                 SupervisorApplication.Status.REJECTED_BY_COORDINATOR,
                 SupervisorApplication.Status.CANCELLED_BY_STUDENT,
                 SupervisorApplication.Status.CANCELLED_BY_OFFICE,
+                SupervisorApplication.Status.CANCELLED_CAPACITY_FULL,
             ),
         )
         .select_related(
@@ -2238,6 +2257,7 @@ def supervisor_request_history_view(request):
             | Q(status__in=[
                 SupervisorApplication.Status.CANCELLED_BY_STUDENT,
                 SupervisorApplication.Status.CANCELLED_BY_OFFICE,
+                SupervisorApplication.Status.CANCELLED_CAPACITY_FULL,
             ])
         )
         .select_related("student", "student__user")
@@ -2259,11 +2279,13 @@ def supervisor_request_history_view(request):
                 "researchTitle": application.research_title,
                 "submittedDate": format_display_date(application.submitted_at),
                 "decision": (
+                    "Capacity full" if application.status == SupervisorApplication.Status.CANCELLED_CAPACITY_FULL else
                     "Cancelled"
                     if application.status
                     in [
                         SupervisorApplication.Status.CANCELLED_BY_STUDENT,
                         SupervisorApplication.Status.CANCELLED_BY_OFFICE,
+                        SupervisorApplication.Status.CANCELLED_CAPACITY_FULL,
                     ]
                     else (
                         "Rejected"
@@ -2319,9 +2341,12 @@ def supervisor_records_view(request):
             SupervisorApplication.Status.REJECTED_BY_COORDINATOR,
         ]:
             return "Rejected"
+        if application.status == SupervisorApplication.Status.CANCELLED_CAPACITY_FULL:
+            return "Capacity full"
         if application.status in [
             SupervisorApplication.Status.CANCELLED_BY_STUDENT,
             SupervisorApplication.Status.CANCELLED_BY_OFFICE,
+            SupervisorApplication.Status.CANCELLED_CAPACITY_FULL,
         ]:
             return "Cancelled"
         return "Pending"
@@ -2348,10 +2373,7 @@ def supervisor_records_view(request):
                     if hasattr(application, "appointment")
                     else None
                 ),
-                "workloadLimit": (
-                    f"{count_supervisor_workload(application.proposed_supervisor)}/"
-                    f"{supervisor_workload_limit(application.proposed_supervisor)} Supervisees"
-                ),
+                "workloadLimit": supervisor_workload_summary(application),
                 "approvedDate": format_display_date(application.coordinator_decided_at),
                 "cancelledAt": application.cancelled_at,
                 "cancellationReason": application.cancellation_reason,

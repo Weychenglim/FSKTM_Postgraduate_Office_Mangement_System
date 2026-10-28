@@ -5,7 +5,7 @@ from enum import StrEnum
 from django.db.models import Count
 from django.utils import timezone
 
-from accounts.models import Lecturer, Panel, Supervisor
+from accounts.models import Lecturer
 
 from .models import (
     LecturerAvailabilityWindow,
@@ -40,6 +40,7 @@ class CapacityResolution:
     available_slots: int
     state: str
     unavailable_until: date | None
+    pending_requests: int = 0
 
 
 class CapacityConflict(Exception):
@@ -57,7 +58,7 @@ def capacity_workload_counts(user_ids):
     """Batch global commitments for plan previews and locked publication checks."""
     from appointments.models import (
         CoSupervisorAppointment, PanelAppointment, PanelRecommendation,
-        SupervisorAppointment,
+        SupervisorAppointment, SupervisorApplication,
     )
 
     user_ids = set(user_ids)
@@ -77,6 +78,8 @@ def capacity_workload_counts(user_ids):
         supervisor[user_id] = supervisor.get(user_id, 0) + total
     return {
         "supervisorLoad": supervisor,
+        "supervisorReservations": counts(SupervisorApplication, "proposed_supervisor_id", ["PENDING_COORDINATOR"]),
+        "supervisorPendingRequests": counts(SupervisorApplication, "proposed_supervisor_id", ["SUBMITTED_TO_SUPERVISOR"]),
         "panelLoad": counts(PanelAppointment, "panel_member_id", ["ACTIVE"]),
         "panelReservations": counts(
             PanelRecommendation, "recommended_member_id",
@@ -85,23 +88,28 @@ def capacity_workload_counts(user_ids):
     }
 
 
-def _workloads(*, user, role, exclude_panel_recommendation_id=None):
+def _workloads(*, user, role, exclude_panel_recommendation_id=None, exclude_supervisor_application_id=None):
     from appointments.models import (
         PanelAppointment,
         PanelRecommendation,
         SupervisorAppointment,
         CoSupervisorAppointment,
+        SupervisorApplication,
     )
 
     if role == CapacityRole.SUPERVISOR:
-        active_load = SupervisorAppointment.objects.filter(
+        primary = SupervisorAppointment.objects.filter(
             supervisor=user,
             status=SupervisorAppointment.Status.ACTIVE,
-        ).count()
-        active_load += CoSupervisorAppointment.objects.filter(
+        ).order_by().values("pk")
+        supporting = CoSupervisorAppointment.objects.filter(
             supervisor=user, status=CoSupervisorAppointment.Status.ACTIVE
-        ).count()
-        return _non_negative(active_load), 0
+        ).order_by().values("pk")
+        active_load = primary.union(supporting, all=True).count()
+        reservations = SupervisorApplication.objects.filter(proposed_supervisor=user, status="PENDING_COORDINATOR")
+        if exclude_supervisor_application_id is not None:
+            reservations = reservations.exclude(pk=exclude_supervisor_application_id)
+        return _non_negative(active_load), reservations.count()
 
     active_load = PanelAppointment.objects.filter(
         panel_member=user,
@@ -127,8 +135,7 @@ def _is_eligible(*, user, lecturer, role):
     ):
         return False
 
-    role_model = Supervisor if role == CapacityRole.SUPERVISOR else Panel
-    return role_model.objects.filter(lecturer_id=lecturer.pk).exists()
+    return hasattr(lecturer, "supervisor" if role == CapacityRole.SUPERVISOR else "panel")
 
 
 def derive_capacity_resolution(
@@ -142,6 +149,7 @@ def derive_capacity_resolution(
     reserved_load,
     eligible,
     unavailable_until,
+    pending_requests=0,
 ):
     """Apply the shared capacity-state precedence to caller-loaded values."""
     role = CapacityRole(role)
@@ -179,6 +187,7 @@ def derive_capacity_resolution(
             if state == CapacityState.TEMPORARILY_UNAVAILABLE
             else None
         ),
+        pending_requests=_non_negative(pending_requests),
     )
 
 
@@ -189,12 +198,13 @@ def resolve_lecturer_capacity(
     role,
     on_date=None,
     exclude_panel_recommendation_id=None,
+    exclude_supervisor_application_id=None,
 ) -> CapacityResolution:
     role = CapacityRole(role)
     on_date = on_date or timezone.localdate()
 
     lecturer = (
-        Lecturer.objects.select_related("user")
+        Lecturer.objects.select_related("user", "supervisor" if role == CapacityRole.SUPERVISOR else "panel")
         .filter(user_id=getattr(user, "pk", None))
         .first()
     )
@@ -208,6 +218,7 @@ def resolve_lecturer_capacity(
         user=user,
         role=role,
         exclude_panel_recommendation_id=exclude_panel_recommendation_id,
+        exclude_supervisor_application_id=exclude_supervisor_application_id,
     )
 
     plan = (
@@ -251,6 +262,8 @@ def resolve_lecturer_capacity(
             .first()
         )
 
+    from appointments.models import SupervisorApplication
+    pending_requests = SupervisorApplication.objects.filter(proposed_supervisor=user, status="SUBMITTED_TO_SUPERVISOR").count() if role == CapacityRole.SUPERVISOR else 0
     return derive_capacity_resolution(
         semester_id=semester.pk,
         plan_id=plan.pk if plan is not None else None,
@@ -261,6 +274,7 @@ def resolve_lecturer_capacity(
         reserved_load=reserved_load,
         eligible=eligible,
         unavailable_until=matched_window_end,
+        pending_requests=pending_requests,
     )
 
 
@@ -292,6 +306,7 @@ def assert_capacity_allows_assignment(
     role,
     on_date=None,
     exclude_panel_recommendation_id=None,
+    exclude_supervisor_application_id=None,
 ):
     if semester is None:
         raise CapacityConflict(
@@ -303,6 +318,7 @@ def assert_capacity_allows_assignment(
         role=role,
         on_date=on_date,
         exclude_panel_recommendation_id=exclude_panel_recommendation_id,
+        exclude_supervisor_application_id=exclude_supervisor_application_id,
     )
     if result.state != CapacityState.AVAILABLE:
         raise CapacityConflict(capacity_conflict_message(result))

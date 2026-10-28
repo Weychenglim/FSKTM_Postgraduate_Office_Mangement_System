@@ -591,6 +591,9 @@ def decide(*, nomination_id, actor, action, reason=""):
         ]
     )
     _workflow(row, actor, action.upper().replace("-", "_"), previous, row.reason)
+    if action == "approve":
+        from .capacity_closure import close_capacity_full_requests
+        close_capacity_full_requests(supervisor=row.candidate, actor=actor)
     return row
 
 
@@ -909,6 +912,9 @@ def candidates(*, student, actor):
                 "selectable": not conflict,
                 "capacityState": capacity.state,
                 "activeLoad": capacity.active_load,
+                "reservedLoad": capacity.reserved_load,
+                "pendingRequests": capacity.pending_requests,
+                "availableSlots": capacity.available_slots,
                 "limit": capacity.limit,
                 "unavailableUntil": iso(capacity.unavailable_until),
                 "reason": conflict,

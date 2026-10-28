@@ -66,7 +66,7 @@ export function buildSupervisorApprovalProcess({ kind, status: rawStatus, submit
   const terminal = approved || rejected || cancelled;
   const terminalEvent = latest(event => normalized(event.newStatus) === status
     && normalized(event.previousStatus) !== status
-    && (approved ? isApproval(event) : rejected ? /REJECT/.test(normalized(event.action)) : /CANCEL|WITHDRAW/.test(normalized(event.action))));
+    && (approved ? isApproval(event) : rejected ? /REJECT/.test(normalized(event.action)) : /CANCEL|WITHDRAW|SYSTEM_CLOSE_CAPACITY/.test(normalized(event.action))));
   const legacyDecision = kind === 'research' ? latest(event => normalized(event.previousStatus)==='PENDING_COORDINATOR'
     && (isApproval(event) || /REJECT/.test(normalized(event.action)) && isRejection(normalized(event.newStatus)))
     && /COORDINATOR/.test(normalized(event.actorRole) + '_' + normalized(event.action))
@@ -147,6 +147,7 @@ export function buildSupervisorApprovalProcess({ kind, status: rawStatus, submit
     ...(terminalEvent?.reason && steps.some(step => step.reason === terminalEvent.reason) ? { reason: undefined } : {}),
     description: approved ? kind === 'research' || kind === 'transfer' ? 'Applied on approval.' : 'Request approved.'
       : rejected ? stoppedAt == null ? 'Request rejected. Deciding stage: Not recorded.' : `Request rejected at ${stages[stoppedAt].label}.`
+        : status === 'CANCELLED_CAPACITY_FULL' ? 'Closed automatically because Supervisor capacity is full.'
         : cancelled ? stoppedAt == null ? 'Request cancelled. Cancellation stage: Not recorded.' : `Request cancelled while awaiting ${stages[stoppedAt].label}.`
           : current != null ? 'Pending decision.' : 'Current workflow status: Not recorded.',
   });

@@ -185,6 +185,11 @@ def workload_rows(semester):
             total=Count('pk')).values('total')[:1])
     rows = rows.annotate(primaryLoad=Coalesce(load(SupervisorAppointment), 0),
                          supportingLoad=Coalesce(load(CoSupervisorAppointment), 0)).annotate(currentStudents=F('primaryLoad') + F('supportingLoad'))
+    def requests(status):
+        return Coalesce(Subquery(SupervisorApplication.objects.filter(proposed_supervisor_id=OuterRef('pk'), status=status)
+            .order_by().values('proposed_supervisor_id').annotate(total=Count('pk')).values('total')[:1]), 0)
+    rows = rows.annotate(reservedLoad=requests('PENDING_COORDINATOR'), pendingRequests=requests('SUBMITTED_TO_SUPERVISOR')).annotate(
+        workloadCount=F('currentStudents') + F('reservedLoad'))
     plan = SemesterCapacityPlan.objects.filter(academic_semester=semester, lifecycle_status='PUBLISHED').only('pk', 'version').first() if semester else None
     limit = Subquery(LecturerCapacityEntry.objects.filter(plan=plan, lecturer_id=OuterRef('pk')).values('supervisor_limit')[:1]) if plan else Value(None, output_field=IntegerField())
     today = timezone.localdate()
@@ -192,9 +197,9 @@ def workload_rows(semester):
         role=CapacityRole.SUPERVISOR, cancelled_at__isnull=True, starts_on__lte=today, ends_on__gte=today).order_by('-ends_on', '-pk').values('ends_on')[:1]) if semester else Value(None, output_field=DateField())
     rows = rows.annotate(workloadLimit=limit, unavailableUntil=window).annotate(reason=Case(
         When(workloadLimit__isnull=True, then=Value('not_configured')),
-        When(currentStudents__gt=F('workloadLimit'), then=Value('over_capacity')),
-        When(currentStudents=F('workloadLimit'), then=Value('full')),
-        When(Q(currentStudents__gte=1) & Q(currentStudents__gte=F('workloadLimit') - 1), then=Value('near_limit')),
+        When(workloadCount__gt=F('workloadLimit'), then=Value('over_capacity')),
+        When(workloadCount=F('workloadLimit'), then=Value('full')),
+        When(Q(workloadCount__gte=1) & Q(workloadCount__gte=F('workloadLimit') - 1), then=Value('near_limit')),
         default=Value(''), output_field=CharField()))
     return rows, plan
 
@@ -208,16 +213,18 @@ def workload_page(opts):
         rows = rows.filter(Q(user__full_name__icontains=opts['q']) | Q(staff_no__icontains=opts['q']) | Q(department__icontains=opts['q']))
     if opts['status']:
         rows = rows.filter(reason=opts['status'])
-    ordering = ('user__full_name', 'pk') if opts['sort'] == 'name' else ('-currentStudents', 'user__full_name', 'pk')
+    ordering = ('user__full_name', 'pk') if opts['sort'] == 'name' else ('-workloadCount', 'user__full_name', 'pk')
     rows = rows.order_by(*ordering).annotate(rowId=F('pk'), lecturerId=F('staff_no'), lecturerName=F('user__full_name')).values(
-        'rowId', 'lecturerId', 'lecturerName', 'department', 'currentStudents', 'workloadLimit', 'reason', 'unavailableUntil')
+        'rowId', 'lecturerId', 'lecturerName', 'department', 'currentStudents', 'reservedLoad', 'pendingRequests', 'workloadCount', 'workloadLimit', 'reason', 'unavailableUntil')
     def compact(row):
         resolution = derive_capacity_resolution(semester_id=semester.pk if semester else None,
             plan_id=plan.pk if plan else None, plan_version=plan.version if plan else None, role=CapacityRole.SUPERVISOR,
-            limit=row['workloadLimit'], active_load=row['currentStudents'], reserved_load=0, eligible=True,
+            limit=row['workloadLimit'], active_load=row['currentStudents'], reserved_load=row['reservedLoad'], eligible=True,
             unavailable_until=row.pop('unavailableUntil'))
         row['id'] = row.pop('rowId')
         row['capacityState'] = resolution.state
+        row['activeLoad'] = resolution.active_load
+        row['availableSlots'] = resolution.available_slots
         return row
     return browse.envelope(rows, opts, facets, serializer=compact)
 

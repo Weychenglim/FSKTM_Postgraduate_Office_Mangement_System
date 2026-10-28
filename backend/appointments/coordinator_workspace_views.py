@@ -11,7 +11,8 @@ from academics.services import current_effective_semester
 from accounts.authorization import coordinator_scope_q
 from accounts.models import User
 from . import capacity_reassessment, co_supervision, coordinator_workspace as workspace, office_attention
-from .models import SupervisorApplication, count_supervisor_workload, supervisor_workload_limit
+from .models import SupervisorApplication
+from .capacity_closure import supervisor_workload_summary
 from .serializers import SupervisorApplicationSerializer
 from .supervision_exports import supervision_workbook
 
@@ -71,7 +72,7 @@ def primary_request_view(request, pk, office=False):
     payload = dict(SupervisorApplicationSerializer(row, context={"request": request}).data)
     if office:
         payload["email"] = row.student.user.email
-        payload["workloadLimit"] = f"{count_supervisor_workload(row.proposed_supervisor)}/{supervisor_workload_limit(row.proposed_supervisor)} Supervisees"
+        payload["workloadLimit"] = supervisor_workload_summary(row)
     payload["canDecide"] = rows.filter(pk=pk).filter(workspace.decision_q("primary", request.user)).exists()
     return Response(payload)
 

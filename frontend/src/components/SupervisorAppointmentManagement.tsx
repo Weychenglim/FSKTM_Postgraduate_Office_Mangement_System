@@ -64,7 +64,7 @@ export function officeRequestPresentation(record: SupervisorRecord): SupervisorR
     ? events.at(-1)?.newStatus || (['PROGRAMME_COORDINATOR','COORDINATOR'].includes(record.waitingOn??'')?'PENDING_COORDINATOR':record.waitingOn==='SUPERVISOR'?'SUBMITTED_TO_SUPERVISOR':'UNKNOWN')
     : record.status==='Ended'?events.at(-1)?.newStatus||'UNKNOWN':record.status.toUpperCase());
   return {applicationId:record.applicationId,reference:record.applicationId!=null?'SV-REQ-'+String(record.applicationId).padStart(5,'0'):undefined,
-    status,submittedAt:record.submittedAt||submitted?.createdAt,submittedBy:submitted?.actorName,
+    status,acceptanceCapacity:record.acceptanceCapacity,submittedAt:record.submittedAt||submitted?.createdAt,submittedBy:submitted?.actorName,
     initiatedByOffice:record.initiatedByOffice??(!!record.replacesAppointmentId&&submitted?.actorRole==='Office Staff/Admin'),
     studentName:record.studentName,studentId:record.studentId,programme:record.programme,semester:record.semester,
     proposedSupervisor:record.supervisor,researchTitle:record.researchTopic,researchArea:record.researchArea,

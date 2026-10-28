@@ -435,13 +435,14 @@ export function toStudentSupervisorApplication(
   const status: StudentSupervisorApplication['status'] =
     record.status === 'APPROVED'
       ? 'APPROVED'
-      : record.status === 'CANCELLED_BY_STUDENT' || record.status === 'CANCELLED_BY_OFFICE'
+      : record.status === 'CANCELLED_BY_STUDENT' || record.status === 'CANCELLED_BY_OFFICE' || record.status === 'CANCELLED_CAPACITY_FULL'
       ? 'CANCELLED'
       : record.status === 'REJECTED_BY_SUPERVISOR' || record.status === 'REJECTED_BY_COORDINATOR'
       ? 'RETURNED'
       : 'PENDING REVIEW';
   return {
     applicationId: record.id,
+    acceptanceCapacity: record.acceptanceCapacity,
     initiatedByOffice: record.initiatedByOffice,
     id: `SV-APP-${String(record.id).padStart(5, '0')}`,
     studentId: record.studentId,

@@ -1,3 +1,15 @@
+## Supervisor accepted-request reservations (27 October 2026)
+
+28 October review corrections: capacity-closed Office replacements direct Students to the Postgraduate Office and never invite a Student-initiated replacement. Ordinary new-application recovery remains subject to lifecycle eligibility, active appointment and pending-request checks. Request detail must retain factual active/reserved counts without presenting a missing or restricted policy as numerical availability.
+
+28 October warning refinement: the last-place acceptance confirmation uses a prominent amber warning with an icon and concise copy. State that acceptance reserves the place until Coordinator approval and that other pending requests may close after final approval. Already-full candidates remain blocked at submission; automatic capacity closure concerns earlier unaccepted requests when confirmed workload later fills their applicable limit.
+
+Implemented and verified on 28 October; evidence and integration limits are recorded in `docs/SUPERVISOR_CAPACITY_RESERVATIONS_2026-10-28.md`. This reservation promise applies to primary requests. Supporting nomination acceptance continues to forward the nomination without reserving a place; its final approval respects existing primary reservations.
+
+Primary Supervisor requests reserve one place when accepted and awaiting Coordinator approval. Submitted requests do not reserve places. Active primary/supporting appointments and accepted primary reservations share the Lecturer's capacity; final approval converts its own reservation without double counting, while rejection/cancellation releases it. Capacity policy publication and all assignment paths must honor these commitments. Show active, reserved and available places distinctly, and explain the final-place consequence before acceptance. A full-capacity block must preserve rejection and eligible Student cancellation.
+
+After final primary/supporting approval fills a request's effective published limit, automatically close other unaccepted primary requests with the neutral system outcome Capacity full, reason, timestamp, immutable audit and notification. Keep accepted requests, higher-limit policies, archived records and unconfigured policies untouched; preserve existing replacement incumbents. A Student must be able to understand the capacity outcome and apply elsewhere when eligible. This supersedes earlier descriptions that accepted primary requests never reserve capacity and that final approval always leaves competing unaccepted requests pending. Detailed agreed scope: `docs/superpowers/specs/2026-10-27-supervisor-capacity-reservations.md`.
+
 ## Coordinator dashboard programme context (27 October 2026)
 
 Replace the technical coordinator scope panel with a compact regular-programme summary. Show assigned active/scheduled temporary programme cover with dates and keep past access in a collapsed Access history disclosure. Avoid duplicate programme labels and empty delegation messaging; preserve Office management and authorization.

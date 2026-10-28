@@ -8,6 +8,9 @@ import type { CapacityState } from './lecturerCapacity';
 // Supervisor & Panel Appointment domain models (UC10-UC23).
 
 export interface AppointmentCapacityMetadata {
+  activeLoad?: number;
+  reservedLoad?: number;
+  pendingRequests?: number;
   semesterId?: number | null;
   semesterCode?: string | null;
   capacityPlanId?: number | null;
@@ -18,6 +21,16 @@ export interface AppointmentCapacityMetadata {
   availableSlots?: number;
   selectable?: boolean;
   unavailableUntil?: string | null;
+}
+
+/** Effective policy for this request; never inferred from the active-semester dashboard. */
+export interface SupervisorAcceptanceCapacity {
+  activeLoad: number;
+  reservedLoad: number;
+  limit: number | null;
+  availableSlots: number;
+  pendingRequests: number;
+  state: CapacityState;
 }
 
 export type WorkflowWaitingOn =
@@ -74,6 +87,7 @@ export type SupervisorAppointmentStatus =
   | 'Cancelled';
 
 export interface SupervisorRecord extends WorkflowAgeingMetadata {
+  acceptanceCapacity?: SupervisorAcceptanceCapacity | null;
   initiatedByOffice?: boolean;
   workflowStatus?: SupervisorApplicationWorkflowStatus;
   submittedAt?: string;
@@ -465,6 +479,7 @@ export type StudentSupervisorApplicationStatus =
   | 'APPROVED';
 
 export interface StudentSupervisorApplication extends WorkflowAgeingMetadata {
+  acceptanceCapacity?: SupervisorAcceptanceCapacity | null;
   initiatedByOffice?: boolean;
   studentId?: string;
   studentName?: string;
@@ -499,6 +514,7 @@ export type SupervisorApplicationWorkflowStatus =
   | 'REJECTED_BY_COORDINATOR'
   | 'CANCELLED_BY_STUDENT'
   | 'CANCELLED_BY_OFFICE'
+  | 'CANCELLED_CAPACITY_FULL'
   | 'APPROVED';
 
 export interface SupervisorWorkflowEvent {
@@ -513,6 +529,7 @@ export interface SupervisorWorkflowEvent {
 }
 
 export interface SupervisorApplicationRecord extends WorkflowAgeingMetadata {
+  acceptanceCapacity?: SupervisorAcceptanceCapacity | null;
   initiatedByOffice?: boolean;
   projectCourseCodes?: string;
   id: number;

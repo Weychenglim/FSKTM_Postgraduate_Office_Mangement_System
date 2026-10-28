@@ -13,7 +13,7 @@ export function readableRecordStatus(value: string): string {
 }
 
 function readableAction(value: string): string {
-  const labels: Record<string,string> = {SUBMIT:'Request submitted',SUBMITTED:'Request submitted',NOMINATE:'Supporting supervisor nominated',NOMINATED:'Supporting supervisor nominated',ACCEPT:'Request accepted',SUPERVISOR_ACCEPT:'Supervisor accepted',APPROVE:'Request approved',COORDINATOR_APPROVE:'Coordinator approved',ENDORSE:'Request endorsed',REJECT:'Request rejected',SUPERVISOR_REJECT:'Supervisor rejected',COORDINATOR_REJECT:'Coordinator rejected',CANCEL:'Request cancelled',CANCELLED:'Request cancelled',ACTIVATED:'Appointment started',ENDED:'Appointment ended',REPLACED:'Appointment replaced'};
+  const labels: Record<string,string> = {SUBMIT:'Request submitted',SUBMITTED:'Request submitted',NOMINATE:'Supporting supervisor nominated',NOMINATED:'Supporting supervisor nominated',ACCEPT:'Request accepted',SUPERVISOR_ACCEPT:'Supervisor accepted',APPROVE:'Request approved',COORDINATOR_APPROVE:'Coordinator approved',ENDORSE:'Request endorsed',REJECT:'Request rejected',SUPERVISOR_REJECT:'Supervisor rejected',COORDINATOR_REJECT:'Coordinator rejected',SYSTEM_CLOSE_CAPACITY:'Closed automatically: capacity full',CANCEL:'Request cancelled',CANCELLED:'Request cancelled',ACTIVATED:'Appointment started',ENDED:'Appointment ended',REPLACED:'Appointment replaced'};
   const words = value.replaceAll('_',' ').toLowerCase();
   return labels[value] ?? (words ? words.charAt(0).toUpperCase()+words.slice(1) : 'Recorded activity');
 }

@@ -42,6 +42,7 @@ export function getSupervisorWorkloadPage(records: SupervisorWorkloadRecord[], f
 
 export function SupervisorWorkloadDetails({ record }: { record: SupervisorWorkloadRecord }) {
   const hasConfiguration = configured(record);
+  const occupied = record.workloadCount ?? (record.activeLoad ?? record.currentStudents) + (record.reservedLoad ?? 0);
   const supporting = record.supervisees.filter(student => student.supervisionRole === 'CO_SUPERVISOR').length;
   return <div className="space-y-7" data-workload-detail="supervisor">
     <WorkloadLecturerOverview name={record.lecturerName} status={labelOf(record)} tone={getStatusBadgeTone(stateOf(record))}>
@@ -51,9 +52,9 @@ export function SupervisorWorkloadDetails({ record }: { record: SupervisorWorklo
         <WorkloadFact label="Published policy">{record.capacityPlanVersion != null ? `Version ${record.capacityPlanVersion}` : 'Not configured'}</WorkloadFact>
         {record.unavailableUntil ? <WorkloadFact label="Unavailable until">{record.unavailableUntil}</WorkloadFact> : null}
     </WorkloadLecturerOverview>
-    <WorkloadCapacityUsage configured={hasConfiguration} used={record.currentStudents} limit={record.workloadLimit} available={record.availableSlots}
-      utilization={capacityUtilization(record.currentStudents, record.workloadLimit)} tone={getStatusBadgeTone(stateOf(record))} usedLabel="Active appointments" capacityLabel="Supervisor capacity"
-      breakdown={<><WorkloadFact label="Primary appointments">{record.supervisees.length - supporting}</WorkloadFact><WorkloadFact label="Supporting appointments">{supporting}</WorkloadFact></>} hint="Active primary and supporting appointments count across semesters. Pending requests do not reserve capacity."/>
+    <WorkloadCapacityUsage configured={hasConfiguration} used={occupied} limit={record.workloadLimit} available={record.availableSlots}
+      utilization={capacityUtilization(occupied, record.workloadLimit)} tone={getStatusBadgeTone(stateOf(record))} usedLabel="Active + reserved" capacityLabel="Supervisor capacity"
+      breakdown={<><WorkloadFact label="Active appointments">{record.activeLoad ?? record.currentStudents}</WorkloadFact><WorkloadFact label="Reserved places">{record.reservedLoad ?? 0}</WorkloadFact><WorkloadFact label="Primary appointments">{record.supervisees.length - supporting}</WorkloadFact><WorkloadFact label="Supporting appointments">{supporting}</WorkloadFact></>} hint="Active primary and supporting appointments and accepted primary requests awaiting Coordinator approval count across semesters. Submission alone does not reserve a place."/>
     <WorkloadDetailSection title="Active supervisees" icon={UsersRound} count={record.supervisees.length}>
       {record.supervisees.length ? <div className="[&_td:nth-child(2)]:col-span-2"><CoordinatorDataTable label="Lecturer Supervisor workload items" columns={['Student', 'Research title', 'Programme', 'Supervision role', 'Appointed', 'Status']} rows={record.supervisees.map((student, index) => ({ key: `${student.id}:${student.supervisionRole}:${index}`, cells: [<><p className={workloadBody}>{student.name}</p><p className="text-xs leading-5 text-slate-500">{student.id}</p></>, <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{student.topic || 'Not recorded'}</p>, student.programme || 'Not recorded', student.supervisionRole === 'CO_SUPERVISOR' ? 'Supporting supervisor' : 'Primary supervisor', student.appointmentDate || 'Not recorded', <StatusBadge tone="success">{student.status}</StatusBadge>] }))} /></div>
         : <p className="rounded-xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">No active supervisees for this lecturer.</p>}
@@ -111,12 +112,13 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       { header: 'Plan Version', value: (record) => record.capacityPlanVersion ?? '' },
       { header: 'Capacity State', value: (record) => record.capacityState ?? '' },
       { header: 'Active Load', value: (record) => record.currentStudents },
-      { header: 'Reserved Load', value: () => 0 },
+      { header: 'Active + Reserved', value: (record) => record.workloadCount ?? (record.activeLoad ?? record.currentStudents) + (record.reservedLoad ?? 0) },
+      { header: 'Reserved Load', value: (record) => record.reservedLoad ?? 0 },
       { header: 'Available Slots', value: (record) => configured(record) ? record.availableSlots ?? '' : '' },
       { header: 'Unavailable Until', value: (record) => record.unavailableUntil ?? '' },
       { header: 'Current Students', value: (record) => record.currentStudents },
       { header: 'Workload Limit', value: (record) => configured(record) ? record.workloadLimit : '' },
-      { header: 'Utilization Percent', value: (record) => configured(record) ? capacityUtilization(record.currentStudents, record.workloadLimit) : '' },
+      { header: 'Utilization Percent', value: (record) => configured(record) ? capacityUtilization(record.workloadCount ?? (record.activeLoad ?? record.currentStudents) + (record.reservedLoad ?? 0), record.workloadLimit) : '' },
       { header: 'Availability', value: (record) => labelOf(record) },
       { header: 'Primary Supervisees', value: (record) => record.supervisees.filter(student => student.supervisionRole !== 'CO_SUPERVISOR').length },
       { header: 'Co-Supervisees', value: (record) => record.supervisees.filter(student => student.supervisionRole === 'CO_SUPERVISOR').length },
@@ -152,7 +154,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       </div>
       {loading ? <LoadingState message="Loading supervisor workload records..." /> : error ? <ErrorState message={error} onRetry={() => void loadWorkloads()} /> : <>
         <div aria-label="Workload distribution" className="flex flex-wrap gap-x-5 gap-y-2 rounded-xl bg-slate-50 p-3"><p className="card-description">{browse.total} matching of {records.length} lecturers</p>{Array.from(new Map(browse.filtered.map(record => [stateOf(record), labelOf(record)]))).map(([state, label]) => <p className="card-description" key={state}>{label}: {browse.filtered.filter(record => stateOf(record) === state).length}</p>)}</div>
-        {browse.rows.length ? <CoordinatorDataTable label="Supervisor workload records" columns={['Lecturer', 'Department', 'Semester', 'Active appointments', 'Capacity', 'Availability', 'Action']} rows={browse.rows.map(record => ({ key: record.lecturerId, cells: [<p className="[overflow-wrap:anywhere]">{record.lecturerName}</p>, record.department || 'Not recorded', record.semesterCode || 'Not configured', <><p>{record.currentStudents} total</p><p className="card-caption">{record.supervisees.filter(student => student.supervisionRole !== 'CO_SUPERVISOR').length} primary / {record.supervisees.filter(student => student.supervisionRole === 'CO_SUPERVISOR').length} supporting</p></>, configured(record) ? record.workloadLimit : 'Not configured', <StatusBadge tone={getStatusBadgeTone(stateOf(record))}>{labelOf(record)}</StatusBadge>, <PortalButton variant="secondary" size="sm" icon={Eye} aria-label={`View workload for ${record.lecturerName}`} onClick={() => setSelectedId(record.lecturerId)}>View</PortalButton>] }))} /> : <EmptyState title="No matching lecturers" description="No lecturer Supervisor workload records match the visible filters." />}
+        {browse.rows.length ? <CoordinatorDataTable label="Supervisor workload records" columns={['Lecturer', 'Department', 'Semester', 'Active appointments', 'Capacity', 'Availability', 'Action']} rows={browse.rows.map(record => ({ key: record.lecturerId, cells: [<p className="[overflow-wrap:anywhere]">{record.lecturerName}</p>, record.department || 'Not recorded', record.semesterCode || 'Not configured', <><p>{record.activeLoad ?? record.currentStudents} active · {record.reservedLoad ?? 0} reserved</p><p className="card-caption">{record.supervisees.filter(student => student.supervisionRole !== 'CO_SUPERVISOR').length} primary / {record.supervisees.filter(student => student.supervisionRole === 'CO_SUPERVISOR').length} supporting</p></>, configured(record) ? record.workloadLimit : 'Not configured', <StatusBadge tone={getStatusBadgeTone(stateOf(record))}>{labelOf(record)}</StatusBadge>, <PortalButton variant="secondary" size="sm" icon={Eye} aria-label={`View workload for ${record.lecturerName}`} onClick={() => setSelectedId(record.lecturerId)}>View</PortalButton>] }))} /> : <EmptyState title="No matching lecturers" description="No lecturer Supervisor workload records match the visible filters." />}
         <WorkspacePagination page={browse.page} pageCount={browse.pageCount} total={browse.total} pageSize={browse.size} noun="lecturers" onPage={setPage} onPageSize={size => { setPageSize(size); setPage(1); }} />
       </>}
     </section>

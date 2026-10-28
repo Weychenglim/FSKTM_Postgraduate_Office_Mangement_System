@@ -8,7 +8,7 @@ export type OfficeAttentionCategory = 'students'|'waiting'|'workload';
 export interface OfficeAttentionSummary {withoutSupervisor:number;waitingRequests:number;workloadConcerns:number;capacitySemester:{id:number;label:string}|null}
 export interface OfficeAttentionStudent {id:number;matricNo:string;studentName:string;programme:string;semester:string;applicationId:number|null;pendingStatus:string|null;reason:string}
 export interface OfficeAttentionRequest {key:string;id:number;kind:'primary'|'supporting'|'research'|'transfer';studentId:number;studentName:string;matricNo:string;programme:string;candidateName:string;status:string;submittedAt:string;waitingDays:number|null;waitingOn:string}
-export interface OfficeAttentionWorkload {id:number;lecturerId:string;lecturerName:string;department:string;currentStudents:number;workloadLimit:number|null;capacityState:string;reason:string}
+export interface OfficeAttentionWorkload {activeLoad?:number;reservedLoad?:number;workloadCount?:number;pendingRequests?:number;id:number;lecturerId:string;lecturerName:string;department:string;currentStudents:number;workloadLimit:number|null;capacityState:string;reason:string}
 export type OfficeAttentionRow = OfficeAttentionStudent|OfficeAttentionRequest|OfficeAttentionWorkload;
 export const officeSupervisorApi = {
  attentionSummary:()=>request<OfficeAttentionSummary>(`${base}/attention-summary/`),

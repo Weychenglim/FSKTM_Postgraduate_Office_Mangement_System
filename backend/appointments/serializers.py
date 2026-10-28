@@ -889,11 +889,14 @@ class SupervisorDocumentRequirementUpdateSerializer(serializers.Serializer):
 
 
 class AppointmentWorkflowEventSerializer(serializers.ModelSerializer):
-    actorName = serializers.CharField(source="actor.full_name", read_only=True)
+    actorName = serializers.SerializerMethodField()
     actorRole = serializers.CharField(source="actor_role", read_only=True)
     previousStatus = serializers.CharField(source="previous_status", read_only=True)
     newStatus = serializers.CharField(source="new_status", read_only=True)
     createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+
+    def get_actorName(self, obj):
+        return "System" if obj.actor_role == "SYSTEM" else obj.actor.full_name
 
     class Meta:
         model = AppointmentWorkflowEvent
@@ -910,6 +913,7 @@ class AppointmentWorkflowEventSerializer(serializers.ModelSerializer):
 
 
 class SupervisorApplicationSerializer(serializers.ModelSerializer):
+    acceptanceCapacity = serializers.SerializerMethodField()
     initiatedByOffice = serializers.SerializerMethodField()
     participantLifecycleStatus = serializers.SerializerMethodField()
     participantEligible = serializers.SerializerMethodField()
@@ -998,10 +1002,17 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
             "appointmentLifecycle",
             "unavailableUntil",
             "initiatedByOffice",
+            "acceptanceCapacity",
         ]
 
     def get_initiatedByOffice(self, obj):
         return is_office_replacement(obj)
+
+    def get_acceptanceCapacity(self, obj):
+        from .capacity_closure import acceptance_capacity
+        if not hasattr(self, "_acceptance_capacity_cache"):
+            self._acceptance_capacity_cache = {}
+        return acceptance_capacity(obj, cache=self._acceptance_capacity_cache)
 
     def get_proposedSupervisorId(self, obj):
         return staff_no_for_user(obj.proposed_supervisor)
@@ -1250,6 +1261,9 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
 
 
 class SupervisorCandidateSerializer(serializers.ModelSerializer):
+    activeLoad = serializers.SerializerMethodField()
+    reservedLoad = serializers.SerializerMethodField()
+    pendingRequests = serializers.SerializerMethodField()
     id = serializers.SerializerMethodField()
     name = serializers.CharField(source="full_name")
     domain = serializers.SerializerMethodField()
@@ -1273,6 +1287,9 @@ class SupervisorCandidateSerializer(serializers.ModelSerializer):
             "name",
             "domain",
             "filled",
+            "activeLoad",
+            "reservedLoad",
+            "pendingRequests",
             "total",
             "initials",
             "semesterId",
@@ -1297,6 +1314,15 @@ class SupervisorCandidateSerializer(serializers.ModelSerializer):
 
     def get_filled(self, obj):
         return self._capacity(obj).active_load
+
+    def get_activeLoad(self, obj):
+        return self._capacity(obj).active_load
+
+    def get_reservedLoad(self, obj):
+        return self._capacity(obj).reserved_load
+
+    def get_pendingRequests(self, obj):
+        return self._capacity(obj).pending_requests
 
     def get_total(self, obj):
         return self._capacity(obj).limit or 0

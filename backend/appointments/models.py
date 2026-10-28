@@ -244,6 +244,7 @@ class SupervisorApplication(models.Model):
             "CANCELLED_BY_STUDENT",
             "Cancelled by Student",
         )
+        CANCELLED_CAPACITY_FULL = "CANCELLED_CAPACITY_FULL", "Capacity full"
         CANCELLED_BY_OFFICE = "CANCELLED_BY_OFFICE", "Cancelled by Office"
         APPROVED = "APPROVED", "Approved"
 

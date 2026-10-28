@@ -695,16 +695,17 @@ def _capacity_plan_readiness_errors(
         for entry in entries:
             user_id = entry.lecturer.user_id
             supervisor_load = workload_context["supervisorLoad"].get(user_id, 0)
+            supervisor_reserved = workload_context["supervisorReservations"].get(user_id, 0)
             panel_active = workload_context["panelLoad"].get(user_id, 0)
             panel_reserved = workload_context["panelReservations"].get(user_id, 0)
             for role, limit, load in (
-                ("Supervisor", entry.supervisor_limit, supervisor_load),
+                ("Supervisor", entry.supervisor_limit, supervisor_load + supervisor_reserved),
                 ("Panel", entry.panel_limit, panel_active + panel_reserved),
             ):
                 if limit is not None and limit < load:
                     detail = (
                         f" ({panel_active} active + {panel_reserved} reserved)"
-                        if role == "Panel" else ""
+                        if role == "Panel" else f" ({supervisor_load} active + {supervisor_reserved} reserved)"
                     )
                     errors.append(
                         f"{entry.lecturer.staff_no}: {role} limit {limit} is below "
