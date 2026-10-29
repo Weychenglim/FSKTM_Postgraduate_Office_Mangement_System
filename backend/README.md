@@ -52,8 +52,8 @@ Content Security Policy from report-only mode to enforcement.
 | Method | Path | Body | Returns |
 | ------ | ---- | ---- | ------- |
 | POST | `login/` | `{identifier, password}` | `{token, user}` plus refresh cookie |
-| POST | `refresh/` | `{}` plus refresh cookie | `{token}` plus rotated refresh cookie |
-| POST | `logout/` | `{}` plus refresh cookie | `{message}` and cookie deletion |
+| POST | `refresh/` | `{}` or `{resume: true}` plus refresh cookie | `{token}` plus rotated refresh cookie |
+| POST | `logout/` | `{openTabs?: [tab names]}` plus refresh cookie | `{message}` and cookie deletion |
 | GET | `me/` | - (`Authorization: Bearer <token>`) | `user` |
 | POST | `password-reset/` | `{email}` | `{message}` |
 | POST | `password-reset/confirm/` | `{uid, token, new_password}` | `{message}` / 400 |
@@ -64,6 +64,18 @@ Normal APIs remain bearer-authenticated. Frontend JavaScript keeps the access
 token in memory and cannot read the HttpOnly refresh cookie. Login, refresh, and
 logout use JSON requests; run `python manage.py migrate` after installation so
 SimpleJWT's outstanding-token and blacklist tables are available.
+
+Each browser tab keeps its own sign-in, so two tabs can hold two accounts. The
+portal names the tab in an `X-Portal-Tab` header (a random name kept in
+sessionStorage); the tab's refresh and session key cookies carry that name
+(`fsktm_refresh_token__<tab>`) and go when the browser closes. A sign-in also
+sets the unnamed cookies, which hold the latest sign-in in the browser (and
+"Remember me"): a tab with no sign-in of its own starts from them on its first
+refresh, but a tab that was already signed in (`resume: true`) never does, and
+the portal ends a session whose renewal comes back as another account. Signing
+out ends the account for new tabs and in closed tabs; other open tabs, listed in
+`openTabs`, keep theirs. At most six tab sessions are kept, the least recently
+used going first. Requests without the header behave as before.
 
 Technical Administrator accounts (created by `createsuperuser`) are for Django
 admin only. Portal login returns 403 with code `technical_account`, existing

@@ -1089,6 +1089,16 @@ Final validation: all 168 frontend test checks pass, including production demo/C
 
 Browser coverage: Office attention and exact pending recommendation were inspected locally. The user requested no further browser checks; cross-role desktop/mobile browser acceptance and new decision previews were not completed or claimed. Shared rendering, navigation, capability, privacy and outcome contracts have automated coverage. Temporary viewport override was reset. API restarted at 127.0.0.1:8000; portal remains localhost:3001. Implementation stays local and uncommitted; the earlier requested snapshot was already pushed separately.
 
+## Sign-in: Each Browser Tab Keeps Its Own Account (2026-10-29)
+
+Asked by Xiang while testing: a second tab signed in as another account took over the first tab. Both tabs shared one refresh cookie, so when tab 2 signed in, tab 1 renewed as tab 2's account on its next reload or after about 15 minutes, while its screen still showed the first account.
+
+- **Each tab has its own sign-in.** The portal gives each tab a name (kept across reloads, not copied when a tab is duplicated) and sends it with every request; the tab's refresh cookie carries the name. Two tabs can now be signed in as two accounts, and each keeps its account through reloads and token renewals.
+- **New tabs and Remember me work as before.** A sign-in also updates the browser's shared cookie, and a new tab opens with the latest sign-in. Remember me keeps the shared cookie; a tab's own cookie goes when the browser closes.
+- **A tab never switches account by itself.** A signed-in tab only renews its own sign-in, and the portal ends a session if a renewal ever comes back as another account.
+- **Signing out** signs that tab out and stops new tabs opening with that account; the account's sign-in in closed tabs is ended too. Other open tabs keep their own sign-in. A password change signs the account out everywhere, as before, without touching another account's tabs.
+- **Checks:** 11 new backend tests (two tabs two accounts, new tab, no account switch, Remember me, sign-out keeps open tabs and ends closed ones, other accounts untouched, old tab cookies dropped, password change, requests without a tab name unchanged) and the accounts suite (466 tests) pass; new frontend tests for the tab name, the roll call of open tabs, the tab header and the account check; in a browser, student in tab 1 and office in tab 2 each kept their account through reloads and page changes, a new tab opened as office, and signing out of tab 1 left tab 2 signed in.
+
 ## Appointment Letters: Placeholder Wording and an All-Malay Malay Page (2026-10-29)
 
 Asked by Xiang: a placeholder appointment confirmation letter built from what we have, until the PG office sends the real template, and the Malay page without English lines.
