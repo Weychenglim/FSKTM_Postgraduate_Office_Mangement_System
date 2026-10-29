@@ -5,7 +5,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from academics.services import current_effective_semester
-from accounts.authorization import coordinator_manages_programme, coordinator_scope_q, programme_coordinators
+from accounts.authorization import office_actor, coordinator_manages_programme, coordinator_scope_q, programme_coordinators
 from accounts.eligibility import user_is_assignable_lecturer
 from accounts.models import Coordinator, Lecturer, Student, User
 from .models import (CoSupervisorAppointment, CoSupervisorNomination, PanelAppointment,
@@ -23,7 +23,7 @@ class AmendmentForbidden(Exception):
 
 
 def office(actor):
-    return actor.is_active and actor.role == User.Role.OFFICE_ADMIN and actor.is_staff
+    return office_actor(actor)
 
 
 def snapshot(profile):

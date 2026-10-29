@@ -2,6 +2,7 @@ import { PortalSelect } from './PortalSelect';
 import { AlertMessage } from './AlertMessage';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  UserRound,
   Clock3,
   Download,
   FileSpreadsheet,
@@ -465,13 +466,10 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                         <td className="data-td text-right">
                           <div className="flex flex-wrap justify-end gap-2">
                             {canOpenReportDossier(item) && (
-                              <PortalButton
+                              <PortalButton variant="primary" icon={UserRound}
                                 size="sm"
-                                variant="ghost"
                                 onClick={() => office && onOpenDossier && item.studentId ? onOpenDossier(item.studentId) : onNavigateToRoute(routeForStudentProgress(item.studentId ?? undefined))}
-                              >
-                                View student record
-                              </PortalButton>
+                              >View student record</PortalButton>
                             )}
                             <PortalButton
                               size="sm"

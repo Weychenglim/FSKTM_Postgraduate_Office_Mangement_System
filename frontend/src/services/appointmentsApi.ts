@@ -127,6 +127,10 @@ export async function getActiveSupervisees(): Promise<ActiveSuperviseeRow[]> {
 }
 
 // Lecturer-facing: students assigned to this lecturer as panel member.
+export async function getPanelAssignment(appointmentId: number): Promise<PanelAssignment> {
+  return request<PanelAssignment>(`/appointments/panel/appointments/${appointmentId}/`);
+}
+
 export async function getPanelAssignments(): Promise<PanelAssignment[]> {
   return request<PanelAssignment[]>('/appointments/panel/assignments/');
 }
@@ -431,13 +435,14 @@ export function toStudentSupervisorApplication(
   const status: StudentSupervisorApplication['status'] =
     record.status === 'APPROVED'
       ? 'APPROVED'
-      : record.status === 'CANCELLED_BY_STUDENT' || record.status === 'CANCELLED_BY_OFFICE'
+      : record.status === 'CANCELLED_BY_STUDENT' || record.status === 'CANCELLED_BY_OFFICE' || record.status === 'CANCELLED_CAPACITY_FULL'
       ? 'CANCELLED'
       : record.status === 'REJECTED_BY_SUPERVISOR' || record.status === 'REJECTED_BY_COORDINATOR'
       ? 'RETURNED'
       : 'PENDING REVIEW';
   return {
     applicationId: record.id,
+    acceptanceCapacity: record.acceptanceCapacity,
     initiatedByOffice: record.initiatedByOffice,
     id: `SV-APP-${String(record.id).padStart(5, '0')}`,
     studentId: record.studentId,

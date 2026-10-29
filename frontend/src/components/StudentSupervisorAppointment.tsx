@@ -8,8 +8,8 @@ import { RecordPage } from './RecordPage';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { 
-  Eye, 
+import {
+  FileText,
   Plus, 
 } from 'lucide-react';
 import { SupervisorAppointmentApplicationPage } from './SupervisorAppointmentApplicationPage';
@@ -27,7 +27,6 @@ import { canStudentCancelSupervisorApplication } from '../utils/workflowTracking
 import { SupervisorApplicationWorkflowStatus, SupervisorWorkflowEvent } from '../types';
 import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
 import { LecturerResearchWorkspace } from './LecturerResearchWorkspace';
-import { SupervisorAppointmentGuidance } from './StudentAppointmentGuidance';
 import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { StudentSupervisorApplications } from './StudentSupervisorApplications';
 import { partitionSupervisorApplications, supervisorResearchPage } from '../utils/supervisorWorkspace';
@@ -195,6 +194,12 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   }
 
   const pending = partitionSupervisorApplications(applications).pending;
+  const capacity = activeDetailAp?.acceptanceCapacity;
+  const hasFullCapacity = !!capacity && capacity.limit != null && ['FULL','OVER_CAPACITY'].includes(capacity.state)
+    && capacity.availableSlots <= 0 && capacity.activeLoad + capacity.reservedLoad >= capacity.limit;
+  const finalPlaceReserved = !!capacity && capacity.limit != null && capacity.activeLoad < capacity.limit && capacity.reservedLoad > 0;
+  const officeManagedReplacement = !!(activeDetailAp?.initiatedByOffice || activeDetailAp?.replacesAppointmentId);
+  const canStartAnotherApplication = workflowEligible && !approvedApplication && !pending.length && !officeManagedReplacement;
   const researchPage = routeView === 'research' && researchView !== 'list' ? supervisorResearchPage(researchView) : null;
   const pageHeader = <>
     <PageHeader title={initialApplicationId ? 'Appointment request' : researchPage?.title ?? 'Supervisor Appointments'} subtitle={researchPage?.subtitle ?? (routeView === 'research' ? 'Review your research profile and manage permitted research changes.' : routeView === 'applications' ? 'Track pending requests and review completed applications.' : 'Your current supervisory team and appointment status.')}
@@ -203,7 +208,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
         {routeView !== 'research' && !approvedApplication && workflowEligible ? <div className="flex min-w-0 flex-col items-start gap-3 sm:items-end">
           {showApplicationAvailability && !loadingApplications && !applicationsError ? <OperationalIntakeFeedback {...intake} onRetry={() => void intake.refresh()} /> : null}
-          <PortalButton variant="primary" icon={Plus} disabled={loadingApplications || workspaceBusy || pending.length > 0} onClick={handleCreateNewApplication}>New application</PortalButton>
+          <PortalButton variant="primary" className="min-h-11" icon={Plus} disabled={loadingApplications || workspaceBusy || pending.length > 0} onClick={handleCreateNewApplication}>New application</PortalButton>
         </div> : null}
       </> : undefined} />
     {!researchPage && !initialApplicationId ? <SupervisorWorkspaceNavigation role="Student" /> : null}
@@ -239,11 +244,9 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
       {!activeDetailAp ? pageHeader : null}
       {routeView === 'overview' && <>
-        <SupervisoryTeamManagement role="Student" view="studentOverview" showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={researchRefreshVersion} studentActions={approvedApplication ? <>
-          <PortalButton size="sm" variant="primary" icon={Eye} onClick={() => onNavigateToApplication?.(String(approvedApplication.id))}>View request</PortalButton>
-        </> : undefined} />
-        {pending.length > 0 && <StudentSupervisorApplications applications={applications} compact onViewApplication={onNavigateToApplication} />}
-        <SupervisorAppointmentGuidance hasSupervisor={!!approvedApplication} onShowFAQChatbot={onShowFAQChatbot} />
+        <SupervisoryTeamManagement role="Student" view="studentOverview" showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={researchRefreshVersion} studentActions={approvedApplication && onNavigateToApplication ? <>
+          <PortalButton size="sm" className="min-h-11" variant="primary" icon={FileText} onClick={() => onNavigateToApplication(String(approvedApplication.id))}>View approved application</PortalButton>
+        </> : undefined} studentContent={{onShowFAQChatbot, requests: pending.length > 0 ? <StudentSupervisorApplications applications={applications} compact onViewApplication={onNavigateToApplication}/> : undefined}} />
       </>}
       {routeView === 'applications' && !initialApplicationId && <>
         <StudentSupervisorApplications applications={applications} onViewApplication={onNavigateToApplication} />
@@ -256,11 +259,14 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
       {/* REQUEST RECORD                                                        */}
       {/* ========================================================================= */}
       {activeDetailAp ? <RecordPage navigationComplete={navigationComplete} title="Appointment request" backLabel={backLabel} onBack={closeActiveDetail} pageKey={initialApplicationId ? undefined : `student-application:${activeDetailAp.id}`} dirty={!!cancellationReason.trim()} busy={isCancelling} metadata={<RequestMetadata {...supervisorRequestMetadata(toStudentSupervisorRequestPresentation(activeDetailAp))} />}>
-        <SupervisorRequestDetail request={toStudentSupervisorRequestPresentation(activeDetailAp)} actions={activeDetailAp.workflowStatus
+        <SupervisorRequestDetail request={toStudentSupervisorRequestPresentation(activeDetailAp)} actions={<>
+          {activeDetailAp.workflowStatus === 'SUBMITTED_TO_SUPERVISOR' && hasFullCapacity ? <p className="card-description text-amber-800">{finalPlaceReserved ? 'The Supervisor’s final place is reserved by another accepted request awaiting Coordinator approval.' : 'The Supervisor currently has no available places.'} Your request remains pending.{canStudentCancelSupervisorApplication(activeDetailAp.workflowStatus,activeDetailAp.initiatedByOffice) ? ' You can cancel this request to apply elsewhere.' : ''}</p> : null}
+          {activeDetailAp.workflowStatus === 'CANCELLED_CAPACITY_FULL' ? <><p className="card-description">This request closed automatically because Supervisor capacity is full. {officeManagedReplacement ? 'Contact the Postgraduate Office about this replacement request.' : canStartAnotherApplication ? 'You can choose another eligible Supervisor in a new application.' : 'Contact the Postgraduate Office if you need help with your appointment.'}</p>{canStartAnotherApplication && onNavigateToNewApplication ? <PortalButton variant="primary" onClick={handleCreateNewApplication} disabled={isCancelling || workspaceBusy}>New application</PortalButton> : null}</> : null}
+          {activeDetailAp.workflowStatus
                   && workflowEligible
                   && canStudentCancelSupervisorApplication(activeDetailAp.workflowStatus, activeDetailAp.initiatedByOffice) && (
                   <PortalButton type="button" onClick={handleCancelRequest} disabled={isCancelling} variant="danger">Cancel request</PortalButton>
-                )} /></RecordPage> : null}
+                )}</>} /></RecordPage> : null}
 
     </div>
   );

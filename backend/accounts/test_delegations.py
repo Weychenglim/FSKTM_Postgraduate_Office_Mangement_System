@@ -6,7 +6,7 @@ from .models import User, Lecturer, Coordinator, Student
 @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
 class DelegationTests(TestCase):
     def setUp(self):
-        self.office = User.objects.create_user('office@delegation.test', role=User.Role.OFFICE_ADMIN, is_staff=True)
+        self.office = User.objects.create_user('office@delegation.test', role=User.Role.OFFICE_ADMIN, is_staff=False)
         self.user = User.objects.create_user('coord@delegation.test', role=User.Role.COORDINATOR)
         self.lecturer = Lecturer.objects.create(user=self.user, staff_no='DC1')
         Coordinator.objects.create(lecturer=self.lecturer, programme_managed='Programme A')

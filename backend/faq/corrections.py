@@ -83,4 +83,3 @@ def load_corrections(path, *, actor=None, draft=False):
             record(entry, actor, action, {"from": previous})
         counts["corrected"] += 1
     return counts
-

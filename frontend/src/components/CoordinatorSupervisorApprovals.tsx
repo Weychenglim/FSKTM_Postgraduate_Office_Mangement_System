@@ -2,7 +2,7 @@ import { DecisionDialog } from './DecisionDialog';
 import { completeDecision } from '../utils/decisionSubmission';
 import { RecordPage } from './RecordPage';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Clock3, Send, XCircle } from 'lucide-react';
+import { UserRound, CheckCircle2 } from 'lucide-react';
 import {
   ApiError,
   approveSupervisorApplicationByCoordinator,
@@ -18,7 +18,7 @@ import { type AppointmentEndOutcome, type SupervisorApplicationRecord } from '..
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
 import { SupervisorRequestDetail, supervisorRequestMetadata, toSupervisorRequestPresentation } from './SupervisorRequestDetail';
-import { RequestMetadata, ViewStudentRecordAction, readableRecordStatus } from './RequestDetailPrimitives';
+import { PrimaryRequestDecisionButtons, RequestMetadata, ViewStudentRecordAction, readableRecordStatus } from './RequestDetailPrimitives';
 import { SupervisorAppointmentRecordCard, toCoordinatorAppointmentPresentation } from './SupervisorAppointmentRecordCard';
 import { AppointmentEndControl } from './AppointmentEndControl';
 import { CoSupervisorNominationCard, supportingRequestMetadata, SupervisoryTeamManagement } from './SupervisoryTeamManagement';
@@ -48,6 +48,20 @@ function coordinatorRequestRows(queue: SupervisorApplicationRecord[], history: S
       searchText: `${record.studentName} ${record.matricNo} ${record.candidate.name} ${record.nominator.name} ${record.justification} ${record.id}`,
     }] as const),
   ]).values()].sort((a, b) => Date.parse(a.submittedAt) - Date.parse(b.submittedAt));
+}
+
+export function CoordinatorPrimaryRequestActions({ record, pending, busy, isRejecting, onAction }: {
+  record: SupervisorApplicationRecord; pending: boolean; busy: boolean; isRejecting: boolean;
+  onAction: (action: 'approve' | 'reject') => void;
+}) {
+  return <div className="space-y-4">
+    {pending ? <PrimaryRequestDecisionButtons positiveLabel="Approve request" disabled={busy || record.participantEligible === false}
+      positiveDisabled={isRejecting}
+      onPositive={()=>onAction('approve')} onReject={()=>onAction('reject')}/> : null}
+    {record.participantEligible === false ? <p className="card-description mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
+      This Student is {record.participantLifecycleStatus?.toLowerCase()}; the approval remains visible but is non-actionable until eligible.
+    </p> : null}
+  </div>;
 }
 
 export function CoordinatorAppointmentRequestList({ queue, history, nominations, view, search = '', type = 'all', status = '', page = 1, pageSize: requestedSize = 10, onOpen,
@@ -97,7 +111,7 @@ export function CoordinatorAppointmentLifecycleRecords({records,detail=false,onO
 export function CoordinatorApplicationLifecycle({record,onNavigateToDossier,onEnd}: {
   record:SupervisorApplicationRecord;onNavigateToDossier?:(matricNo:string)=>void;onEnd:React.ComponentProps<typeof CoordinatorAppointmentLifecycleRecords>['onEnd'];
 }) {
-  return record.status==='APPROVED'&&record.appointmentLifecycle?<SupervisorAppointmentRecordCard record={toCoordinatorAppointmentPresentation(record)}
+  return record.status==='APPROVED'&&record.appointmentLifecycle?<SupervisorAppointmentRecordCard compact record={toCoordinatorAppointmentPresentation(record)}
     onEnd={record.appointmentLifecycle.status==='ACTIVE'?(outcome,reason)=>onEnd(record,outcome,reason):undefined}
     actions={onNavigateToDossier?<ViewStudentRecordAction studentId={record.studentId} onOpen={onNavigateToDossier}/>:undefined}/>:null;
 }
@@ -286,36 +300,10 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
             const pending = records.some(item => String(item.id) === String(record.id));
             const isRejecting = String(rejectingRecordId) === String(record.id);
 
-            return <SupervisorRequestDetail key={record.id} request={toSupervisorRequestPresentation(record)} contextAction={<ViewStudentRecordAction studentId={record.studentId} onOpen={onNavigateToDossier} disabled={busy}/>} actions={<div className="space-y-4">
-                <div className="flex gap-2 shrink-0">
-                  {pending && <>
-                  <PortalButton
-                    variant="secondary"
-                    icon={XCircle}
-                    disabled={busy || record.participantEligible === false}
-                    onClick={() => {
-                      setRejectingRecordId(record.id); setPrimaryDecision({record, action: 'reject'});
-                      setRejectionReason('');
-                    }}
-                  >
-                    {isRejecting ? 'Cancel' : 'Reject'}
-                  </PortalButton>
-                  <PortalButton
-                    variant="primary"
-                    icon={Clock3}
-                    disabled={busy || isRejecting || record.participantEligible === false}
-                    onClick={() => { setPrimaryDecision({record, action: 'approve'}); setRejectionReason(''); }}
-                  >
-                    Approve
-                  </PortalButton>
-                  </>}
-                </div>
-              {record.participantEligible === false && (
-                <p className="card-description mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
-                  This Student is {record.participantLifecycleStatus?.toLowerCase()}; the approval remains visible but is non-actionable until eligible.
-                </p>
-              )}
-            </div>} />;
+            return <SupervisorRequestDetail key={record.id} request={toSupervisorRequestPresentation(record)} administration={<CoordinatorApplicationLifecycle record={record} onEnd={(row,outcome,reason)=>endPrimaryAppointment(row,outcome,reason)} />} contextAction={<ViewStudentRecordAction studentId={record.studentId} onOpen={onNavigateToDossier} disabled={busy}/>} actions={pending || record.participantEligible === false ? <CoordinatorPrimaryRequestActions record={record} pending={pending} busy={busy} isRejecting={isRejecting} onAction={action=>{
+              if(action==='reject')setRejectingRecordId(record.id);
+              setPrimaryDecision({record,action});setRejectionReason('');
+            }}/> : null} />;
           })}
         </fieldset>
       )}
@@ -340,19 +328,18 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
   if (applicationId) return <>{decisionDialogs}<RecordPage pageKey={!initialApplicationId ? `coordinator-primary-${applicationId}` : undefined} title="Appointment request" metadata={!loading && !error && selected ? <RequestMetadata {...supervisorRequestMetadata(toSupervisorRequestPresentation(selected))} /> : undefined} actions={nextAction} backLabel={backLabel} onBack={closeRecord} dirty={!!rejectionReason.trim()} busy={busy}>
     <PortalToast message={toast} />
     {!loading && !error && !selected ? <p className="card-description">This request is unavailable or outside your authorised scope.</p> : requestContent}
-    {!loading && !error && selected ? <CoordinatorApplicationLifecycle record={selected} onEnd={endPrimaryAppointment} /> : null}
   </RecordPage></>;
   if (supportingId) return <>{decisionDialogs}<RecordPage pageKey={!initialSupportingId ? `coordinator-supporting-${supportingId}` : undefined} title="Supporting supervisor request" metadata={!loading && !error && supporting ? <RequestMetadata {...supportingRequestMetadata(supporting)} /> : undefined} actions={nextAction} backLabel={backLabel} onBack={closeRecord} dirty={!!supportingReason.trim()} busy={busy}>
     <PortalToast message={toast} />
     {loading ? <LoadingState message="Loading supporting supervisor request…" /> : error ? <ErrorState message={error} onRetry={() => void loadRecords()} /> : supporting ? <>
       <CoSupervisorNominationCard nomination={supporting} hideMetadata busy={busy} onAction={(_, action) => { setSupportingAction(action); setSupportingReason(''); }} actions={<>
-        <PortalButton variant="ghost" onClick={() => onNavigateToDossier?.(supporting.matricNo)}>View student record</PortalButton>
+        <PortalButton variant="primary" icon={UserRound} size="sm" onClick={() => onNavigateToDossier?.(supporting.matricNo)}>View student record</PortalButton>
       </>} />
     </> : <p className="card-description">This request is unavailable or outside your authorised scope.</p>}
   </RecordPage></>;
   if (localAppointmentId) return <RecordPage pageKey={`coordinator-appointment-${localAppointmentId}`} title="Supervisor appointment record" backLabel="Back to Supervisory teams" onBack={() => setLocalAppointmentId(undefined)}><PortalToast message={toast} />{lifecycleContent}</RecordPage>;
   const teamContent = <><SupervisoryTeamManagement role="Programme Coordinator" refreshVersion={refreshVersion + teamRefreshVersion}
-    view={routeTeamStudentId ? 'detail' : 'roster'} routeStudentId={routeTeamStudentId} onNavigateToStudent={onNavigateToTeam}
+    view={routeTeamStudentId ? 'detail' : 'roster'} routeStudentId={routeTeamStudentId} onNavigateToApplication={onNavigateToApplication} onNavigateToStudent={onNavigateToTeam}
     showResearchChanges={false} showRefresh={false} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} onBusyChange={setTeamBusy} onChanged={() => void loadRecords(false, true)} />{!routeTeamStudentId?lifecycleContent:null}
     {!routeTeamStudentId ? <CapacityReassessments role="Programme Coordinator" showRefresh={false} refreshVersion={refreshVersion + teamRefreshVersion} onBusyChange={setCapacityBusy} /> : null}</>;
   if (routeTeamStudentId) return <RecordPage title="Supervision details" backLabel="Back to Supervisory teams" onBack={onNavigateToList} busy={busy}><PortalToast message={toast} />{teamContent}</RecordPage>;

@@ -30,14 +30,14 @@ test('roster searches appointed Panel identities and filters needs independently
 
 test('roster shows the current Panel alongside a pending nomination without auto-opening a student', () => {
   const html = render(<PanelSuperviseeRoster students={[{ ...student, canRecommend: false }]} recommendations={[request]} onOpen={() => {}} />);
-  for (const text of ['Student One', 'PG001', 'Dr Appointed', 'L008', 'Awaiting Coordinator approval', 'View panel']) assert.ok(html.includes(text), text);
+  for (const text of ['Student One', 'PG001', 'Dr Appointed', 'L008', 'Awaiting Coordinator approval', 'View student']) assert.ok(html.includes(text), text);
   assert.doesNotMatch(html, /Select supervisee|Replace Panel Member/);
 });
 
 test('student detail separates the appointed member from a pending replacement and prevents another nomination', () => {
   const html = render(<PanelSuperviseeDetails student={{ ...student, canRecommend: false }} pendingRequest={request} onRecommend={() => {}} onOpenRequest={() => {}} />);
-  for (const text of ['Current appointed panel member', 'Dr Appointed', 'L008', 'Proposed replacement', 'Dr Proposed', 'remains appointed until final approval', 'View pending request']) assert.ok(html.includes(text), text);
-  assert.doesNotMatch(html, />Request replacement<|>Nominate panel member</);
+  for (const text of ['Current appointed panel member', 'Dr Appointed', 'Proposed replacement', 'Dr Proposed', 'remains appointed until final approval', 'View pending request']) assert.ok(html.includes(text), text);
+  assert.doesNotMatch(html, />Request replacement<|>Nominate panel member<|Staff number|L008/);
 });
 
 test('unappointed and missing-name records are displayed honestly with permission-aware actions', () => {
@@ -47,4 +47,16 @@ test('unappointed and missing-name records are displayed honestly with permissio
   const missing = render(<PanelSuperviseeDetails student={{ ...student, currentPanelMember: null }} onRecommend={() => {}} onOpenRequest={() => {}} />);
   assert.match(missing, /Not recorded/);
   assert.match(missing, /Request replacement/);
+});
+
+test('completed nominations use a full-width history table outside the current-action sidebar',()=>{
+  const html=render(<PanelSuperviseeDetails student={student} recommendations={[{...request,status:'APPROVED'},{...request,id:11,studentId:'OTHER',recommendedMember:'Unrelated member'}]} onRecommend={()=>{}} onOpenRequest={()=>{}}/>);
+  const aside=html.match(/<aside[\s\S]*?<\/aside>/)?.[0]??'';
+  assert.doesNotMatch(aside,/Nomination history|View request/);
+  assert.match(html,/data-panel-nomination-history/);
+  assert.ok(html.indexOf('data-panel-nomination-history')>html.indexOf('</aside>'));
+  assert.match(html,/aria-label="Completed Panel nominations"/);
+  assert.match(html,/lg:justify-end/);
+  assert.doesNotMatch(html,/Unrelated member/);
+  assert.doesNotMatch(html,/<details[^>]*open/);
 });

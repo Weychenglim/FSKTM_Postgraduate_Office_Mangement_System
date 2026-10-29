@@ -46,6 +46,9 @@ export function SupervisorCandidateOption({ candidate, selected, onToggle, busy 
 }) {
   const selectable = candidate.selectable ?? candidate.filled < candidate.total;
   const capacity = candidate.capacityState ? capacityStateLabel(candidate.capacityState) : selectable ? 'Available' : 'Full';
+  const availability = candidate.capacityState === 'NOT_CONFIGURED' ? 'Availability not configured'
+    : candidate.capacityState === 'TEMPORARILY_UNAVAILABLE' || candidate.capacityState === 'INELIGIBLE' ? 'Unavailable for new requests'
+      : `${candidate.availableSlots ?? Math.max(0,candidate.total-candidate.filled)} available`;
   return <button type="button" aria-pressed={selected} onClick={onToggle} disabled={busy || !selectable}
     className={`flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed ${selected ? 'border-indigo-500 bg-indigo-50' : selectable ? 'border-slate-200 bg-white hover:bg-slate-50' : 'border-slate-200 bg-slate-50 opacity-60'}`}>
     <span className="flex min-w-0 items-center gap-3">
@@ -54,7 +57,8 @@ export function SupervisorCandidateOption({ candidate, selected, onToggle, busy 
     </span>
     <span className="flex flex-wrap items-center gap-2">
       {selected ? <span className="card-value flex items-center gap-1.5 text-indigo-700"><CheckCircle aria-hidden="true" className="h-4 w-4" />Selected</span> : null}
-      <StatusBadge tone={selectable ? 'neutral' : 'danger'}>{capacity} · {candidate.filled}/{candidate.total} filled</StatusBadge>
+      <StatusBadge tone={selectable ? 'neutral' : 'warning'}>{capacity}</StatusBadge>
+      <span className="card-description">{candidate.activeLoad ?? candidate.filled} active · {candidate.reservedLoad ?? 0} reserved · {availability}</span>
     </span>
   </button>;
 }
@@ -573,6 +577,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
         <h3 tabIndex={-1} className={typography.heading}>
           Supervisor selection
         </h3>
+        <p className="card-description">Submitting a request does not reserve a place. A place is reserved when the Supervisor accepts, pending Coordinator approval.</p>
 
         <div role="group" aria-label="Choose a supervisor" aria-describedby={submissionError?.target === 'supervisor-selection' ? 'supervisor-selection-error' : undefined} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           

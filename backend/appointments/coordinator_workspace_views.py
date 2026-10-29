@@ -8,17 +8,19 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from academics.services import current_effective_semester
-from accounts.authorization import coordinator_scope_q
+from accounts.authorization import office_actor, coordinator_scope_q
 from accounts.models import User
 from . import capacity_reassessment, co_supervision, coordinator_workspace as workspace, office_attention
-from .models import SupervisorApplication, count_supervisor_workload, supervisor_workload_limit
+from .models import SupervisorApplication
+from .capacity_closure import supervisor_workload_summary
 from .serializers import SupervisorApplicationSerializer
 from .supervision_exports import supervision_workbook
 
 
 def require_browse_staff(actor, office=False):
     expected = User.Role.OFFICE_ADMIN if office else User.Role.COORDINATOR
-    if actor.role != expected or not actor.is_active or office and not actor.is_staff:
+    allowed = office_actor(actor) if office else actor.role == expected and actor.is_active
+    if not allowed:
         raise PermissionDenied("This staff workspace is not available to your account.")
 
 
@@ -71,7 +73,7 @@ def primary_request_view(request, pk, office=False):
     payload = dict(SupervisorApplicationSerializer(row, context={"request": request}).data)
     if office:
         payload["email"] = row.student.user.email
-        payload["workloadLimit"] = f"{count_supervisor_workload(row.proposed_supervisor)}/{supervisor_workload_limit(row.proposed_supervisor)} Supervisees"
+        payload["workloadLimit"] = supervisor_workload_summary(row)
     payload["canDecide"] = rows.filter(pk=pk).filter(workspace.decision_q("primary", request.user)).exists()
     return Response(payload)
 

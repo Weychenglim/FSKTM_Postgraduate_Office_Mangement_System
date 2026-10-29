@@ -2,12 +2,33 @@ from functools import reduce
 from operator import or_
 
 from django.core.exceptions import ObjectDoesNotExist
+from django.contrib.auth.models import Permission
 from django.db.models import CharField, Q
 from django.db.models.functions import Trim
 
 CharField.register_lookup(Trim)
 
 from .models import Coordinator, CoordinatorDelegation, Lecturer, User
+
+
+def office_actor(user):
+    """Business authority is independent of Django admin eligibility."""
+    return bool(user and user.is_authenticated and user.is_active
+                and user.role == User.Role.OFFICE_ADMIN)
+
+
+def can_correct_marks(user):
+    # Business grants must not inherit Django's automatic superuser bypass.
+    return office_actor(user) and Permission.objects.filter(
+        Q(user=user) | Q(group__user=user),
+        content_type__app_label='marks', codename='change_markentry',
+    ).exists()
+
+
+def technical_admin_actor(user):
+    return bool(user and user.is_authenticated and user.is_active
+                and user.role == User.TECHNICAL_ADMIN
+                and user.is_staff and user.is_superuser)
 
 
 def coordinator_programme(user):

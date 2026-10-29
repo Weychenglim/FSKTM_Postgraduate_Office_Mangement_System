@@ -1,4 +1,5 @@
 import React from 'react';
+import {IconHeading} from './IconHeading';
 import type {LucideIcon} from 'lucide-react';
 import {AppointmentIcon} from './AppointmentPrimitives';
 import {PortalButton, PortalCard} from './PortalPrimitives';
@@ -21,7 +22,7 @@ export function OfficeToolSection({title, icon, description, actions, children, 
 }) {
   return <PortalCard padding="none" className={`office-tool-section ${className}`}>
     <div className="office-tool-section-heading">
-      <div className="flex min-w-0 items-start gap-3">{icon && <AppointmentIcon icon={icon} tone="info"/>}<div className="min-w-0"><h2 className="section-heading">{title}</h2>{description && <p className="card-description mt-1">{description}</p>}</div></div>
+      <IconHeading title={title} description={description} titleClassName="section-heading" icon={icon ? <AppointmentIcon icon={icon} tone="info"/> : undefined} />
       {actions && <div className="office-tool-actions">{actions}</div>}
     </div>
     {children}

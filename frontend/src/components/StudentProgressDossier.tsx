@@ -1,3 +1,4 @@
+import { IconHeading } from './IconHeading';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -356,22 +357,17 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
 
       <PortalCard padding="md" className="border-t-4 border-t-brand-navy rounded-lg">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-brand-navy text-white">
-              <GraduationCap className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="section-heading">{dossier.student.studentName}</h2>
-              <p className="card-description mt-1">
-                {dossier.student.studentId} · {dossier.student.programme}
-              </p>
-              {internal && <div className="mt-3 flex flex-wrap gap-2">
-                <StatusBadge tone={statusTone(dossier.student.status)}>{dossier.student.status}</StatusBadge>
-                <StatusBadge tone={dossier.overview.attentionCount > 0 ? 'warning' : 'success'}>
-                  {dossier.overview.attentionCount} attention items
-                </StatusBadge>
-              </div>}
-            </div>
+          <div className="min-w-0">
+            <IconHeading className="gap-x-4" title={dossier.student.studentName} titleClassName="section-heading"
+              description={`${dossier.student.studentId} · ${dossier.student.programme}`}
+              icon={<span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-brand-navy text-white"><GraduationCap className="h-6 w-6" /></span>}
+            />
+            {internal && <div className="mt-3 flex flex-wrap gap-2 pl-16">
+              <StatusBadge tone={statusTone(dossier.student.status)}>{dossier.student.status}</StatusBadge>
+              <StatusBadge tone={dossier.overview.attentionCount > 0 ? 'warning' : 'success'}>
+                {dossier.overview.attentionCount} attention items
+              </StatusBadge>
+            </div>}
           </div>
           <div className="max-w-xl lg:text-right">
             <p className="card-label">Research topic</p>

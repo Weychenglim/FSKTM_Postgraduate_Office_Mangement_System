@@ -17,6 +17,7 @@ const labels: Record<string, string> = {
   CANCELLED_BY_STUDENT: 'Cancelled by Student',
   CANCELLED_BY_SUPERVISOR: 'Cancelled by Supervisor',
   CANCELLED_BY_OFFICE: 'Cancelled by Office',
+  CANCELLED_CAPACITY_FULL: 'Capacity full',
   CANCELLED: 'Cancelled',
   NOT_SUBMITTED: 'No request submitted',
   UNKNOWN: 'Status unavailable',

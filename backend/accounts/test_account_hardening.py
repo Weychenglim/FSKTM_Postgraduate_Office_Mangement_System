@@ -119,7 +119,7 @@ class AdminAccountFormTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         self.assertTrue(form.save().must_change_password)
 
-    def test_only_office_accounts_may_keep_staff_status(self):
+    def test_no_portal_account_may_keep_staff_status(self):
         for role in (User.Role.STUDENT, User.Role.LECTURER, User.Role.COORDINATOR, User.Role.OFFICE_ADMIN):
             with self.subTest(role=role):
                 user = User.objects.create_user(
@@ -140,7 +140,7 @@ class AdminAccountFormTests(TestCase):
                     },
                     instance=user,
                 )
-                self.assertEqual(form.is_valid(), role == User.Role.OFFICE_ADMIN, form.errors)
+                self.assertFalse(form.is_valid())
 
     def test_staff_without_superuser_status_cannot_edit_roles_or_privileges(self):
         office = User.objects.create_user(

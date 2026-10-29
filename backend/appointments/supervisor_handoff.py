@@ -262,4 +262,6 @@ def approve_supervisor_application(*, application_id, actor):
         supervisor_application=application,
     )
     consume(application, actor, capacity_result)
+    from .capacity_closure import close_capacity_full_requests
+    close_capacity_full_requests(supervisor=application.proposed_supervisor, actor=actor)
     return application, True

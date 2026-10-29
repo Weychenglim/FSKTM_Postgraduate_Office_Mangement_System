@@ -7,9 +7,7 @@ from django.core.exceptions import ValidationError
 from .models import User
 
 PORTAL_PROFILES = ("student", "office_staff", "lecturer")
-# Until the Office actions stop depending on ``is_staff`` (pending-work T03),
-# only Office accounts may keep it; no other portal role needs the admin site.
-NON_STAFF_ROLES = {User.Role.STUDENT, User.Role.LECTURER, User.Role.COORDINATOR}
+NON_STAFF_ROLES = set(User.Role.values)
 
 
 def check_one_role(cleaned_data, instance=None):
@@ -28,7 +26,7 @@ def check_one_role(cleaned_data, instance=None):
         )
     if cleaned_data.get("is_staff") and cleaned_data.get("role") in NON_STAFF_ROLES:
         raise forms.ValidationError(
-            "Only Office Staff/Admin portal accounts may have staff status."
+            "Portal accounts cannot have staff status. Use a separate Technical Administrator account."
         )
 
 

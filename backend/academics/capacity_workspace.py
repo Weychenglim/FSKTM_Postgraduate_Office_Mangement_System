@@ -15,6 +15,7 @@ from appointments.models import (
     PanelAppointment,
     PanelRecommendation,
     SupervisorAppointment,
+    SupervisorApplication,
 )
 
 from .capacity import CapacityRole, derive_capacity_resolution
@@ -64,16 +65,22 @@ def capacity_workspace_view(request, pk):
     ongoing_panel = Q(user_id__in=PanelAppointment.objects.filter(
         status=PanelAppointment.Status.ACTIVE
     ).values("panel_member_id"))
+    ongoing_reservations = Q(user_id__in=SupervisorApplication.objects.filter(status="PENDING_COORDINATOR").values("proposed_supervisor_id"))
     lecturers = list(
         Lecturer.objects.filter(
             current_eligible | retained_plan_rows
-            | ongoing_primary | ongoing_supporting | ongoing_panel
+            | ongoing_primary | ongoing_supporting | ongoing_panel | ongoing_reservations
         )
         .select_related("user", "supervisor", "panel")
         .order_by("user__full_name", "staff_no", "pk")
     )
     lecturer_ids = [lecturer.pk for lecturer in lecturers]
     user_ids = [lecturer.user_id for lecturer in lecturers]
+    primary_requests = {row["proposed_supervisor_id"]: row for row in SupervisorApplication.objects.filter(
+        proposed_supervisor_id__in=user_ids, status__in=["SUBMITTED_TO_SUPERVISOR", "PENDING_COORDINATOR"]
+    ).order_by().values("proposed_supervisor_id").annotate(
+        reserved=Count("pk", filter=Q(status="PENDING_COORDINATOR")),
+        pending=Count("pk", filter=Q(status="SUBMITTED_TO_SUPERVISOR")))}
     published_plan = (
         SemesterCapacityPlan.objects.filter(
             academic_semester=semester,
@@ -156,7 +163,7 @@ def capacity_workspace_view(request, pk):
         for role, exists, limit_key, active_load, reserved_load in (
             (
                 CapacityRole.SUPERVISOR, has_supervisor_role,
-                "supervisor_limit", primary_load[user_id] + supporting_load[user_id], 0,
+                "supervisor_limit", primary_load[user_id] + supporting_load[user_id], primary_requests.get(user_id, {}).get("reserved", 0),
             ),
             (
                 CapacityRole.PANEL, has_panel_role,
@@ -173,6 +180,7 @@ def capacity_workspace_view(request, pk):
                 limit=limits.get(limit_key),
                 active_load=active_load,
                 reserved_load=reserved_load,
+                pending_requests=primary_requests.get(user_id, {}).get("pending", 0) if role == CapacityRole.SUPERVISOR else 0,
                 eligible=participant_eligible,
                 unavailable_until=unavailable_until.get((lecturer.pk, role.value)),
             ))

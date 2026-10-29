@@ -1,9 +1,13 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useId } from 'react';
 import type { SupervisorResearchIntent } from '../types/supervisorResearchIntent';
 import { RESEARCH_INTENT_FIELDS, type ResearchIntentField } from '../utils/supervisorResearchIntent';
 import { getSupervisorApplicationResearchIntent } from '../services/supervisorResearchIntentApi';
 import { PortalCard } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
+import {BookOpenText} from 'lucide-react';
+import {IconHeading} from './IconHeading';
+import {AppointmentIcon} from './AppointmentPrimitives';
+import {SupervisorRequestDisclosure} from './SupervisorRequestFields';
 import { appointmentDetailTypography as typography } from './AppointmentPrimitives';
 
 export function SupervisorResearchIntentEditor({ value, onChange, disabled = false, error }: {
@@ -35,17 +39,40 @@ export function SupervisorResearchIntentText({ record }: { record: SupervisorRes
   </div>)}</dl>;
 }
 
-export function SupervisorResearchIntentSection({ record, loading, error, onRetry }: {
-  record: SupervisorResearchIntent | null; loading: boolean; error: string | null; onRetry: () => void;
+const intentGroups = ['Background and purpose', 'Questions and objectives', 'Research plan'] as const;
+
+function SubmittedResearchIntentGroups({record, titleId, headingAs}: {record: SupervisorResearchIntent; titleId: string; headingAs: 'h2' | 'h3'}) {
+  const Heading=headingAs;
+  const [openGroups, setOpenGroups] = useState<string[]>([intentGroups[0]]);
+  const allOpen = openGroups.length === intentGroups.length;
+  return <div>
+    <div className="mb-2 flex items-center justify-between gap-3"><IconHeading as={Heading} titleId={titleId} title="Research Intent" titleClassName={headingAs==='h2' ? 'text-base font-semibold text-brand-navy' : 'text-sm font-semibold text-brand-navy'} icon={headingAs==='h2' ? <AppointmentIcon icon={BookOpenText} tone="info"/> : undefined}/><button type="button" className="min-h-11 rounded px-2 text-xs font-medium text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600" onClick={()=>setOpenGroups(allOpen ? [] : [...intentGroups])}>{allOpen ? 'Collapse all' : 'Expand all'}</button></div>
+    {intentGroups.map(group=><SupervisorRequestDisclosure key={group} title={group} open={openGroups.includes(group)} onToggle={event=>{
+      const open=event.currentTarget.open;
+      setOpenGroups(current=>current.includes(group)===open ? current : open ? [...current,group] : current.filter(value=>value!==group));
+    }}>
+      <dl className="space-y-5">{RESEARCH_INTENT_FIELDS.filter(field=>field.group===group).map(({key,label})=><div key={key} className="min-w-0 space-y-1">
+        <dt className="text-xs font-medium leading-6 text-slate-600">{label}</dt>
+        <dd className="whitespace-pre-wrap text-sm font-normal leading-7 text-slate-900 [overflow-wrap:anywhere]">{record[key] || 'Not recorded'}</dd>
+      </div>)}</dl>
+    </SupervisorRequestDisclosure>)}
+  </div>;
+}
+
+export function SupervisorResearchIntentSection({ record, loading, error, onRetry, embedded = false, headingAs = 'h3' }: {
+  record: SupervisorResearchIntent | null; loading: boolean; error: string | null; onRetry: () => void; embedded?: boolean; headingAs?: 'h2' | 'h3';
 }) {
-  return <PortalCard padding="lg"><section aria-labelledby="submitted-research-intent-title" className="space-y-5">
-    <h3 id="submitted-research-intent-title" className={typography.heading}>Research Intent</h3>
-    {loading ? <LoadingState message="Loading submitted Research Intent…" /> : error ? <ErrorState message={error} onRetry={onRetry} /> : record ? <SupervisorResearchIntentText record={record} /> : <p className="card-description">No Research Intent was recorded for this application. This information is unavailable for historical applications and Office-initiated replacements.</p>}
-  </section></PortalCard>;
+  const titleId=useId();
+  const Heading=headingAs;
+  const content=<section aria-labelledby={titleId} className="space-y-3">
+    {!embedded || !record || loading || error ? <Heading id={titleId} className={embedded ? 'text-sm font-semibold text-brand-navy' : typography.heading}>Research Intent</Heading> : null}
+    {loading ? <LoadingState message="Loading submitted Research Intent…" className="py-4" /> : error ? <ErrorState message={error} onRetry={onRetry} className="py-4" /> : record ? embedded ? <SubmittedResearchIntentGroups record={record} titleId={titleId} headingAs={headingAs}/> : <SupervisorResearchIntentText record={record} /> : <p className="text-xs leading-relaxed text-slate-600">No Research Intent was recorded for this application. This information is unavailable for historical applications and Office-initiated replacements.</p>}
+  </section>;
+  return embedded ? content : <PortalCard padding="lg">{content}</PortalCard>;
 }
 
 /** Sensitive text is requested only for the exact authorised detail, never list DTOs. */
-export function SubmittedSupervisorResearchIntent({ applicationId }: { applicationId: number | string }) {
+export function SubmittedSupervisorResearchIntent({ applicationId, embedded = false, headingAs = 'h3' }: { applicationId: number | string; embedded?: boolean; headingAs?: 'h2' | 'h3' }) {
   const key = String(applicationId);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<{ key: string; record: SupervisorResearchIntent | null; loading: boolean; error: string | null }>({ key, record: null, loading: true, error: null });
@@ -61,5 +88,5 @@ export function SubmittedSupervisorResearchIntent({ applicationId }: { applicati
     return () => { current = false; };
   }, [key, attempt]);
   const visible = state.key === key ? state : { record: null, loading: true, error: null };
-  return <SupervisorResearchIntentSection record={visible.record} loading={visible.loading} error={visible.error} onRetry={onRetry} />;
+  return <SupervisorResearchIntentSection embedded={embedded} headingAs={headingAs} record={visible.record} loading={visible.loading} error={visible.error} onRetry={onRetry} />;
 }

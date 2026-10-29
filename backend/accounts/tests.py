@@ -49,6 +49,16 @@ class SeedUsersCommandTests(TestCase):
     def run_seed(self):
         call_command("seed_users", stdout=StringIO())
 
+    def test_office_seed_has_business_permission_without_admin_eligibility(self):
+        self.run_seed()
+        office = User.objects.get(email='demo.office.admin@example.test')
+        self.assertFalse(office.is_staff)
+        self.assertFalse(office.is_superuser)
+        self.assertEqual(list(office.user_permissions.values_list(
+            'content_type__app_label', 'codename',
+        )), [('marks', 'change_markentry')])
+        self.assertFalse(User.objects.filter(role=User.TECHNICAL_ADMIN).exists())
+
     @override_settings(DEBUG=False)
     def test_refuses_to_run_outside_debug_mode_before_modifying_data(self):
         with self.assertRaisesMessage(CommandError, "DEBUG=True"):

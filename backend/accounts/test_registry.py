@@ -190,7 +190,7 @@ class StudentRegistryApiTests(APITestCase):
         self.assertEqual(self.student.status, Student.Status.GRADUATED)
         self.assertEqual(self.student.programme, "MASTER OF DATA SCIENCE (COURSEWORK)")
 
-    def test_status_change_needs_lifecycle_office_rights(self):
+    def test_non_admin_office_retains_lifecycle_rights_through_registry(self):
         office_without_staff_flag = User.objects.create_user(
             email="registry-office-plain@example.test",
             password="pw-office-7790",
@@ -205,9 +205,11 @@ class StudentRegistryApiTests(APITestCase):
                 "statusReason": "Deferment approved for medical leave.",
             },
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.student.refresh_from_db()
-        self.assertEqual(self.student.status, Student.Status.ACTIVE)
+        self.assertEqual(self.student.status, Student.Status.DEFERRED)
+        self.assertEqual(self.student.status_changed_by, office_without_staff_flag)
+        self.assertEqual(self.student.status_reason, 'Deferment approved for medical leave.')
 
     def test_account_status_toggles_user_active_flag(self):
         self.client.force_authenticate(self.admin)

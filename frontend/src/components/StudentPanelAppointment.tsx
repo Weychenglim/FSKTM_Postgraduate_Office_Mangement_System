@@ -5,31 +5,30 @@ import { useReturnToFocusReload } from '../utils/returnToFocus';
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router';
-import { Mail, UsersRound } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router';
+import { FileText, UsersRound } from 'lucide-react';
 import { PageHeader } from './PortalPrimitives';
-import { ErrorState, LoadingState } from './StateViews';
+import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { getStudentPanelAppointment } from '../services/appointmentsApi';
 import type { StudentPanelAppointmentView } from '../types';
 import { formatWaitingText } from '../utils/workflowAgeing';
 import { getPanelReadinessCopy } from '../utils/panelReadiness';
 import { APP_ROUTES } from '../constants/routes';
-import { StudentAppointmentSection, StudentAppointmentMemberCard, StudentAppointmentGuidance } from './StudentAppointmentPrimitives';
 import { StudentResearchProfileSection } from './StudentResearchProfileSection';
-import { appointmentDetailTypography as typography } from './AppointmentPrimitives';
+import { SupervisionDetailSection, supervisionDetailBody as body } from './SupervisionDetailLayout';
+import { PanelDetailFact } from './PanelDetailLayout';
+import { RecordPage } from './RecordPage';
+import { formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
+import { StudentAppointmentCard, StudentAppointmentLayout, StudentAppointmentNextStep } from './StudentAppointmentLayout';
 
 interface StudentPanelAppointmentProps { onShowFAQChatbot?: () => void }
-
-function InfoItem({ label, value }: { label: string; value?: string | null }) {
-  return <div className="space-y-2"><dt className={typography.label}>{label}</dt><dd className={`${typography.body} break-words`}>{value || 'Not recorded'}</dd></div>;
-}
 
 function panelGuidance(appointment: StudentPanelAppointmentView) {
   switch (appointment.readinessState) {
     case 'SUPERVISOR_REQUIRED':
-      return { title: 'Start with a supervisor application', content: <><p>Your primary supervisor submits the Panel nomination after their appointment is approved.</p><Link className="card-value inline-block text-blue-600 hover:underline" to={APP_ROUTES.supervisorAppointments}>Open Supervisor appointments</Link></> };
+      return { title: 'Start with a supervisor application', content: <><p>Your primary supervisor submits the Panel nomination after their appointment is approved.</p><Link className="inline-block rounded text-blue-600 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600" to={APP_ROUTES.supervisorAppointments}>Open Supervisor appointments</Link></> };
     case 'SUPERVISOR_APPROVAL_PENDING':
-      return { title: 'Check your supervisor application', content: <><p>Open the application to see who is reviewing it and any decision notes. If it is returned, address the recorded reason before resubmitting.</p><Link className="card-value inline-block text-blue-600 hover:underline" to={APP_ROUTES.supervisorAppointments}>View Supervisor application</Link></> };
+      return { title: 'Check your supervisor application', content: <><p>Open the application to see its progress and any decision notes.</p><Link className="inline-block rounded text-blue-600 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600" to={APP_ROUTES.supervisorAppointments}>View Supervisor application</Link></> };
     case 'READY_FOR_PANEL_RECOMMENDATION':
       return { title: 'Arrange your Panel nomination', content: <p>Contact your primary supervisor{appointment.supervisorName ? `, ${appointment.supervisorName},` : ''} to discuss a suitable Panel member. They submit the nomination in this portal.</p> };
     case 'FACULTY_PROCESSING':
@@ -39,30 +38,29 @@ function panelGuidance(appointment: StudentPanelAppointmentView) {
   }
 }
 
-export function StudentPanelAppointmentOverview({ appointment, onRefresh, refreshing = false, onShowFAQChatbot }: StudentPanelAppointmentProps & {
-  appointment: StudentPanelAppointmentView; onRefresh?: () => void; refreshing?: boolean;
+export function StudentPanelAppointmentOverview({ appointment, onShowFAQChatbot }: StudentPanelAppointmentProps & {
+  appointment: StudentPanelAppointmentView;
 }) {
   const confirmed = appointment.status === 'CONFIRMED' && appointment.readinessState === 'CONFIRMED';
   const waiting = formatWaitingText(appointment);
-  return <>
-    <StudentAppointmentSection detail icon={UsersRound} title="My panel" description="Your Panel appointment and recorded appointment details." onRefresh={onRefresh} refreshing={refreshing}>
-      <div className="grid gap-6 sm:grid-cols-2">
-        <StudentAppointmentMemberCard detail icon={UsersRound} label="Panel member" name={confirmed ? appointment.panelMemberName || 'Panel member not recorded' : 'Panel not appointed'} status={confirmed ? 'Confirmed' : getPanelReadinessCopy(appointment.readinessState).title} tone={confirmed ? 'success' : 'warning'}>
-          {confirmed && appointment.panelMemberDepartment ? <p className={typography.body}>{appointment.panelMemberDepartment}</p> : null}
-          {confirmed && appointment.panelMemberEmail ? <a href={`mailto:${appointment.panelMemberEmail}`} className={`${typography.body} inline-flex max-w-full items-start gap-2 break-all text-blue-600 hover:underline`}><Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />{appointment.panelMemberEmail}</a> : null}
-        </StudentAppointmentMemberCard>
-        <dl className="space-y-6 rounded-xl border border-slate-200 p-6">
-          <InfoItem label="Programme" value={appointment.programme} /><InfoItem label="Semester" value={appointment.semester} />
-          {confirmed ? <InfoItem label="Appointment date" value={appointment.appointmentDate} /> : waiting !== 'Not waiting' ? <InfoItem label="Waiting" value={waiting} /> : null}
-        </dl>
-      </div>
-      {appointment.researchProfile ? <StudentResearchProfileSection profile={appointment.researchProfile} /> : null}
-    </StudentAppointmentSection>
-    <StudentAppointmentGuidance cards={[panelGuidance(appointment)]} onShowFAQChatbot={onShowFAQChatbot} />
-  </>;
+  const guidance = panelGuidance(appointment);
+  const supervisorPending = appointment.readinessState === 'SUPERVISOR_APPROVAL_PENDING';
+  return <div data-student-panel-overview>
+    <StudentAppointmentLayout guidance={<StudentAppointmentNextStep cards={[guidance]} onShowFAQChatbot={onShowFAQChatbot}/>}>
+        {confirmed ? <StudentAppointmentCard title="My panel" memberLabel="Panel member" name={appointment.panelMemberName?.trim() || 'Panel member not recorded'} status="Confirmed" tone="success"
+          programme={appointment.programme} semester={appointment.semester} department={appointment.panelMemberDepartment} email={appointment.panelMemberEmail} appointmentDate={appointment.appointmentDate}/>
+        : <SupervisionDetailSection title="My panel" icon={UsersRound}>
+          <div className="space-y-4"><p className={body}>{getPanelReadinessCopy(appointment.readinessState).title}</p>{waiting !== 'Not waiting' ? <p className="text-xs leading-6 text-slate-500">{waiting}</p> : null}</div>
+          <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2"><PanelDetailFact title="Programme" value={appointment.programme}/><PanelDetailFact title="Semester" value={appointment.semester}/>
+          {appointment.readinessState !== 'SUPERVISOR_REQUIRED' ? <PanelDetailFact title={supervisorPending ? 'Proposed supervisor' : 'Primary supervisor'} value={appointment.supervisorName}/> : null}</dl>
+        </SupervisionDetailSection>}
+        {appointment.researchProfile ? <StudentResearchProfileSection standalone profile={appointment.researchProfile}/> : null}
+    </StudentAppointmentLayout>
+  </div>;
 }
 
 export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = ({ onShowFAQChatbot }) => {
+  const [params, setParams] = useSearchParams();
   const [appointment, setAppointment] = useState<StudentPanelAppointmentView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,8 +72,22 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
   }, []);
   useEffect(() => { loadAppointment(); }, [loadAppointment]);
   useReturnToFocusReload(loadAppointment, !loading);
-  return <div id="student-panel-app-workspace" className="space-y-6 text-left font-sans pb-12">
+  const requestedRecord = params.get('panelRequest');
+  const closeRecord = () => setParams(current => {const next=new URLSearchParams(current);next.delete('panelRequest');return next;});
+  if (requestedRecord) {
+    const record = appointment?.status === 'CONFIRMED' && appointment.readinessState === 'CONFIRMED' ? appointment.approvedRequest : null;
+    return <RecordPage title="Approved Panel nomination" backLabel="Back to My panel" onBack={closeRecord}>
+      {loading ? <LoadingState message="Loading approved nomination..."/> : error ? <ErrorState message={error} onRetry={loadAppointment}/> : record && appointment && String(record.id) === requestedRecord ? <SupervisionDetailSection title="Approved nomination" icon={FileText}>
+        <dl className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+          <PanelDetailFact title="Request reference" value={`PN-${record.id}`}/><PanelDetailFact title="Panel member" value={appointment.panelMemberName}/>
+          <PanelDetailFact title="Nominated by" value={record.nominatedBy}/><PanelDetailFact title="Appointed on" value={appointment.appointmentDate}/>
+          {([['Submitted',record.submittedAt],['Panel accepted',record.panelAcceptedAt],['Coordinator approved',record.approvedAt]] as const).map(([title,date]) => <PanelDetailFact key={title} title={title} value={date ? formatMalaysiaDateTime(date) : null}/>)}
+        </dl>
+      </SupervisionDetailSection> : <EmptyState title="Approved nomination not available" description="This record is not the nomination for your current Panel appointment."/>}
+    </RecordPage>;
+  }
+  return <div id="student-panel-app-workspace" className="space-y-7 text-left font-sans pb-12">
     <PageHeader title="Panel Appointment" subtitle="See your Panel appointment and the next step for your current status." />
-    {loading ? <LoadingState message="Loading your panel appointment..." /> : error || !appointment ? <ErrorState message={error || 'Panel appointment record was not available.'} onRetry={loadAppointment} /> : <StudentPanelAppointmentOverview appointment={appointment} onRefresh={loadAppointment} onShowFAQChatbot={onShowFAQChatbot} />}
+    {loading ? <LoadingState message="Loading your panel appointment..." /> : error || !appointment ? <ErrorState message={error || 'Panel appointment record was not available.'} onRetry={loadAppointment} /> : <StudentPanelAppointmentOverview appointment={appointment} onShowFAQChatbot={onShowFAQChatbot} />}
   </div>;
 };

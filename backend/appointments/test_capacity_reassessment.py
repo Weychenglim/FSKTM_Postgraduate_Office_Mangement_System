@@ -7,7 +7,7 @@ class CapacityReassessmentTests(APITestCase):
     _lecturer = fixture.AppointmentLifecycleTests._lecturer
     def setUp(self):
         fixture.AppointmentLifecycleTests.setUp(self)
-        self.office.is_staff = True
+        self.office.is_staff = False
         self.office.save(update_fields=['is_staff'])
     def test_staff_collection_exists_and_student_cannot_read(self):
         self.client.force_authenticate(self.office)
@@ -154,7 +154,7 @@ class CapacityReassessmentTests(APITestCase):
         response = self.client.post(f'/api/appointments/panel/recommendations/{row.pk}/coordinator-approve/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual([e.action for e in row.capacity_reassessments.all()], ['GRANTED','CONSUMED'])
-    def test_archived_acceptance_locked_but_full_capacity_acceptance_unchanged(self):
+    def test_archived_and_unavailable_capacity_block_primary_acceptance(self):
         from academics.models import AcademicSemester, LecturerAvailabilityWindow
         from django.utils import timezone
         from .models import SupervisorApplication, PanelRecommendation
@@ -163,7 +163,7 @@ class CapacityReassessmentTests(APITestCase):
         LecturerAvailabilityWindow.objects.create(academic_semester=self.semester, lecturer=self.new_supervisor.lecturer, starts_on=timezone.localdate(), ends_on=timezone.localdate(), role='SUPERVISOR', reason='Unavailable', created_by=self.office)
         self.client.force_authenticate(self.new_supervisor)
         url = f'/api/appointments/supervisor/applications/{self.pending.pk}/supervisor-accept/'
-        self.assertEqual(self.client.post(url).status_code, 200)
+        self.assertEqual(self.client.post(url).status_code, 409)
         SupervisorApplication.objects.filter(pk=self.pending.pk).update(status='SUBMITTED_TO_SUPERVISOR')
         AcademicSemester.objects.filter(pk=self.semester.pk).update(lifecycle_status='ARCHIVED')
         self.assertEqual(self.client.post(url).status_code, 409)

@@ -4,7 +4,7 @@ import {useSearchParams} from 'react-router';
 import type {PanelRecord,PanelWorkloadRecord} from '../types';
 import {getPanelAppointments} from '../services';
 import {getExactPanelRecord} from '../services/panelWorkspaceApi';
-import {toOfficePanelPresentation,type PanelPresentation} from '../utils/panelPresentation';
+import {toOfficePanelPresentation,panelBrowseRecordKey,type PanelPresentation} from '../utils/panelPresentation';
 import {useReturnToFocusReload} from '../utils/returnToFocus';
 import {capacityStateLabel} from '../utils/lecturerCapacity';
 import {getPanelWorkloadUtilization} from '../utils/panelWorkloadRecords';
@@ -72,9 +72,9 @@ export function PanelAppointmentManagement({detailBackLabel='Back to Panel Appoi
  useEffect(()=>{if(routeView==='detail'||routeView==='list'&&section!=='attention')void loadRecords();return()=>{recordVersion.current++;};},[loadRecords,routeView,section]);
  useReturnToFocusReload(loadRecords,routeView==='list'&&section!=='attention'&&!loading);
  const back=onNavigateToList??(()=>{});
- const open=(row:PanelPresentation)=>onNavigateToRecord?.(row.appointmentLifecycle?`appointment-${row.appointmentLifecycle.appointmentId}`:`recommendation-${row.id}`);
+ const open=(row:PanelPresentation)=>onNavigateToRecord?.(panelBrowseRecordKey(row,section==='appointments'?'appointments':'requests'));
  if(routeView==='workload')return <PanelWorkloadMonitoring onBack={back} onOpenCapacity={onOpenCapacity} initialLecturerId={params.get('lecturer')??undefined} backLabel={workloadBackLabel}/>;
- if(routeView==='detail')return loading||(!error&&exactKey!==routeRecordId)?<RecordPage title="Panel appointment detail" backLabel={detailBackLabel} onBack={back}><LoadingState message="Loading Panel appointment record…"/></RecordPage>:error?<RecordPage title="Panel appointment detail" backLabel={detailBackLabel} onBack={back}><ErrorState message={error} onRetry={()=>void loadRecords()}/></RecordPage>:<PanelAppointmentDetail overview={routeRecordId?.startsWith('profile-')} onViewRequest={id=>onNavigateToRecord?.(`recommendation-${id}`)} onViewAppointment={id=>onNavigateToRecord?.(`appointment-${id}`)} record={exact} backLabel={detailBackLabel} onBack={back} onLifecycleChanged={()=>loadRecords(true)} onOpenStudent={onNavigateToDossier}/>;
+ if(routeView==='detail')return loading||(!error&&exactKey!==routeRecordId)?<RecordPage title="Panel appointment detail" backLabel={detailBackLabel} onBack={back}><LoadingState message="Loading Panel appointment record…"/></RecordPage>:error?<RecordPage title="Panel appointment detail" backLabel={detailBackLabel} onBack={back}><ErrorState message={error} onRetry={()=>void loadRecords()}/></RecordPage>:<PanelAppointmentDetail overview={routeRecordId?.startsWith('profile-')} appointmentView={routeRecordId?.startsWith('appointment-')} onViewRequest={id=>onNavigateToRecord?.(`recommendation-${id}`)} onViewAppointment={id=>onNavigateToRecord?.(`appointment-${id}`)} record={exact} backLabel={detailBackLabel} onBack={back} onLifecycleChanged={()=>loadRecords(true)} onOpenStudent={onNavigateToDossier}/>;
  return <StaffSupervisorBrowseContext.Provider value="Office Staff/Admin"><div id="panel-module-root" className="space-y-6 text-left">
   <PageHeader title="Panel Appointments" subtitle="Monitor Panel nominations, appointments and records needing attention." actions={<OfficePanelTools onWorkload={()=>onNavigateToWorkload?.()}/>}/>
   <PanelWorkspaceNavigation role="office" section={section} onChange={value=>setParams(current=>{const next=new URLSearchParams(current);next.set('panelSection',value);next.delete('panelLecturer');return next;},{replace:true})}/>

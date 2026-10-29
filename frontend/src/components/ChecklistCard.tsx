@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IconHeading } from './IconHeading';
 import React from 'react';
 import { CalendarRange, ChevronRight, ClipboardList, ListChecks, SlidersHorizontal } from 'lucide-react';
 import { MarksHeading, MarksIcon } from './MarksPrimitives';
@@ -26,7 +27,7 @@ export function ChecklistCard({ items, onItemAction, unavailable = false }: { it
         const title = item.id === 'period' ? 'Mark entry periods' : item.id === 'rubric' ? 'Rubric components' : 'Evaluation tasks';
         const status = unavailable ? 'Not loaded' : complete ? item.id === 'period' ? 'Configured' : item.id === 'rubric' ? 'Ready' : 'Generated' : 'Needs setup';
         return <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-          <div className="flex min-w-0 items-center gap-3"><MarksIcon icon={icon} /><div className="min-w-0"><h3 className="text-sm font-semibold text-brand-navy">{title}</h3><div className="mt-1"><StatusBadge className="marks-state" tone={unavailable || complete ? 'neutral' : 'warning'}>{status}</StatusBadge></div></div></div>
+          <IconHeading as="h3" title={title} titleClassName="text-sm font-semibold text-brand-navy" icon={<MarksIcon icon={icon} />} description={<StatusBadge className="marks-state" tone={unavailable || complete ? 'neutral' : 'warning'}>{status}</StatusBadge>} />
           <button type="button" onClick={() => onItemAction(item)} aria-label={`Manage ${title.toLowerCase()}`}
             className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
             Manage<ChevronRight aria-hidden="true" focusable="false" className="h-4 w-4 shrink-0" />

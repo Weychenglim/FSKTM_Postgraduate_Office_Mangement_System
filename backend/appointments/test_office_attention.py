@@ -25,7 +25,7 @@ class OfficeAttentionTests(APITestCase):
 
     def setUp(self):
         cw.CoordinatorWorkspaceTests.setUp(self)
-        self.office.is_staff = True
+        self.office.is_staff = False
         self.office.save(update_fields=['is_staff'])
         self.sequence = 0
         self.client.force_authenticate(self.office)
@@ -283,7 +283,7 @@ class OfficeAttentionTests(APITestCase):
             self.client.force_authenticate(actor)
             self.assertEqual(self.get().status_code, 403)
             self.assertEqual(self.summary().status_code, 403)
-        for field in ('is_staff', 'is_active'):
+        for field in ('is_active',):
             setattr(self.office, field, False)
             self.office.save(update_fields=[field])
             self.client.force_authenticate(self.office)

@@ -12,9 +12,8 @@ class TimelineAdminBoundaryTests(APITestCase):
     setUp = fixture.DashboardTimelineApiTests.setUp
 
     def records(self):
-        self.admin.is_staff = True
-        self.admin.is_superuser = True
-        self.admin.save(update_fields=["is_staff", "is_superuser"])
+        from accounts.models import User
+        self.technical = User.objects.create_superuser('timeline.inspect@example.test')
         timeline = SemesterTimeline.objects.create(
             academic_semester=self.academic_semester,
             semester=self.academic_semester.get_term_display(),
@@ -36,7 +35,7 @@ class TimelineAdminBoundaryTests(APITestCase):
     def test_timeline_audit_and_inline_are_viewable_but_have_no_write_permissions(self):
         timeline, entry, audit = self.records()
         request = RequestFactory().get("/admin/")
-        request.user = self.admin
+        request.user = self.technical
         for record in (timeline, audit):
             model_admin = admin.site._registry[type(record)]
             with self.subTest(model=record._meta.model_name):
@@ -56,7 +55,7 @@ class TimelineAdminBoundaryTests(APITestCase):
     def test_admin_posts_cannot_change_timeline_inline_or_forge_and_delete_audits(self):
         timeline, entry, audit = self.records()
         client = Client()
-        client.force_login(self.admin)
+        client.force_login(self.technical)
         snapshots = [(record, type(record).objects.values().get(pk=record.pk))
                      for record in (timeline, entry, audit)]
         for record in (timeline, audit):

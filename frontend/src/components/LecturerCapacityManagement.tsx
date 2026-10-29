@@ -14,7 +14,7 @@ export function CapacityRoleSummary({entry, role}: {entry: LecturerCapacityEntry
   const occupied = resolution.activeLoad + resolution.reservedLoad;
   return <div className="space-y-2">
     <p className="card-description">Selected version limit: <strong className="card-value">{selectedLimit ?? 'Not configured'}</strong></p>
-    <p className="card-description">Global load: <strong className="card-value">{resolution.activeLoad} active{role === 'PANEL' ? ` + ${resolution.reservedLoad} reserved` : ''}</strong></p>
+    <p className="card-description">Global load: <strong className="card-value">{resolution.activeLoad} active + {resolution.reservedLoad} reserved</strong></p>
     <p className="card-description">Published policy limit: <strong className="card-value">{resolution.limit ?? 'Not configured'}</strong></p>
     <div><span className="card-caption mr-2">Operational state</span><StatusBadge tone={stateTone(resolution.state)}>{capacityStateLabel(resolution.state)}</StatusBadge></div>
     {resolution.limit !== null && <ProgressBar value={capacityUtilization(occupied, resolution.limit)} />}

@@ -4,7 +4,7 @@ from django.db.models import Q
 from academics.capacity import CapacityConflict, resolve_lecturer_capacity, assert_capacity_allows_assignment
 from academics.models import AcademicSemester
 from academics.services import current_effective_semester
-from accounts.authorization import coordinator_manages_programme
+from accounts.authorization import office_actor, coordinator_manages_programme
 from accounts.models import Student, User
 from .models import SupervisorApplication, CoSupervisorNomination, PanelRecommendation, CapacityReassessmentEvent
 
@@ -25,7 +25,7 @@ def lock_policy_semesters():
     return list(AcademicSemester.objects.select_for_update(no_key=True).order_by("pk"))
 
 def office(actor):
-    return actor.is_active and actor.role == User.Role.OFFICE_ADMIN and actor.is_staff
+    return office_actor(actor)
 
 def require_reader(actor):
     if not actor.is_active or not (office(actor) or actor.role == User.Role.COORDINATOR):
@@ -67,7 +67,8 @@ def policy(row, semester):
         return None
     return resolve_lecturer_capacity(user=candidate_of(row), semester=semester,
         role='PANEL' if isinstance(row, PanelRecommendation) else 'SUPERVISOR',
-        exclude_panel_recommendation_id=row.pk if isinstance(row, PanelRecommendation) else None)
+        exclude_panel_recommendation_id=row.pk if isinstance(row, PanelRecommendation) else None,
+        exclude_supervisor_application_id=row.pk if isinstance(row, SupervisorApplication) and row.status == 'PENDING_COORDINATOR' else None)
 
 def latest(row):
     return row.capacity_reassessments.order_by('-pk').first()
@@ -92,7 +93,8 @@ def capacity_semester(row):
 def assert_request_capacity(row):
     return assert_capacity_allows_assignment(user=candidate_of(row), semester=capacity_semester(row),
         role='PANEL' if isinstance(row, PanelRecommendation) else 'SUPERVISOR',
-        exclude_panel_recommendation_id=row.pk if isinstance(row, PanelRecommendation) else None)
+        exclude_panel_recommendation_id=row.pk if isinstance(row, PanelRecommendation) else None,
+        exclude_supervisor_application_id=row.pk if isinstance(row, SupervisorApplication) and row.status == 'PENDING_COORDINATOR' else None)
 
 def _event(row, actor, action, semester, reason='', authorization=None, result=None):
     return CapacityReassessmentEvent.objects.create(**{KINDS[kind_of(row)][1]: row},

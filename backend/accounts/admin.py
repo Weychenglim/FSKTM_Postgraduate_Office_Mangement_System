@@ -8,6 +8,8 @@ Supervisor / Panel) are managed on the dedicated Lecturer admin page.
 """
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.admin.utils import unquote
+from django.core.exceptions import PermissionDenied
 
 from .forms import UserCreationForm, UserChangeForm
 from .models import (
@@ -23,6 +25,23 @@ from .models import (
     Supervisor,
     User,
 )
+
+
+class ProfileOwnerAdmin(admin.ModelAdmin):
+    """An existing profile keeps its owner, which is also its primary key."""
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = super().get_readonly_fields(request, obj)
+        return (*fields, "user") if obj is not None else fields
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        if request.method == "POST" and object_id is not None and "user" in request.POST:
+            obj = self.get_object(request, unquote(object_id))
+            if obj is not None and any(
+                owner != str(obj.user_id) for owner in request.POST.getlist("user")
+            ):
+                raise PermissionDenied("An existing profile cannot be reassigned to another user.")
+        return super().changeform_view(request, object_id, form_url, extra_context)
 
 
 # Profile inlines shown on the User page
@@ -135,7 +154,7 @@ class PanelInline(admin.StackedInline):
 
 
 @admin.register(Lecturer)
-class LecturerAdmin(admin.ModelAdmin):
+class LecturerAdmin(ProfileOwnerAdmin):
     inlines = [CoordinatorInline, SupervisorInline, PanelInline]
     list_display = (
         "staff_no",
@@ -179,7 +198,7 @@ class StudentRegistryInline(admin.StackedInline):
 
 
 @admin.register(Student)
-class StudentAdmin(admin.ModelAdmin):
+class StudentAdmin(ProfileOwnerAdmin):
     inlines = [StudentRegistryInline]
     list_display = ("matric_no", "full_name", "programme", "status", "has_registry")
     list_filter = ("status",)
@@ -208,7 +227,7 @@ class StudentAdmin(admin.ModelAdmin):
 
 
 @admin.register(OfficeStaff)
-class OfficeStaffAdmin(admin.ModelAdmin):
+class OfficeStaffAdmin(ProfileOwnerAdmin):
     list_display = ("staff_no", "full_name", "department", "position")
     search_fields = ("staff_no", "user__full_name", "user__email")
 

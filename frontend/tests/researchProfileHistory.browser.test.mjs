@@ -1,58 +1,42 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {build} from 'esbuild';
+import {build as buildStyles} from 'vite';
+import {build as buildScript} from 'esbuild';
 import {createServer} from 'node:http';
-import {mkdtemp, readFile, rm, access, realpath} from 'node:fs/promises';
+import tailwindcss from '@tailwindcss/vite';
+import {access,mkdtemp,realpath,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join, relative, isAbsolute, basename} from 'node:path';
+import {join,relative,isAbsolute,basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 
-// Run with: node --test tests/researchProfileHistory.browser.test.mjs
-// Uses an isolated headless profile and mocked HTTP responses; no live portal APIs.
-test('mounted research profile history disclosure regressions', {timeout:60000}, async()=>{
-  const browsers=[process.env.CHROME_PATH,
-    join(process.env.PROGRAMFILES||'C:/Program Files','Google/Chrome/Application/chrome.exe'),
-    join(process.env['PROGRAMFILES(X86)']||'C:/Program Files (x86)','Microsoft/Edge/Application/msedge.exe'),
-    '/usr/bin/chromium','/usr/bin/google-chrome'].filter(Boolean);
+// Actual components, production CSS and isolated HTTP fixture. Never calls live APIs.
+test('Research profile across roles',{timeout:240000},async()=>{
   let executable;
-  for(const browser of browsers) {try {await access(browser);executable=browser;break;} catch {}}
-  assert.ok(executable,'Install Chrome/Edge or set CHROME_PATH to run the mounted browser regressions.');
-  const directory=await mkdtemp(join(tmpdir(),'research-history-browser-'));
-  const bundle=join(directory,'fixture.js');
-  const server=createServer(async(req,res)=>{
-    if(req.url==='/fixture.js') {
-      res.setHeader('Content-Type','application/javascript');res.end(await readFile(bundle));
-    } else {
-      res.setHeader('Content-Type','text/html');
-      res.end('<!doctype html><html><body><div id="root"></div><pre id="test-results">RUNNING</pre><script type="module" src="/fixture.js"></script></body></html>');
-    }
+  for(const path of [process.env.CHROME_PATH,join(process.env.PROGRAMFILES||'C:/Program Files','Google/Chrome/Application/chrome.exe'),join(process.env['PROGRAMFILES(X86)']||'C:/Program Files (x86)','Microsoft/Edge/Application/msedge.exe')].filter(Boolean))try{await access(path);executable=path;break;}catch{}
+  assert.ok(executable,'Chrome/Edge required');
+  const directory=await mkdtemp(join(tmpdir(),'research-profile-'));
+  const root=fileURLToPath(new URL('../',import.meta.url));
+  const styles=await buildStyles({configFile:false,root,logLevel:'error',plugins:[tailwindcss()],build:{write:false,cssMinify:true,rollupOptions:{input:join(root,'src/index.css')}}});
+  const css=styles.output.filter(asset=>asset.type==='asset'&&asset.fileName.endsWith('.css')).map(asset=>asset.source).join('\n').replace(/@import\s*"https:\/\/fonts\.googleapis\.com[^"]*";/g,'');
+  const script=await buildScript({entryPoints:[join(root,'tests/researchProfileHistory.fixture.tsx')],bundle:true,write:false,outdir:directory,format:'esm',platform:'browser',define:{'process.env.NODE_ENV':'"production"'},logLevel:'error'});
+  const js=script.outputFiles.find(file=>file.path.endsWith('.js')).text;
+  const officeCss=script.outputFiles.find(file=>file.path.endsWith('.css'))?.text??'';
+  const server=createServer((req,res)=>{
+    const url=new URL(req.url,'http://localhost');
+    if(url.pathname==='/fixture.js'){res.setHeader('Content-Type','text/javascript');res.end(js);return;}
+    if(url.pathname==='/style.css'){res.setHeader('Content-Type','text/css');res.end(css+'\n'+officeCss);return;}
+    res.setHeader('Content-Type','text/html');
+    if(url.searchParams.has('frame'))res.end('<!doctype html><html><head><link rel="stylesheet" href="/style.css"></head><body style="padding:16px"><div id="root" style="max-width:1000px;margin:0 auto"></div><script type="module" src="/fixture.js"></script></body></html>');
+    else res.end(`<!doctype html><html><body style="margin:0;background:#e2e8f0;display:flex;justify-content:center"><iframe title="Research profile" style="border:0;width:${Number(url.searchParams.get('width'))}px;height:1600px" src="/research-profile-test?frame"></iframe><pre id="test-results" style="display:none">RUNNING</pre><script>addEventListener('message',event=>{if(event.origin===location.origin&&event.data.type==='research-profile-results')document.getElementById('test-results').textContent=JSON.stringify(event.data)});</script></body></html>`);
   });
-  try {
-    await build({entryPoints:[fileURLToPath(new URL('./researchProfileHistory.fixture.tsx',import.meta.url))],
-      outfile:bundle,bundle:true,platform:'browser',format:'esm',jsx:'automatic',
-      define:{'process.env.NODE_ENV':'"development"','import.meta.env':'{}'}});
-    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-    const {stdout}=await promisify(execFile)(executable,[
-      '--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check',
-      `--user-data-dir=${join(directory,'profile')}`,'--dump-dom','--virtual-time-budget=15000',
-      `http://127.0.0.1:${server.address().port}`,
-    ],{timeout:45000,maxBuffer:2*1024*1024,windowsHide:true});
-    const result=stdout.match(/<pre id="test-results">([\s\S]*?)<\/pre>/)?.[1];
-    assert.ok(result && result!=='RUNNING',`Browser tests did not finish: ${stdout.slice(-3000)}`);
-    const decoded=result.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&');
-    const checks=JSON.parse(decoded);
-    assert.equal(checks.length,4,'Every mounted scenario must finish');
-    console.log(checks.map(check=>`${check.error?'FAIL':'PASS'} ${check.name}${check.error?`: ${check.error}`:''}`).join('\n'));
-    assert.deepEqual(checks.filter(check=>check.error),[],'Mounted browser regression failures');
-  } finally {
-    await new Promise(resolve=>server.close(resolve));
-    const target=await realpath(directory);
-    const withinTemp=relative(await realpath(tmpdir()),target);
-    assert.ok(!isAbsolute(withinTemp)&&!withinTemp.startsWith('..')&&basename(target).startsWith('research-history-browser-'),
-      'Only remove this test run\'s isolated temporary directory');
-    await rm(directory,{recursive:true,force:true,maxRetries:5,retryDelay:200});
+  try{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));for(const width of [1440,1024,390]){
+    const {stdout}=await promisify(execFile)(executable,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check',`--user-data-dir=${join(directory,`profile-${width}`)}`,'--window-size=1500,1650','--dump-dom','--virtual-time-budget=60000',`--screenshot=${join(tmpdir(),`research-profile-${width}.png`)}`,`http://127.0.0.1:${server.address().port}/research-profile-test?width=${width}`],{timeout:75000,maxBuffer:3*1024*1024,windowsHide:true});
+    const encoded=stdout.match(/<pre id="test-results"[^>]*>([\s\S]*?)<\/pre>/)?.[1];assert.ok(encoded&&encoded!=='RUNNING',stdout.slice(-2000));
+    const result=JSON.parse(encoded.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&'));
+    console.log(result.results.map(row=>`${row.error?'FAIL':'PASS'} ${width}px ${row.name}${row.error?`: ${row.error}`:''}`).join('\n'));
+    assert.equal(result.width,width);assert.equal(result.results.length,8);assert.deepEqual(result.results.filter(row=>row.error),[]);
   }
+  }finally{await new Promise(resolve=>server.close(resolve));const resolved=await realpath(directory),within=relative(await realpath(tmpdir()),resolved);assert.ok(!isAbsolute(within)&&!within.startsWith('..')&&basename(resolved).startsWith('research-profile-'));await rm(resolved,{recursive:true,force:true,maxRetries:5,retryDelay:200});}
 });
-

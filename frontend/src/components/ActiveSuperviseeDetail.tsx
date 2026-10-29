@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { BookOpen, Calendar, Info, Mail, Send, User } from 'lucide-react';
+import { UserRound, BookOpen, Calendar, Info, Mail, Send, User } from 'lucide-react';
 
 import type { ActiveSuperviseeRow } from '../types';
 import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
@@ -69,7 +69,7 @@ export const ActiveSuperviseeDetail: React.FC<
         </div>
       )}
     />}
-    {hideHeader && <div className="flex flex-wrap gap-2"><StatusBadge tone="info">{supervisee.status}</StatusBadge>{onViewStudentRecord && <PortalButton onClick={onViewStudentRecord}>View student record</PortalButton>}<PortalButton variant="primary" icon={Send} onClick={() => onRecommendPanel?.(supervisee.studentId)}>Recommend Panel</PortalButton></div>}
+    {hideHeader && <div className="flex flex-wrap gap-2"><StatusBadge tone="info">{supervisee.status}</StatusBadge>{onViewStudentRecord && <PortalButton variant="primary" icon={UserRound} size="sm" onClick={onViewStudentRecord}>View student record</PortalButton>}<PortalButton variant="primary" icon={Send} onClick={() => onRecommendPanel?.(supervisee.studentId)}>Recommend Panel</PortalButton></div>}
 
     <section className={hideHeader ? '' : 'grid grid-cols-1 gap-6 lg:grid-cols-12'}>
       <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-5">

@@ -16,7 +16,8 @@ export function StaffResearchWorkspace(props: React.ComponentProps<typeof Resear
   const view = props.routeView ?? 'list';
   const role = props.role === 'Programme Coordinator' ? 'Programme Coordinator' : 'Office Staff/Admin';
   const workspaceLabel = supervisorResearchLabel(role);
-  const title = view === 'detail' ? detailTitle ?? 'Request details' : view === 'profile' ? Number(params.get('profileStudent') ?? params.get('student')) > 0 ? 'Research profile' : 'Research profiles' : view === 'new' ? 'Correct research or request transfer' : workspaceLabel;
+  const creationTitle=params.get('changeType')==='CORRECTION' ? 'Correct research text' : params.get('changeType')==='TRANSFER' ? 'Request programme transfer' : 'Manage research record';
+  const title = view === 'detail' ? detailTitle ?? 'Request details' : view === 'profile' ? Number(params.get('profileStudent') ?? params.get('student')) > 0 ? 'Research profile' : 'Research profiles' : view === 'new' ? creationTitle : workspaceLabel;
   const content = <LecturerResearchWorkspace {...props} role={role} routeView={view} hideHeader={view !== 'list'} showRefresh={false} refreshVersion={props.refreshVersion ?? 0} onBusyChange={setBusy} onDetailMetadata={setMetadata} onDetailTitle={setDetailTitle} />;
   const actions = <>{role==='Office Staff/Admin'?<PortalButton size="sm" disabled={busy} onClick={()=>props.onNavigateToProfile?.()}>Research profiles</PortalButton>:null}</>;
   return <StaffSupervisorBrowseContext.Provider value={role}>{view === 'list' && role === 'Programme Coordinator' ? <div className="space-y-6"><PageHeader title="Supervisor Appointments" subtitle="Review programme transfers and follow their recorded progress and outcomes." actions={actions} /><SupervisorWorkspaceNavigation role={role} />{content}</div>

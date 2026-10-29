@@ -20,11 +20,9 @@ console.log('Research amendment capability rendering passed');
 for (const roleProps of [{studentView:true},{lecturerView:true},{}]) {
   const detail = renderToStaticMarkup(<ResearchAmendmentCard row={row} {...roleProps} presentation="detail" busy onAction={()=>{}} onViewProfile={()=>{}} />);
   assert.equal(detail.split('View research profile').length-1,1,'Each role gets one profile navigation action');
-  const summary = detail.match(/<section\b[^>]*>[\s\S]*?<\/section>/)?.[0];
-  assert.ok(summary, 'Request summary is a semantic section');
-  const header = summary.split('<dl')[0];
-  assert.match(header, /<h2[^>]*>Request summary<\/h2>/);
-  assert.match(header, /<button[^>]*disabled[^>]*>[\s\S]*?View research profile[\s\S]*?<\/button>/, 'Profile navigation remains in the summary header and respects busy state');
+  const overview = detail.split('Requested changes')[0];
+  assert.match(overview, /<h2[^>]*>Request overview<\/h2>/);
+  assert.match(overview, /<button[^>]*disabled[^>]*>[\s\S]*?View research profile[\s\S]*?<\/button>/, 'Profile navigation remains in the overview and respects busy state');
 }
 
 const studentRow = { ...row, kind: 'RESEARCH', createdAt: '2026-10-09T08:00:00Z', before: {title:'Same title',abstract:'Old abstract',programme:'Same programme'}, after: {title:'Same title',abstract:'New abstract',programme:'Same programme'}, canDecide:true, canCancel:true };
@@ -180,7 +178,7 @@ assert.doesNotMatch(renderRoute({ role: 'Office Staff/Admin', rows: researchQueu
 // The live profile must never replace either immutable request snapshot.
 const snapshotRequest = {...historyRow, canDecide:false, canCancel:false, status:'APPROVED', before:{programme:'Same programme',title:'Saved original title',abstract:'Saved original abstract'},after:{programme:'Same programme',title:'Saved requested title',abstract:'Saved requested abstract'},events:[{...historyRow.events[0],action:'SUBMIT',actorName:'Office Transfer Initiator',actorRole:'Office Staff/Admin'}, {id:4,action:'APPROVE',actorName:'Primary Supervisor',actorRole:'Lecturer',previousStatus:'PENDING_SUPERVISOR',newStatus:'APPROVED',createdAt:'2026-10-10T08:00:00Z',reason:'Approval decision note',retainTeam:false}]};
 const approvedSnapshot = renderRoute({routeView:'detail',routeRequestId:'1',rows:[snapshotRequest],options:{...formOptions,profile:{...formOptions.profile,title:'Later live profile title'}}});
-for (const text of ['Saved original title','Saved requested title','Original title','Requested title','Applied on approval','Approval decision note']) assert.ok(approvedSnapshot.includes(text));
+for (const text of ['Saved original title','Saved requested title','Before this request','Approved title','Applied on approval','Approval decision note']) assert.ok(approvedSnapshot.includes(text));
 assert.equal(approvedSnapshot.split('<details')[0].split('Approval decision note').length - 1,1,'The approval note appears once in visible progress, with its complete audit copy collapsed');
 assert.doesNotMatch(approvedSnapshot,/Later live profile title|>Approved<|>Proposed</);
 for (const status of ['PENDING_SUPERVISOR','REJECTED','CANCELLED'] as const) {

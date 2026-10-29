@@ -190,6 +190,9 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
     panelAppointmentId = serializers.SerializerMethodField()
     currentPanelMember = serializers.SerializerMethodField()
     currentPanelMemberId = serializers.SerializerMethodField()
+    currentPanelDepartment = serializers.SerializerMethodField()
+    currentPanelEmail = serializers.SerializerMethodField()
+    currentPanelAppointmentDate = serializers.SerializerMethodField()
 
     class Meta:
         model = StudentResearchProfile
@@ -208,6 +211,9 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
             "panelAppointmentId",
             "currentPanelMember",
             "currentPanelMemberId",
+            "currentPanelDepartment",
+            "currentPanelEmail",
+            "currentPanelAppointmentDate",
             "canRecommend",
         ]
 
@@ -236,6 +242,18 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
     def get_currentPanelMemberId(self, obj):
         appointment = self._active_panel_appointment(obj)
         return staff_no_for_user(appointment.panel_member) if appointment else None
+
+    def get_currentPanelDepartment(self, obj):
+        appointment = self._active_panel_appointment(obj)
+        return department_for_user(appointment.panel_member) if appointment else None
+
+    def get_currentPanelEmail(self, obj):
+        appointment = self._active_panel_appointment(obj)
+        return appointment.panel_member.email if appointment else None
+
+    def get_currentPanelAppointmentDate(self, obj):
+        appointment = self._active_panel_appointment(obj)
+        return appointment.appointment_date.isoformat() if appointment else None
 
     def get_supervisorId(self, obj):
         return staff_no_for_user(obj.supervisor)
@@ -871,11 +889,14 @@ class SupervisorDocumentRequirementUpdateSerializer(serializers.Serializer):
 
 
 class AppointmentWorkflowEventSerializer(serializers.ModelSerializer):
-    actorName = serializers.CharField(source="actor.full_name", read_only=True)
+    actorName = serializers.SerializerMethodField()
     actorRole = serializers.CharField(source="actor_role", read_only=True)
     previousStatus = serializers.CharField(source="previous_status", read_only=True)
     newStatus = serializers.CharField(source="new_status", read_only=True)
     createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+
+    def get_actorName(self, obj):
+        return "System" if obj.actor_role == "SYSTEM" else obj.actor.full_name
 
     class Meta:
         model = AppointmentWorkflowEvent
@@ -892,6 +913,7 @@ class AppointmentWorkflowEventSerializer(serializers.ModelSerializer):
 
 
 class SupervisorApplicationSerializer(serializers.ModelSerializer):
+    acceptanceCapacity = serializers.SerializerMethodField()
     initiatedByOffice = serializers.SerializerMethodField()
     participantLifecycleStatus = serializers.SerializerMethodField()
     participantEligible = serializers.SerializerMethodField()
@@ -980,10 +1002,17 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
             "appointmentLifecycle",
             "unavailableUntil",
             "initiatedByOffice",
+            "acceptanceCapacity",
         ]
 
     def get_initiatedByOffice(self, obj):
         return is_office_replacement(obj)
+
+    def get_acceptanceCapacity(self, obj):
+        from .capacity_closure import acceptance_capacity
+        if not hasattr(self, "_acceptance_capacity_cache"):
+            self._acceptance_capacity_cache = {}
+        return acceptance_capacity(obj, cache=self._acceptance_capacity_cache)
 
     def get_proposedSupervisorId(self, obj):
         return staff_no_for_user(obj.proposed_supervisor)
@@ -1232,6 +1261,9 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
 
 
 class SupervisorCandidateSerializer(serializers.ModelSerializer):
+    activeLoad = serializers.SerializerMethodField()
+    reservedLoad = serializers.SerializerMethodField()
+    pendingRequests = serializers.SerializerMethodField()
     id = serializers.SerializerMethodField()
     name = serializers.CharField(source="full_name")
     domain = serializers.SerializerMethodField()
@@ -1255,6 +1287,9 @@ class SupervisorCandidateSerializer(serializers.ModelSerializer):
             "name",
             "domain",
             "filled",
+            "activeLoad",
+            "reservedLoad",
+            "pendingRequests",
             "total",
             "initials",
             "semesterId",
@@ -1279,6 +1314,15 @@ class SupervisorCandidateSerializer(serializers.ModelSerializer):
 
     def get_filled(self, obj):
         return self._capacity(obj).active_load
+
+    def get_activeLoad(self, obj):
+        return self._capacity(obj).active_load
+
+    def get_reservedLoad(self, obj):
+        return self._capacity(obj).reserved_load
+
+    def get_pendingRequests(self, obj):
+        return self._capacity(obj).pending_requests
 
     def get_total(self, obj):
         return self._capacity(obj).limit or 0
@@ -1317,6 +1361,29 @@ class SupervisorCandidateSerializer(serializers.ModelSerializer):
 
 
 class PanelAssignmentSerializer(serializers.ModelSerializer):
+    academicTeam = serializers.SerializerMethodField()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.context.get("include_academic_team"):
+            self.fields.pop("academicTeam")
+
+    def get_academicTeam(self, obj):
+        # This public projection is only included after the exact appointment access check.
+        from .models import CoSupervisorAppointment
+        student = Student.objects.filter(user_id=obj.profile.student_id).first() if obj.profile.student_id else Student.objects.filter(matric_no__iexact=obj.profile.matric_no).first()
+        if student is None:
+            return None
+        primary = SupervisorAppointment.objects.filter(student=student, status="ACTIVE").select_related("supervisor__lecturer").first()
+        supporting = CoSupervisorAppointment.objects.filter(student=student, status="ACTIVE").select_related("supervisor__lecturer").order_by("appointment_date", "pk")
+
+        def contact(row):
+            return {"name": row.supervisor.full_name, "email": row.supervisor.email,
+                    "department": department_for_user(row.supervisor),
+                    "appointmentDate": row.appointment_date.isoformat() if row.appointment_date else None}
+
+        return {"primary": contact(primary) if primary else None, "supporting": [contact(row) for row in supporting]}
+
     recommendation = PanelRecommendationSerializer(read_only=True)
     appointmentLifecycle = serializers.SerializerMethodField()
     panelMemberName = serializers.CharField(source="panel_member.full_name", read_only=True)
@@ -1365,7 +1432,7 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = PanelAppointment
         fields = [
-            "recommendation", "appointmentLifecycle", "panelMemberName", "panelMemberId",
+            "academicTeam", "recommendation", "appointmentLifecycle", "panelMemberName", "panelMemberId",
             "studentId",
             "studentName",
             "researchTitle",
@@ -1420,6 +1487,14 @@ class StudentResearchProfileSummarySerializer(serializers.Serializer):
     abstract = serializers.CharField(allow_blank=True)
 
 
+class StudentApprovedPanelRequestSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    nominatedBy = serializers.CharField()
+    submittedAt = serializers.DateTimeField(allow_null=True)
+    panelAcceptedAt = serializers.DateTimeField(allow_null=True)
+    approvedAt = serializers.DateTimeField(allow_null=True)
+
+
 class StudentPanelAppointmentSerializer(serializers.Serializer):
     status = serializers.CharField()
     readinessState = serializers.CharField()
@@ -1437,6 +1512,7 @@ class StudentPanelAppointmentSerializer(serializers.Serializer):
     panelMemberDepartment = serializers.CharField(allow_blank=True, allow_null=True)
     panelMemberEmail = serializers.EmailField(allow_null=True)
     appointmentDate = serializers.CharField(allow_blank=True, allow_null=True)
+    approvedRequest = StudentApprovedPanelRequestSerializer(allow_null=True, required=False, default=None)
     waitingSince = serializers.DateTimeField(allow_null=True)
     waitingDays = serializers.IntegerField(allow_null=True)
     waitingOn = serializers.CharField(allow_null=True)
@@ -1509,10 +1585,18 @@ def student_panel_appointment_payload(profile):
             else None
         ),
         "panelMemberName": panel_member.full_name,
-        "panelMemberId": staff_no_for_user(panel_member),
+        # Internal staff numbers are not part of the student's appointment view.
+        "panelMemberId": None,
         "panelMemberDepartment": department_for_user(panel_member),
         "panelMemberEmail": panel_member.email,
         "appointmentDate": format_display_date(appointment.appointment_date),
+        "approvedRequest": {
+            "id": appointment.recommendation_id,
+            "nominatedBy": appointment.recommendation.supervisor.full_name,
+            "submittedAt": appointment.recommendation.submitted_at,
+            "panelAcceptedAt": appointment.recommendation.panel_decided_at,
+            "approvedAt": appointment.recommendation.coordinator_decided_at,
+        } if appointment.recommendation.status == PanelRecommendation.Status.APPROVED else None,
     }
 
 

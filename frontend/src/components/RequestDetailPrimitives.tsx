@@ -1,5 +1,7 @@
+import {SupervisorRequestDisclosure} from './SupervisorRequestFields';
 import React, { useId } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import { UserRound, Check, X, type LucideIcon } from 'lucide-react';
+import { IconHeading } from './IconHeading';
 import { AppointmentIcon } from './AppointmentPrimitives';
 import { orderApprovalEvents, type ApprovalEvent } from '../utils/approvalProcess';
 import { PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
@@ -12,21 +14,23 @@ export function readableRecordStatus(value: string): string {
 }
 
 function readableAction(value: string): string {
-  const labels: Record<string,string> = {SUBMIT:'Request submitted',SUBMITTED:'Request submitted',NOMINATE:'Supporting supervisor nominated',NOMINATED:'Supporting supervisor nominated',ACCEPT:'Request accepted',SUPERVISOR_ACCEPT:'Supervisor accepted',APPROVE:'Request approved',COORDINATOR_APPROVE:'Coordinator approved',ENDORSE:'Request endorsed',REJECT:'Request rejected',SUPERVISOR_REJECT:'Supervisor rejected',COORDINATOR_REJECT:'Coordinator rejected',CANCEL:'Request cancelled',CANCELLED:'Request cancelled',ACTIVATED:'Appointment started',ENDED:'Appointment ended',REPLACED:'Appointment replaced'};
+  const labels: Record<string,string> = {SUBMIT:'Request submitted',SUBMITTED:'Request submitted',NOMINATE:'Supporting supervisor nominated',NOMINATED:'Supporting supervisor nominated',ACCEPT:'Request accepted',SUPERVISOR_ACCEPT:'Supervisor accepted',APPROVE:'Request approved',COORDINATOR_APPROVE:'Coordinator approved',ENDORSE:'Request endorsed',REJECT:'Request rejected',SUPERVISOR_REJECT:'Supervisor rejected',COORDINATOR_REJECT:'Coordinator rejected',SYSTEM_CLOSE_CAPACITY:'Closed automatically: capacity full',CANCEL:'Request cancelled',CANCELLED:'Request cancelled',ACTIVATED:'Appointment started',ENDED:'Appointment ended',REPLACED:'Appointment replaced'};
   const words = value.replaceAll('_',' ').toLowerCase();
   return labels[value] ?? (words ? words.charAt(0).toUpperCase()+words.slice(1) : 'Recorded activity');
 }
 
-export function RequestAuditHistory({ events, title = 'Audit history', showTeamRetention = false }: { events: ApprovalEvent[]; title?: string; showTeamRetention?: boolean }) {
+export function RequestAuditHistory({ events, title = 'Audit history', showTeamRetention = false, sidebar = false }: { events: ApprovalEvent[]; title?: string; showTeamRetention?: boolean; sidebar?:boolean }) {
   if (!events.length) return null;
-  return <details className="group"><summary className="section-label cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">{title}<span className="card-caption ml-2 font-normal text-slate-500">({events.length} {events.length === 1 ? 'event' : 'events'})</span></summary>
-    <ol className="mt-4 divide-y divide-slate-200">{orderApprovalEvents(events).map(event => <li key={event.id} className="space-y-2 py-4 first:pt-0 last:pb-0 [overflow-wrap:anywhere]">
+  const content=<ol className="mt-4 divide-y divide-slate-200">{orderApprovalEvents(events).map(event => <li key={event.id} className="space-y-2 py-4 first:pt-0 last:pb-0 [overflow-wrap:anywhere]">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><p className="card-value">{readableAction(event.action)}</p>{formatRequestRecordedAt(event.createdAt)!=='Not recorded'?<p className="card-caption text-slate-500">{formatRequestDisplayDate(event.createdAt)}</p>:null}</div>
       {event.actorName||event.actorRole?<p className="card-description">{[event.actorName,event.actorRole].filter(Boolean).join(' · ')}</p>:null}
       {event.newStatus?<p className="card-caption text-slate-500">{event.previousStatus ? `${readableRecordStatus(event.previousStatus)} → ` : ''}{readableRecordStatus(event.newStatus)}</p>:null}
       {event.reason ? <p className="card-description whitespace-pre-wrap"><span className="font-semibold">Reason: </span>{event.reason}</p> : null}
       {event.retainTeam != null && (showTeamRetention || event.retainTeam) ? <p className="card-description">{event.retainTeam ? 'Team retention acknowledged.' : 'Team retention was not acknowledged.'}</p> : null}
-    </li>)}</ol>
+    </li>)}</ol>;
+  if(sidebar)return <SupervisorRequestDisclosure title={`${title} (${events.length} ${events.length===1?'event':'events'})`}>{content}</SupervisorRequestDisclosure>;
+  return <details className="group"><summary className="section-label cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">{title}<span className="card-caption ml-2 font-normal text-slate-500">({events.length} {events.length === 1 ? 'event' : 'events'})</span></summary>
+    {content}
   </details>;
 }
 
@@ -51,15 +55,30 @@ export function RequestDetailCard({ children, progress, actions, audit, padding 
 
 export const requestBodyTextClass = 'font-sans text-xs font-normal leading-relaxed text-slate-700 whitespace-pre-wrap break-words';
 
+/** Readable, equal-width actions for narrow detail sidebars; caller owns capabilities. */
+export function RequestDetailActions({ children }: { children: React.ReactNode }) {
+  return <div data-detail-actions className="space-y-3 [&_.flex]:flex-col [&_.flex]:items-stretch [&_.flex]:gap-3 [&_button]:min-h-11 [&_button]:w-full [&_button]:rounded-xl [&_button]:text-xs [&_button]:font-semibold [&_button]:normal-case [&_button]:tracking-normal">{children}</div>;
+}
+
+export function PrimaryRequestDecisionButtons({ positiveLabel, disabled, positiveDisabled = false, onPositive, onReject }: {
+  positiveLabel: 'Accept request' | 'Approve request'; disabled: boolean; positiveDisabled?: boolean;
+  onPositive: () => void; onReject: () => void;
+}) {
+  return <div className="flex flex-wrap gap-3">
+    <PortalButton icon={Check} variant="primary" disabled={disabled || positiveDisabled} onClick={onPositive}>{positiveLabel}</PortalButton>
+    <PortalButton icon={X} variant="danger" disabled={disabled} onClick={onReject}>Reject request</PortalButton>
+  </div>;
+}
+
 export function RequestField({ label, value, narrative = false }: { label: string; value?: string | null; narrative?: boolean }) {
   return <div><dt className="card-label">{label}</dt><dd className={`${narrative ? requestBodyTextClass : 'card-value whitespace-pre-wrap break-words'} mt-1`}>{value?.trim() || 'Not recorded'}</dd></div>;
 }
 
 export function RequestSection({ title, description, actions, children, headingClassName = 'section-label', icon }: { title: string; description?: string; actions?: React.ReactNode; children: React.ReactNode; headingClassName?: string; icon?: LucideIcon }) {
   const titleId = useId();
-  return <section aria-labelledby={titleId} className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-start gap-3">{icon ? <AppointmentIcon icon={icon} tone="info" /> : null}<div className="min-w-0"><h2 id={titleId} className={headingClassName}>{title}</h2>{description ? <p className="card-description mt-1">{description}</p> : null}</div></div>{actions}</div>{children}</section>;
+  return <section aria-labelledby={titleId} className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-3"><IconHeading titleId={titleId} title={title} description={description} titleClassName={headingClassName} icon={icon ? <AppointmentIcon icon={icon} tone="info" /> : undefined} />{actions}</div>{children}</section>;
 }
 
 export function ViewStudentRecordAction({studentId,onOpen,disabled=false}:{studentId:string;onOpen?: (studentId:string)=>void;disabled?:boolean}) {
-  return onOpen?<PortalButton size="sm" variant="secondary" disabled={disabled} onClick={()=>onOpen(studentId)}>View student record</PortalButton>:null;
+  return onOpen?<PortalButton variant="primary" icon={UserRound} size="sm" disabled={disabled} onClick={()=>onOpen(studentId)}>View student record</PortalButton>:null;
 }

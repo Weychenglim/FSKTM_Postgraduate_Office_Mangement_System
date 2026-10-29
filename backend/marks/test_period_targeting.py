@@ -25,7 +25,7 @@ User = get_user_model()
 class PeriodTargetingTests(APITestCase):
     def setUp(self):
         self.office = self.user("office", User.Role.OFFICE_ADMIN)
-        self.office.is_staff = True
+        self.office.is_staff = False
         self.office.save(update_fields=["is_staff"])
         OfficeStaff.objects.create(user=self.office, staff_no="TARGET-OFFICE")
         self.supervisor = self.lecturer("supervisor")

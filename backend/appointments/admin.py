@@ -58,19 +58,10 @@ class AppointmentLifecycleEventAdmin(admin.ModelAdmin):
 
 
 @admin.register(StudentResearchProfile)
-class StudentResearchProfileAdmin(admin.ModelAdmin):
+class StudentResearchProfileAdmin(ReadOnlyWorkflowAdmin):
     list_display = ("matric_no", "student_name", "programme", "supervisor")
     search_fields = ("matric_no", "student_name", "proposed_topic", "supervisor__full_name")
     list_filter = ("programme", "semester")
-
-    def get_readonly_fields(self, request, obj=None):
-        return tuple(field.name for field in self.model._meta.fields) if obj else ("revision",)
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 @admin.register(PanelRecommendation)

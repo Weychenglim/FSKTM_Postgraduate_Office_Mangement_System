@@ -37,7 +37,7 @@ test('staff Panel assignment browsing and return context',{timeout:180000},async
       const result=stdout.match(/<pre id="test-results"[^>]*>([\s\S]*?)<\/pre>/)?.[1];
       assert.ok(result&&result!=='RUNNING',`Browser checks did not finish: ${stdout.slice(-1500)}`);
       const output=JSON.parse(result.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&'));
-      assert.equal(output.width,width);assert.equal(output.results.length,16);
+      assert.equal(output.width,width);assert.equal(output.results.length,20);
       console.log(output.results.map(row=>`${row.error?'FAIL':'PASS'} ${width}px ${row.name}${row.error?`: ${row.error}`:''}`).join('\n'));
       assert.deepEqual(output.results.filter(row=>row.error),[]);
     }

@@ -2,7 +2,7 @@ import type {SupervisorApplicationRecord} from './appointment';
 
 export type CoSupervisorAction = 'accept' | 'reject' | 'approve' | 'coordinator-reject' | 'cancel';
 export type CoSupervisorOutcome = 'COMPLETED' | 'WITHDRAWN' | 'OTHER';
-export interface TeamPerson { id: number; name: string }
+export interface TeamPerson { id: number; name: string; email?: string; department?: string }
 export interface SupervisionPanel {
   current: { member: TeamPerson; email: string; department: string; appointmentDate: string; requestId: number; recordKey?: string; canView: boolean } | null;
   pending: { id: number; status: string; replacement: boolean; recordKey?: string; canView: boolean } | null;
@@ -56,6 +56,8 @@ export interface SupervisoryTeam {
   studentStatus: string;
   primarySupervisor: TeamPerson | null;
   primaryAppointmentId: number | null;
+  primaryAppointmentDetails?: {email: string; department: string; appointmentDate: string; semester: string} | null;
+  approvedApplicationId?: number | null;
   canChangePrimarySupervisor?: boolean;
   pendingPrimaryReplacement?: {applicationId:number;status:string;supervisorName:string} | null;
   research: { title: string; area: string; abstract: string };

@@ -1,4 +1,5 @@
 import React from 'react';
+import { IconHeading } from './IconHeading';
 import { CircleHelp, UserRound, type LucideIcon } from 'lucide-react';
 import { PortalButton, ProgressBar, StatusBadge } from './PortalPrimitives';
 
@@ -31,7 +32,7 @@ export function AppointmentSection({ title, description, children, id, actions, 
   title: string; description?: string; children: React.ReactNode; onRefresh?: () => void; refreshing?: boolean; id?: string; actions?: React.ReactNode; detail?: boolean; icon?: LucideIcon;
 }) {
   return <section id={id} aria-label={title} className={`${detail ? 'space-y-6 p-6 md:p-8' : 'space-y-4 p-5'} rounded-2xl border border-slate-200 bg-white shadow-sm`}>
-    <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex min-w-0 flex-1 items-start gap-3">{icon ? <AppointmentIcon icon={icon} tone="info" /> : null}<div className="min-w-0"><h2 className={detail ? appointmentDetailTypography.heading : 'section-label'}>{title}</h2>{description ? <p className={`${detail ? appointmentDetailTypography.body : 'card-description'} mt-1`}>{description}</p> : null}</div></div><div className="flex flex-wrap gap-2">{actions}</div></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><IconHeading className="flex-1" title={title} description={description} titleClassName={detail ? appointmentDetailTypography.heading : 'section-label'} descriptionClassName={`${detail ? appointmentDetailTypography.body : 'card-description'} mt-1`} icon={icon ? <AppointmentIcon icon={icon} tone="info" /> : undefined} /><div className="flex flex-wrap gap-2">{actions}</div></div>
     {children}
   </section>;
 }

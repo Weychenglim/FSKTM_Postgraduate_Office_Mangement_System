@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IconHeading } from './IconHeading';
 import React from 'react';
 import { AlertTriangle, CheckCircle, Download, MailWarning, Send, X } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
@@ -90,15 +91,10 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
       className="bg-white border border-emerald-200 rounded-2xl p-6 shadow-3xs space-y-5 text-left"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
-            <CheckCircle className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 id="registry-import-result-title" className="section-label">Import Finished</h3>
-            <p className="text-[11px] text-slate-500 font-semibold mt-0.5 break-all">{batch.fileName}</p>
-          </div>
-        </div>
+        <IconHeading as="h3" titleId="registry-import-result-title" title="Import Finished" description={batch.fileName}
+          descriptionClassName="text-[11px] text-slate-500 font-semibold mt-0.5 break-all"
+          icon={<span className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0"><CheckCircle className="w-5 h-5" /></span>}
+        />
         <PortalButton variant="ghost" size="icon" icon={X} aria-label="Close the import result" onClick={onClose} />
       </div>
 

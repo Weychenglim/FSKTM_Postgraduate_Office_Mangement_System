@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 
 from academics.models import AcademicSemester
 from academics.services import current_effective_semester
-from accounts.authorization import coordinator_scope_q
+from accounts.authorization import office_actor, coordinator_scope_q
 from accounts.models import Student, User
 from . import capacity_reassessment, co_supervision
 from .ageing import elapsed_calendar_days
@@ -22,7 +22,7 @@ PENDING_PRIMARY = ("SUBMITTED_TO_SUPERVISOR", "PENDING_COORDINATOR")
 
 
 def browse_scope_q(actor, path):
-    return Q() if actor.role == User.Role.OFFICE_ADMIN and actor.is_active and actor.is_staff else coordinator_scope_q(actor, path)
+    return Q() if office_actor(actor) else coordinator_scope_q(actor, path)
 
 
 def options(params, *, team=False, carryover=False):
