@@ -5,7 +5,7 @@
 
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { Bold, Link2, List, MessageCircleQuestion, PenLine, Settings2, X } from 'lucide-react';
+import { Bold, Link2, List, X } from 'lucide-react';
 import type { FaqCategorySummary, FaqEntryDetail, FaqEntryInput, FaqPortalLink } from '../types';
 import { fieldErrors } from '../services/apiClient';
 import {
@@ -21,12 +21,11 @@ import { APP_ROUTES, routeForFaqEntry } from '../constants/routes';
 import { FAQ_PORTAL_LINKS } from '../utils/faqText';
 import { FAQ_STATUS_CHIP, FAQ_STATUS_LABEL, faqHistoryLine } from '../utils/faqOffice';
 import { historyTime } from '../utils/documentDisplay';
-import { PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
+import { PortalButton, PortalConfirmModal, PortalToast, SegmentedControl } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { SelectMenu } from './SelectMenu';
 import { ErrorState, LoadingState } from './StateViews';
 import { OverflowMenu, type MenuAction } from './DocumentParts';
-import { AppointmentSection } from './AppointmentPrimitives';
 import { FloatingMenu } from './FloatingMenu';
 import { FaqReplyView, YouBubble } from './FaqChatParts';
 
@@ -224,6 +223,7 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
   const [problems, setProblems] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [allHistory, setAllHistory] = useState(false);
+  const [mode, setMode] = useState<'write' | 'preview'>('write');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(
     typeof location.state?.message === 'string' ? { message: location.state.message, tone: 'success' } : null,
@@ -370,8 +370,8 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
       ) : loadProblem ? (
         <ErrorState message={loadProblem} onRetry={() => setReload(value => value + 1)} />
       ) : (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
-          <div className="space-y-5">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+          <div className="min-w-0 space-y-5">
             {status === 'NEEDS_CHECKING' && entry?.source && (
               <section aria-label="Text in the PDF" className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-5">
                 <p className="text-[14px] font-extrabold text-amber-900">Check this answer before students see it</p>
@@ -387,122 +387,130 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
               </div>
             )}
 
-            <AppointmentSection title="Question" description="The question as students would ask it." icon={MessageCircleQuestion}>
+            <section aria-label="Question and answer" className="app-card space-y-6 p-5 shadow-sm sm:p-6">
               <div className="space-y-1.5">
                 <label htmlFor={`${ids}-question`} className="form-label block">Question</label>
-                <input id={`${ids}-question`} className={`form-control form-control-md text-[14px]${problems.question ? ' form-control-error' : ''}`} maxLength={500} value={form.question} onChange={event => set('question', event.target.value)} />
+                <input
+                  id={`${ids}-question`}
+                  className={`form-control form-control-md text-[15px]${problems.question ? ' form-control-error' : ''}`}
+                  maxLength={500}
+                  value={form.question}
+                  placeholder="For example: Can I pay the fees in instalments?"
+                  onChange={event => set('question', event.target.value)}
+                />
                 {problems.question && <p role="alert" className="text-[12px] font-semibold text-rose-700">{problems.question}</p>}
               </div>
-              <div className="space-y-1.5">
+
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label htmlFor={`${ids}-answer`} className="form-label block">Answer</label>
+                  <SegmentedControl<'write' | 'preview'> options={['write', 'preview']} value={mode} onChange={setMode} labels={{ write: 'Write', preview: 'Preview as student' }} />
+                </div>
+                {mode === 'write' ? (
+                  <AnswerEditor id={`${ids}-answer`} value={form.answer} invalid={Boolean(problems.answer)} onChange={value => set('answer', value)} />
+                ) : (
+                  <div aria-label="How students see it" className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                    <YouBubble text={form.question.trim() || 'The question'} />
+                    {form.answer.trim() ? (
+                      <FaqReplyView
+                        reply={{
+                          outcome: 'ANSWERED',
+                          answer: { id: entry?.id ?? 'new', question: form.question, answer: form.answer, category: categoryName || 'Topic', portalLink: form.portalLink },
+                          choices: [],
+                          related: [],
+                          passage: null,
+                          contactText: '',
+                          mode: 'hybrid',
+                        }}
+                        asked={form.question}
+                        typed={false}
+                        busy={false}
+                        onPick={() => undefined}
+                        onOpenDocument={() => undefined}
+                        onPortalLink={() => undefined}
+                      />
+                    ) : (
+                      <p className="card-description">Nothing written yet. Switch to Write to add the answer.</p>
+                    )}
+                  </div>
+                )}
+                {problems.answer && <p role="alert" className="text-[12px] font-semibold text-rose-700">{problems.answer}</p>}
+              </div>
+
+              <div className="space-y-1.5 border-t border-slate-100 pt-5">
                 <label htmlFor={`${ids}-alt`} className="form-label block">Other ways students ask it (optional)</label>
                 <p className="card-description">The chatbot also matches these. Add short forms, common wordings or Malay.</p>
                 <AltQuestions id={`${ids}-alt`} values={form.altQuestions} onChange={values => set('altQuestions', values)} />
                 {problems.altQuestions && <p role="alert" className="text-[12px] font-semibold text-rose-700">{problems.altQuestions}</p>}
               </div>
-            </AppointmentSection>
-
-            <AppointmentSection title="Answer" description="Use the buttons for bold text, bullet points and links." icon={PenLine}>
-              <div className="space-y-1.5">
-                <label htmlFor={`${ids}-answer`} className="sr-only">Answer</label>
-                <AnswerEditor id={`${ids}-answer`} value={form.answer} invalid={Boolean(problems.answer)} onChange={value => set('answer', value)} />
-                {problems.answer && <p role="alert" className="text-[12px] font-semibold text-rose-700">{problems.answer}</p>}
-              </div>
-            </AppointmentSection>
-
-            <AppointmentSection title="Where it appears" description="The topic it is listed under, and an optional button that opens a page in the portal." icon={Settings2}>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label htmlFor={`${ids}-category`} className="form-label block">Topic</label>
-                  <SelectMenu id={`${ids}-category`} value={form.category} placeholder="Choose a topic" options={categoryOptions} onChange={value => set('category', value)} />
-                  {problems.category && <p role="alert" className="text-[12px] font-semibold text-rose-700">{problems.category}</p>}
-                </div>
-                <div className="space-y-1.5">
-                  <label htmlFor={`${ids}-link`} className="form-label block">Button under the answer</label>
-                  <SelectMenu
-                    id={`${ids}-link`}
-                    value={form.portalLink || NO_BUTTON}
-                    options={linkOptions}
-                    onChange={value => set('portalLink', (value === NO_BUTTON ? '' : value) as FaqPortalLink)}
-                  />
-                </div>
-              </div>
-            </AppointmentSection>
-
-            <div className="flex flex-wrap justify-end gap-3">
-              {status === 'PUBLISHED' ? (
-                <PortalButton variant="primary" isLoading={busy === 'save'} disabled={busy !== null || !dirty} onClick={() => void save(false)}>Save changes</PortalButton>
-              ) : status === 'ARCHIVED' ? null : (
-                <>
-                  <PortalButton isLoading={busy === 'save'} disabled={busy !== null || (Boolean(entry) && !dirty)} onClick={() => void save(false)}>
-                    {status === 'NEEDS_CHECKING' ? 'Save changes' : 'Save draft'}
-                  </PortalButton>
-                  {status === 'NEEDS_CHECKING' && (
-                    <PortalButton isLoading={busy === 'checked'} disabled={busy !== null || dirty} onClick={() => void step('checked', 'Marked as checked. It is a draft until you publish it.')}>Mark as checked</PortalButton>
-                  )}
-                  <PortalButton variant="primary" isLoading={busy === 'publish'} disabled={busy !== null} onClick={() => void save(true)}>
-                    {status === 'NEEDS_CHECKING' ? 'Mark as checked and publish' : 'Publish'}
-                  </PortalButton>
-                </>
-              )}
-            </div>
+            </section>
           </div>
 
           <aside className="space-y-5">
-            <section aria-label="How students see it" className="app-card space-y-4 p-5 shadow-sm">
-              <h2 className="section-label">How students see it</h2>
-              <YouBubble text={form.question.trim() || 'The question'} />
-              {form.answer.trim() ? (
-                <FaqReplyView
-                  reply={{
-                    outcome: 'ANSWERED',
-                    answer: { id: entry?.id ?? 'new', question: form.question, answer: form.answer, category: categoryName || 'Topic', portalLink: form.portalLink },
-                    choices: [],
-                    related: [],
-                    passage: null,
-                    contactText: '',
-                    mode: 'hybrid',
-                  }}
-                  asked={form.question}
-                  typed={false}
-                  busy={false}
-                  onPick={() => undefined}
-                  onOpenDocument={() => undefined}
-                  onPortalLink={() => undefined}
+            <section aria-label="Publishing" className="app-card space-y-4 p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="section-label">Status</h2>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${FAQ_STATUS_CHIP[status ?? 'DRAFT']}`}>{entry ? FAQ_STATUS_LABEL[entry.status] : 'New'}</span>
+              </div>
+              <p className="card-description">
+                {!entry
+                  ? 'Students get it once you publish it. Save a draft to finish it later.'
+                  : entry.status === 'PUBLISHED'
+                    ? `Students got this answer ${entry.askedThisMonth} time${entry.askedThisMonth === 1 ? '' : 's'} this month${entry.notHelpfulThisMonth ? `, and ${entry.notHelpfulThisMonth} said it didn't help` : ''}.`
+                    : "Students don't get this answer until it is published."}
+              </p>
+              <div className="space-y-1.5">
+                <label htmlFor={`${ids}-category`} className="form-label block">Topic</label>
+                <SelectMenu id={`${ids}-category`} value={form.category} placeholder="Choose a topic" options={categoryOptions} onChange={value => set('category', value)} />
+                {problems.category && <p role="alert" className="text-[12px] font-semibold text-rose-700">{problems.category}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor={`${ids}-link`} className="form-label block">Button under the answer</label>
+                <SelectMenu
+                  id={`${ids}-link`}
+                  value={form.portalLink || NO_BUTTON}
+                  options={linkOptions}
+                  onChange={value => set('portalLink', (value === NO_BUTTON ? '' : value) as FaqPortalLink)}
                 />
-              ) : (
-                <p className="card-description">The answer appears here as you write it.</p>
+                <p className="card-caption">Optional. Opens a page in the portal, such as Letter Generation.</p>
+              </div>
+              {status !== 'ARCHIVED' && (
+                <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
+                  {status === 'PUBLISHED' ? (
+                    <PortalButton fullWidth variant="primary" isLoading={busy === 'save'} disabled={busy !== null || !dirty} onClick={() => void save(false)}>Save changes</PortalButton>
+                  ) : (
+                    <>
+                      <PortalButton fullWidth variant="primary" isLoading={busy === 'publish'} disabled={busy !== null} onClick={() => void save(true)}>
+                        {status === 'NEEDS_CHECKING' ? 'Mark as checked and publish' : 'Publish'}
+                      </PortalButton>
+                      <PortalButton fullWidth isLoading={busy === 'save'} disabled={busy !== null || (Boolean(entry) && !dirty)} onClick={() => void save(false)}>
+                        {status === 'NEEDS_CHECKING' ? 'Save changes' : 'Save draft'}
+                      </PortalButton>
+                      {status === 'NEEDS_CHECKING' && (
+                        <PortalButton fullWidth variant="ghost" isLoading={busy === 'checked'} disabled={busy !== null || dirty} onClick={() => void step('checked', 'Marked as checked. It is a draft until you publish it.')}>Mark as checked only</PortalButton>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </section>
 
-            {entry && (
-              <section aria-label="Status" className="app-card space-y-3 p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="section-label">Status</h2>
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${FAQ_STATUS_CHIP[entry.status]}`}>{FAQ_STATUS_LABEL[entry.status]}</span>
-                </div>
-                <p className="card-description">
-                  {entry.status === 'PUBLISHED'
-                    ? `Students got this answer ${entry.askedThisMonth} time${entry.askedThisMonth === 1 ? '' : 's'} this month${entry.notHelpfulThisMonth ? `, and ${entry.notHelpfulThisMonth} said it didn't help` : ''}.`
-                    : "Students don't get this answer until it is published."}
-                </p>
+            {entry && history.length > 0 && (
+              <section aria-label="History" className="app-card space-y-1 p-5 shadow-sm">
+                <h2 className="section-label">History</h2>
                 {entry.checkedBy && <p className="card-description">Checked by {entry.checkedBy}{entry.checkedAt ? `, ${historyTime(entry.checkedAt)}` : ''}.</p>}
-                {history.length > 0 && (
-                  <div className="space-y-1 border-t border-slate-100 pt-3">
-                    <p className="card-label">History</p>
-                    <ol className="divide-y divide-slate-100">
-                      {history.map(change => (
-                        <li key={change.id} className="space-y-0.5 py-2 text-[12.5px]">
-                          <p className="font-semibold text-slate-800">{faqHistoryLine(change)}</p>
-                          <p className="text-slate-500">{change.actor || 'Import'}, {historyTime(change.at)}</p>
-                        </li>
-                      ))}
-                    </ol>
-                    {entry.history.length > HISTORY_SHOWN && (
-                      <button type="button" className="back-link py-2" onClick={() => setAllHistory(value => !value)}>
-                        {allHistory ? 'Show less' : `Show all ${entry.history.length} changes`}
-                      </button>
-                    )}
-                  </div>
+                <ol className="divide-y divide-slate-100">
+                  {history.map(change => (
+                    <li key={change.id} className="space-y-0.5 py-2.5 text-[12.5px]">
+                      <p className="font-semibold text-slate-800">{faqHistoryLine(change)}</p>
+                      <p className="text-slate-500">{change.actor || 'Import'}, {historyTime(change.at)}</p>
+                    </li>
+                  ))}
+                </ol>
+                {entry.history.length > HISTORY_SHOWN && (
+                  <button type="button" className="back-link py-2" onClick={() => setAllHistory(value => !value)}>
+                    {allHistory ? 'Show less' : `Show all ${entry.history.length} changes`}
+                  </button>
                 )}
               </section>
             )}
