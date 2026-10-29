@@ -191,7 +191,7 @@ const AnswersTab: React.FC<{ view: FaqStatus; onView: (view: FaqStatus) => void;
       ) : error ? (
         <ErrorState message={error} onRetry={load} />
       ) : rows.length === 0 ? (
-        <EmptyState title={filtered ? 'No answers match.' : heading.empty} description={filtered ? 'Change the search or the topic above.' : 'Use Add answer to write a new one.'} />
+        <EmptyState title={filtered ? 'No answers match.' : heading.empty} description={filtered ? 'Change the search or the topic above.' : 'Use Add FAQ to write a new question and answer.'} />
       ) : (
         <>
           <table aria-label={heading.title} className="data-table block table-fixed lg:table">
@@ -546,7 +546,7 @@ export const AcademicFAQEditor: React.FC<{ view?: Tab | 'entry' | 'new' | 'test'
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <PortalButton icon={FlaskConical} onClick={() => navigate(APP_ROUTES.faqTest)}>Test the chatbot</PortalButton>
-            <PortalButton variant="primary" icon={Plus} onClick={() => navigate(APP_ROUTES.faqEntryNew)}>Add answer</PortalButton>
+            <PortalButton variant="primary" icon={Plus} onClick={() => navigate(APP_ROUTES.faqEntryNew)}>Add FAQ</PortalButton>
           </div>
         }
       />

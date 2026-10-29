@@ -345,7 +345,7 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
   const categoryName = categories.find(category => category.id === form.category)?.name ?? entry?.category.name ?? '';
   const subtitle = entry
     ? [FAQ_STATUS_LABEL[entry.status], entry.category.name, ...(entry.imported ? [`Imported from FAQ.pdf${entry.source?.page ? `, page ${entry.source.page}` : ''}`] : [])].join(' · ')
-    : 'A new answer for the chatbot. It stays a draft until you publish it.';
+    : 'A new question and answer for the chatbot. It stays a draft until you publish it.';
   const categoryOptions = categories.map(category => ({ value: category.id, label: category.name }));
   const linkOptions = [
     { value: NO_BUTTON, label: 'No button' },
@@ -355,7 +355,7 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
 
   return (
     <RecordPage
-      title={entry ? entry.question || 'Answer with no question yet' : 'Add an answer'}
+      title={entry ? entry.question || 'FAQ with no question yet' : 'Add an FAQ'}
       subtitle={subtitle}
       backLabel="Back to answers"
       onBack={() => navigate(APP_ROUTES.faq)}
