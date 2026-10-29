@@ -1089,6 +1089,19 @@ Final validation: all 168 frontend test checks pass, including production demo/C
 
 Browser coverage: Office attention and exact pending recommendation were inspected locally. The user requested no further browser checks; cross-role desktop/mobile browser acceptance and new decision previews were not completed or claimed. Shared rendering, navigation, capability, privacy and outcome contracts have automated coverage. Temporary viewport override was reset. API restarted at 127.0.0.1:8000; portal remains localhost:3001. Implementation stays local and uncommitted; the earlier requested snapshot was already pushed separately.
 
+## FAQ Chatbot: Office Screens Restructured (2026-10-29)
+
+Plan: `docs/superpowers/plans/2026-10-29-faq-office-redesign.md`, approved by Xiang after the proposal page "FAQ Chatbot Office Redesign" (Intercom Fin, Zendesk AI agents and Tidio Lyro, with wireframes). Commits `e4c5449` (backend) and `e92a942`. The student chatbot is unchanged.
+
+- **Landing.** Summary cards (live answers, to check, student questions waiting, answered this month with the helpful rate) and icon tabs, like Letter Generation and File Management. The header has "Test the chatbot" and "Add answer".
+- **Answers** (was Entries). Opens on the live answers; To check (the 61 imported entries), Drafts and Archived are separate views. An "Asked this month" column (with how many said it didn't help), the filter card, and rows as cards on phones.
+- **Answer page.** Question, Answer and Where it appears sections; Bold, Bullet points and Link buttons instead of formatting codes; the answer box grows with the text; "How students see it" beside the form, with the status, this month's use and the history.
+- **Student questions.** "Write an answer", "Add to an existing answer" and "Dismiss"; the figures moved to the summary cards.
+- **Settings.** Common questions are picked from live answers, and one whose answer stops being live is no longer shown to students. The contact text is shown as students see it.
+- **Test the chatbot** (replaces "Try it"). Its own page rather than a side panel, so nothing scrolls inside the page. The student chat, with a note under each reply naming the answer it came from (and the closest others), links to open them, and "Write an answer" when nothing matched. Nothing is saved or counted.
+- **Reuse.** The student chat's pieces moved to `FaqChatParts` and serve the student page, the preview and the test page; File Management's summary card became `SummaryCardButton` for both modules.
+- **Checks:** backend 93 FAQ tests pass; frontend type check, 232 of 232 test files and the build pass. In the browser as the office at 1440 and 390 px: every tab, the To check view, editing with the formatting buttons (bullet points and a link, not saved), Settings and the test page answering one question and not another; no scrollbars inside the page, nothing past the screen edge, no page errors.
+
 ## Appointment Confirmation Letters: Samples, Supporting Supervisors, Ended Appointments (2026-10-26)
 
 Plan: `docs/superpowers/plans/2026-10-26-appointment-confirmation-letters.md`, approved by Xiang. Commits `f5b3c8a` (sample templates) and `b5ac50e` (the rest). Builds on UC22: nothing in `appointments/` changed.
