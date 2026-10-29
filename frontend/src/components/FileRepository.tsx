@@ -9,7 +9,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, ChevronRight, ClipboardCheck, FileSignature, FileStack, ListChecks, Plus, RotateCcw, Settings2, SlidersHorizontal, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, FileSignature, FileStack, ListChecks, Plus, RotateCcw, Settings2, SlidersHorizontal, UsersRound, X } from 'lucide-react';
 import type { DocumentAutoTag, DocumentFilters, DocumentOptions, DocumentSummary, GeneratedLetter, PortalDocument, StudentFileHeader } from '../types';
 import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
 import { getReceivedLetters } from '../services/lettersApi';
@@ -21,7 +21,7 @@ import { titleCase } from '../utils/programmeLabel';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { PortalSelect } from './PortalSelect';
 import { OfficeToolViews } from './OfficeToolPrimitives';
-import { AppointmentIcon } from './AppointmentPrimitives';
+import { SummaryCardButton } from './SummaryCardButton';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { AutoTagChips, DownloadIconButton, KindBadge } from './DocumentParts';
 import { RequiredDocuments } from './RequiredDocuments';
@@ -315,21 +315,17 @@ export const FileRepository: React.FC = () => {
               {summaryCards.map(card => {
                 const on = cardSelected(card.key);
                 return (
-                  <button
+                  <SummaryCardButton
                     key={card.key}
-                    type="button"
-                    aria-pressed={on}
+                    title={card.title}
+                    value={card.value ?? '-'}
+                    caption={card.caption}
+                    description={card.description}
+                    icon={card.icon}
+                    tone={card.tone}
+                    selected={on}
                     onClick={on ? () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all' }) : card.open}
-                    className={`group space-y-3 rounded-2xl border bg-white p-5 text-left shadow-sm transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${on ? 'border-brand-navy bg-slate-50/70' : 'border-slate-200 hover:border-slate-300'}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <AppointmentIcon icon={card.icon} tone={card.tone} />
-                      <ChevronRight aria-hidden="true" className="h-4 w-4 text-slate-400 group-hover:text-slate-600" />
-                    </div>
-                    <h2 className="card-value text-slate-800">{card.title}</h2>
-                    <p className="flex items-baseline gap-1.5"><span className="card-metric">{card.value ?? '-'}</span><span className="card-caption">{card.caption}</span></p>
-                    <p className="card-description">{card.description}</p>
-                  </button>
+                  />
                 );
               })}
             </div>

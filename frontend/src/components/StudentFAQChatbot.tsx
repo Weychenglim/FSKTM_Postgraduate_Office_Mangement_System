@@ -3,19 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ArrowRight, BookOpen, Bot, CalendarDays, ChevronRight, ClipboardList, FileText, GraduationCap, MailOpen, MessageCircleQuestion, Microscope, RotateCcw, Send, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BookOpen, Bot, CalendarDays, ClipboardList, FileText, GraduationCap, MailOpen, MessageCircleQuestion, Microscope, RotateCcw, type LucideIcon } from 'lucide-react';
 import type { FaqLink, FaqReply, FaqStart } from '../types';
 import { ApiError } from '../services/apiClient';
 import { askFaq, downloadFaqDocument, getFaqStart, openFaqAnswer, sendFaqFeedback } from '../services/faqApi';
-import { FAQ_PORTAL_LINKS, askedDifferently } from '../utils/faqText';
-import { passageSource } from '../utils/faqOffice';
 import { PageHeader, PortalButton } from './PortalPrimitives';
 import { AppointmentIcon } from './AppointmentPrimitives';
 import { FloatingMenu } from './FloatingMenu';
 import { AlertMessage } from './AlertMessage';
-import { FaqText } from './FaqText';
+import { AssistantRow, ContactBox, FaqComposer, FaqReplyView, QuestionList, SMALL_NOTE, Thinking, YouBubble } from './FaqChatParts';
 
 type Feedback = 'none' | 'sending' | 'yes' | 'no';
 
@@ -27,9 +25,6 @@ type ChatItem =
 
 type NewItem = ChatItem extends infer Item ? (Item extends ChatItem ? Omit<Item, 'id'> : never) : never;
 
-const PASSED_ON = 'Your question has been passed to the office, without your name, so they can add an answer.';
-const OPTION = 'flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-left text-[13px] font-semibold text-brand-navy transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer';
-const SMALL_NOTE = 'text-[12px] font-medium text-slate-500';
 const CARD = 'flex h-full w-full items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30 cursor-pointer';
 const TOPIC_ICONS: ReadonlyArray<[RegExp, LucideIcon]> = [
   [/research|thesis|dissertation/i, Microscope],
@@ -45,40 +40,6 @@ const problemText = (err: unknown) =>
   err instanceof ApiError && err.status === 429
     ? 'You have asked a lot of questions in a short time. Please wait a moment, then try again.'
     : 'Something went wrong while looking for an answer.';
-
-const AssistantRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="flex items-start gap-3">
-    <AppointmentIcon icon={Bot} tone="brand" />
-    <div className="min-w-0 max-w-2xl flex-1 space-y-3 rounded-2xl rounded-tl-md border border-slate-200 bg-slate-50 px-4 py-3.5 text-[13px] leading-relaxed text-slate-700">
-      <span className="sr-only">FAQ Chatbot:</span>
-      {children}
-    </div>
-  </div>
-);
-
-const QuestionList: React.FC<{ questions: FaqLink[]; disabled: boolean; onPick: (link: FaqLink) => void }> = ({ questions, disabled, onPick }) => (
-  <div className="space-y-2">
-    {questions.map(link => (
-      <button key={link.id} type="button" disabled={disabled} className={OPTION} onClick={() => onPick(link)}>
-        <span className="min-w-0 [overflow-wrap:anywhere]">{link.question}</span>
-        <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400" />
-      </button>
-    ))}
-  </div>
-);
-
-const ContactBox: React.FC<{ text: string; passedOn?: boolean }> = ({ text, passedOn = true }) => (
-  <AlertMessage
-    type="info"
-    title="Please contact the PG Office"
-    message={
-      <>
-        <p className="whitespace-pre-line">{text}</p>
-        {passedOn && <p className="mt-2 text-[12px] opacity-80">{PASSED_ON}</p>}
-      </>
-    }
-  />
-);
 
 export const StudentFAQChatbot: React.FC = () => {
   const navigate = useNavigate();
@@ -113,14 +74,6 @@ export const StudentFAQChatbot: React.FC = () => {
   useEffect(() => {
     if (items.length || busy) composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [items.length, busy]);
-
-  // The question box grows with what is typed instead of scrolling inside itself.
-  useLayoutEffect(() => {
-    const element = inputRef.current;
-    if (!element) return;
-    element.style.height = 'auto';
-    element.style.height = `${element.scrollHeight}px`;
-  }, [input]);
 
   const add = (item: NewItem) => setItems(current => [...current, { ...item, id: nextId.current++ } as ChatItem]);
 
@@ -199,105 +152,30 @@ export const StudentFAQChatbot: React.FC = () => {
     }
   };
 
-  const renderReply = (item: Extract<ChatItem, { kind: 'reply' }>) => {
-    const { reply } = item;
-    if (reply.outcome === 'DOCUMENT' && reply.passage) {
-      const passage = reply.passage;
-      return (
-        <AssistantRow>
-          <p className="card-label">{passageSource(passage)}</p>
-          <blockquote className="whitespace-pre-line border-l-4 border-slate-300 pl-4 text-slate-700 [overflow-wrap:anywhere]">{passage.text}</blockquote>
-          <p className={SMALL_NOTE}>This is a passage from a document the PG Office uploaded, not a reviewed FAQ answer.</p>
-          <PortalButton size="sm" icon={FileText} onClick={() => void openDocument(passage.documentId, passage.fileName)}>
-            Open document
-          </PortalButton>
-          {feedbackRow(item)}
-        </AssistantRow>
-      );
-    }
-    if (reply.outcome === 'NO_MATCH') {
-      return (
-        <AssistantRow>
-          <p>I couldn't find this in the FAQ.</p>
-          <ContactBox text={reply.contactText} />
-        </AssistantRow>
-      );
-    }
-    if (reply.outcome === 'CHOICES') {
-      return (
-        <AssistantRow>
-          <p>I found a few questions that might match. Which one did you mean?</p>
-          <QuestionList questions={reply.choices} disabled={busy} onPick={choice => pick(choice, reply)} />
-          {item.feedback === 'none' && (
-            <PortalButton size="sm" variant="ghost" onClick={() => void feedback(item, false)}>None of these</PortalButton>
-          )}
-          {item.feedback === 'no' && (
-            <>
-              <p>Sorry about that.</p>
-              <ContactBox text={item.contact || start?.contactText || ''} />
-            </>
-          )}
-        </AssistantRow>
-      );
-    }
-    const answer = reply.answer!;
-    const button = answer.portalLink ? FAQ_PORTAL_LINKS[answer.portalLink] : null;
-    return (
-      <AssistantRow>
-        {item.typed && askedDifferently(item.asked, answer.question) && <p className="card-label">Matched: {answer.question}</p>}
-        <FaqText text={answer.answer} className="text-[13px] font-medium text-slate-800" />
-        {button && (
-          <PortalButton size="sm" variant="primary" icon={ArrowRight} iconPosition="right" onClick={() => navigate(button.route)}>
-            {button.label}
-          </PortalButton>
-        )}
-        <p className="card-caption">From the PG Office FAQ · {answer.category}</p>
-        {reply.related.length > 0 && (
-          <div className="space-y-2">
-            <p className="card-label">Related questions</p>
-            <QuestionList questions={reply.related} disabled={busy} onPick={link => pick(link)} />
-          </div>
-        )}
-        {feedbackRow(item)}
-      </AssistantRow>
-    );
-  };
-
-  const composer = (
-    <form
-      ref={composerRef}
-      className="space-y-2"
-      onSubmit={event => {
-        event.preventDefault();
-        ask(input);
-      }}
-    >
-      <label htmlFor="faq-question" className="sr-only">Your question</label>
-      <div className="flex items-end gap-2">
-        <textarea
-          id="faq-question"
-          ref={inputRef}
-          rows={1}
-          maxLength={300}
-          placeholder="Type your question"
-          value={input}
-          onChange={event => setInput(event.target.value)}
-          onKeyDown={event => {
-            // Enter while an IME is composing picks a candidate; it must not send.
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault();
-              ask(input);
-            }
-          }}
-          className="form-control form-control-md flex-1 resize-none overflow-hidden text-[13px] font-medium leading-relaxed"
-        />
-        <PortalButton type="submit" variant="primary" icon={Send} disabled={!input.trim() || busy}>
-          Send
-        </PortalButton>
-      </div>
-      <p className="card-caption">Press Enter to send, or Shift and Enter for a new line.</p>
-    </form>
+  const renderReply = (item: Extract<ChatItem, { kind: 'reply' }>) => (
+    <FaqReplyView
+      reply={item.reply}
+      asked={item.asked}
+      typed={item.typed}
+      busy={busy}
+      onPick={link => pick(link, item.reply)}
+      onOpenDocument={(documentId, fileName) => void openDocument(documentId, fileName)}
+      onPortalLink={route => navigate(route)}
+      afterChoices={
+        item.feedback === 'none' ? (
+          <PortalButton size="sm" variant="ghost" onClick={() => void feedback(item, false)}>None of these</PortalButton>
+        ) : item.feedback === 'no' ? (
+          <>
+            <p>Sorry about that.</p>
+            <ContactBox text={item.contact || start?.contactText || ''} />
+          </>
+        ) : null
+      }
+      footer={item.reply.outcome === 'ANSWERED' || item.reply.outcome === 'DOCUMENT' ? feedbackRow(item) : undefined}
+    />
   );
+
+  const composer = <FaqComposer value={input} onChange={setInput} onSend={() => ask(input)} busy={busy} formRef={composerRef} inputRef={inputRef} />;
 
   const contact = start?.contactText || 'For anything about your own application, records or results, contact the PG Office.';
 
@@ -404,16 +282,7 @@ export const StudentFAQChatbot: React.FC = () => {
 
           <div role="log" aria-live="polite" aria-label="Conversation" className="space-y-5 px-5 py-6">
             {items.map(item => {
-              if (item.kind === 'you') {
-                return (
-                  <div key={item.id} className="flex justify-end">
-                    <div className="max-w-[80%] whitespace-pre-line rounded-2xl rounded-tr-md bg-brand-navy px-4 py-3 text-[13px] font-medium leading-relaxed text-white [overflow-wrap:anywhere]">
-                      <span className="sr-only">You: </span>
-                      {item.text}
-                    </div>
-                  </div>
-                );
-              }
+              if (item.kind === 'you') return <YouBubble key={item.id} text={item.text} />;
               if (item.kind === 'topic') {
                 return (
                   <AssistantRow key={item.id}>
@@ -433,19 +302,7 @@ export const StudentFAQChatbot: React.FC = () => {
               return <React.Fragment key={item.id}>{renderReply(item)}</React.Fragment>;
             })}
 
-            {busy && (
-              <div className="flex items-center gap-3">
-                <AppointmentIcon icon={Bot} tone="brand" />
-                <p role="status" className={`${SMALL_NOTE} flex items-center gap-2`}>
-                  <span aria-hidden="true" className="flex gap-1">
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:150ms]" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:300ms]" />
-                  </span>
-                  Looking for an answer…
-                </p>
-              </div>
-            )}
+            {busy && <Thinking />}
           </div>
 
           <div className="border-t border-slate-200 bg-slate-50/70 px-5 py-4">{composer}</div>
