@@ -3951,9 +3951,9 @@ class CapacityResolverTests(TestCase):
 
         self.assertEqual(result.state, CapacityState.AVAILABLE)
         self.assertEqual(result.active_load, 1)
-        self.assertEqual(result.reserved_load, 2)
-        self.assertEqual(result.available_slots, 1)
-        self.assertEqual(count_panel_workload(self.lecturer.user), 3)
+        self.assertEqual(result.reserved_load, 1)
+        self.assertEqual(result.available_slots, 2)
+        self.assertEqual(count_panel_workload(self.lecturer.user), 2)
 
     def test_temporary_unavailability_exposes_latest_applicable_end_date(self):
         self.publish_plan(supervisor_limit=0, panel_limit=5)

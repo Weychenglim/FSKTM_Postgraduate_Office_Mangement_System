@@ -175,7 +175,7 @@ export async function getPanelRecommendations(): Promise<SubmittedRecommendation
     date: r.submittedDate,
     status: r.status === 'APPROVED'
       ? 'Approved'
-      : r.status === 'CANCELLED_BY_SUPERVISOR' || r.status === 'CANCELLED_BY_OFFICE'
+      : r.status === 'CANCELLED_BY_SUPERVISOR' || r.status === 'CANCELLED_BY_OFFICE' || r.status === 'CANCELLED_CAPACITY_FULL'
       ? 'Cancelled'
       : r.status === 'REJECTED_BY_PANEL' || r.status === 'REJECTED_BY_COORDINATOR'
       ? 'Rejected'

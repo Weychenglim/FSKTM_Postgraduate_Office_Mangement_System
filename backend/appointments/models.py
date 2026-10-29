@@ -55,6 +55,7 @@ class PanelRecommendation(models.Model):
             "CANCELLED_BY_SUPERVISOR",
             "Cancelled by Supervisor",
         )
+        CANCELLED_CAPACITY_FULL = "CANCELLED_CAPACITY_FULL", "Capacity full"
         CANCELLED_BY_OFFICE = "CANCELLED_BY_OFFICE", "Cancelled by Office"
         APPROVED = "APPROVED", "Approved"
 
@@ -63,10 +64,8 @@ class PanelRecommendation(models.Model):
         Status.PENDING_COORDINATOR,
         Status.APPROVED,
     )
-    WORKLOAD_RESERVED_STATUSES = (
-        Status.SUBMITTED_TO_PANEL,
-        Status.PENDING_COORDINATOR,
-    )
+    PENDING_STATUSES = (Status.SUBMITTED_TO_PANEL, Status.PENDING_COORDINATOR)
+    WORKLOAD_RESERVED_STATUSES = (Status.PENDING_COORDINATOR,)
 
     profile = models.ForeignKey(
         StudentResearchProfile,

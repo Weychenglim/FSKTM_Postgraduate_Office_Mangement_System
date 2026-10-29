@@ -214,6 +214,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
               <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2"><div className="min-w-0 space-y-2"><dt className={label}>Panel member</dt><dd id="candidate-name" className={body}>{selectedLecturer.name}</dd></div><PanelDetailFact title="Staff number" value={selectedLecturer.staffId}/><PanelDetailFact title="Department" value={selectedLecturer.department}/><PanelDetailFact title="Active + reserved" value={`${selectedLecturer.workloadCount} / ${selectedLecturer.workloadLimit}`}/></dl>
               <div className="flex flex-wrap items-center gap-3"><StatusBadge tone={(selectedLecturer.selectable ?? selectedLecturer.canSubmit) ? 'success' : 'warning'}>{selectedLecturer.capacityState ? capacityStateLabel(selectedLecturer.capacityState) : selectedLecturer.availability}</StatusBadge>{selectedLecturer.capacityPlanVersion != null ? <span className="text-xs leading-6 text-slate-500">Capacity plan v{selectedLecturer.capacityPlanVersion}</span> : null}</div>
               {selectedLecturer.workloadHelpText ? <p className="text-xs leading-6 text-slate-500 [overflow-wrap:anywhere]">{selectedLecturer.workloadHelpText}</p> : null}
+              <p className="text-xs leading-6 text-slate-500">A place is reserved only when the Panel member accepts.</p>
             </div> : null}
           </div>
           <div id="recommend-notes-section" className="space-y-2">

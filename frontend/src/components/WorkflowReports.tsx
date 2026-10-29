@@ -309,10 +309,10 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           {report.participantLifecycle && (
             <PortalCard data-office-preserve padding="md" className="rounded-lg">
               <h3 className="section-label mb-5">Participant Lifecycle</h3>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-3">
                 {Object.entries(report.participantLifecycle).map(([label, value]) => (
-                  <div key={label} className="rounded-md bg-slate-50 p-3">
-                    <span className="card-label block">{reportLabel(label)}</span>
+                  <div key={label} className="min-w-0 rounded-md bg-slate-50 p-3">
+                    <span className="card-label block [overflow-wrap:anywhere]">{reportLabel(label.replace(/([a-z])([A-Z])/g, '$1 $2'))}</span>
                     <strong className="card-value mt-1 block">{value}</strong>
                   </div>
                 ))}
@@ -499,10 +499,10 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           </details> : office ? <OfficeReportBreakdown report={report} section={officeSection} onNavigate={onNavigateToRoute} /> : breakdowns}
           {office && report.participantLifecycle && <PortalCard data-office-preserve padding="md" className="rounded-lg">
             <h3 className="section-label mb-5">Participant Lifecycle</h3>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-3">
               {Object.entries(report.participantLifecycle).map(([label, value]) => (
-                <div key={label} className="rounded-md bg-slate-50 p-3">
-                  <span className="card-label block">{reportLabel(label)}</span>
+                <div key={label} className="min-w-0 rounded-md bg-slate-50 p-3">
+                  <span className="card-label block [overflow-wrap:anywhere]">{reportLabel(label.replace(/([a-z])([A-Z])/g, '$1 $2'))}</span>
                   <strong className="card-value mt-1 block">{value}</strong>
                 </div>
               ))}

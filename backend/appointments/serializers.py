@@ -219,7 +219,7 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
 
     def get_canRecommend(self, obj):
         return not obj.panel_recommendations.filter(
-            status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
+            status__in=PanelRecommendation.PENDING_STATUSES
         ).exists()
 
     def _active_panel_appointment(self, obj):
@@ -323,7 +323,7 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
         )
 
     def get_workloadHelpText(self, obj):
-        return "Workload includes confirmed active panel appointments and submitted nominations."
+        return "Workload includes active Panel appointments and accepted nominations awaiting Coordinator approval."
 
     def get_semesterId(self, obj):
         return self._capacity(obj).semester_id
@@ -349,6 +349,14 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
 
 
 class PanelRecommendationSerializer(serializers.ModelSerializer):
+    acceptanceCapacity = serializers.SerializerMethodField()
+
+    def get_acceptanceCapacity(self, obj):
+        from .capacity_closure import panel_acceptance_capacity
+        cache = getattr(self, "_panel_capacity_cache", {})
+        self._panel_capacity_cache = cache
+        return panel_acceptance_capacity(obj, cache=cache)
+
     studentEmail = serializers.SerializerMethodField()
     supervisorEmail = serializers.EmailField(source="supervisor.email", read_only=True)
     panelMemberEmail = serializers.EmailField(source="recommended_member.email", read_only=True)
@@ -451,6 +459,7 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
     class Meta:
         model = PanelRecommendation
         fields = [
+            "acceptanceCapacity",
             "studentEmail", "supervisorEmail", "panelMemberEmail", "panelMemberDepartment",
             "replacedPanelMember", "replacedAppointmentStatus", "canReview", "appointmentDate", "canEndAppointment",
             "id",
@@ -656,7 +665,7 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
         )
 
         if profile.panel_recommendations.filter(
-            status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
+            status__in=PanelRecommendation.PENDING_STATUSES
         ).exists():
             raise serializers.ValidationError(
                 "An active panel recommendation already exists for this student."
@@ -1008,6 +1017,17 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
     def get_initiatedByOffice(self, obj):
         return is_office_replacement(obj)
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        if request is None or request.user.role == User.Role.STUDENT:
+            lifecycle_action = "OFFICE_CANCEL_PARTICIPANT_LIFECYCLE"
+            if any(event["action"] == lifecycle_action for event in data["workflow"]):
+                data["cancellationReason"] = None
+                data["workflow"] = [event for event in data["workflow"]
+                                    if event["action"] != lifecycle_action]
+        return data
+
     def get_acceptanceCapacity(self, obj):
         from .capacity_closure import acceptance_capacity
         if not hasattr(self, "_acceptance_capacity_cache"):
@@ -1078,6 +1098,24 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
             appointment = obj.appointment
         except SupervisorAppointment.DoesNotExist:
             return None
+        request = self.context.get("request")
+        if request is None or request.user.role == User.Role.STUDENT:
+            # Staff closure explanations may contain private participant reasons.
+            # A missing actor must not silently select the internal projection.
+            return {
+                "appointmentId": appointment.pk,
+                "status": appointment.status,
+                "endOutcome": appointment.end_outcome or None,
+                "endReason": None,
+                "endedAt": appointment.ended_at,
+                "endedBy": None,
+                "supersedesAppointmentId": appointment.supersedes_id,
+                "replacementAppointmentId": (
+                    appointment.replacement_appointment.pk
+                    if getattr(appointment, "replacement_appointment", None) else None
+                ),
+                "lifecycle": [],
+            }
         return appointment_lifecycle_serializer_payload(appointment)
 
 

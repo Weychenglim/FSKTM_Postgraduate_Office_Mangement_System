@@ -202,7 +202,7 @@ def _check_candidate(
         or PanelRecommendation.objects.filter(
             profile_filter,
             recommended_member=candidate,
-            status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+            status__in=PanelRecommendation.PENDING_STATUSES,
         ).exists()
     ):
         raise CoSupervisionConflict(
@@ -709,7 +709,7 @@ def supervision_panel_summary(student, actor, profile, primary):
         "panel_member__lecturer", "recommendation__profile"
     ).first() if profile else None
     pending = profile.panel_recommendations.filter(
-        status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
+        status__in=PanelRecommendation.PENDING_STATUSES
     ).select_related("profile").order_by("-submitted_at", "-pk").first() if profile else None
     eligible = bool(profile and primary and primary.supervisor_id == actor.pk
         and profile.supervisor_id == actor.pk and profile.student_id == student.user_id

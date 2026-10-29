@@ -445,23 +445,28 @@ def timeline_entry_list_view(request):
         return denied
 
     semester = get_timeline_semester(request)
-    if semester is not None:
-        AcademicSemester.objects.select_for_update().get(pk=semester.pk)
+    if semester is None:
+        return timeline_locked_response()
+    # Serialize first-event creation with imports and other calendar mutations.
+    semester = AcademicSemester.objects.select_for_update().get(pk=semester.pk)
+    if semester.lifecycle_status not in {
+        AcademicSemester.Lifecycle.DRAFT, AcademicSemester.Lifecycle.ACTIVE,
+    }:
+        return timeline_locked_response()
     timeline = get_managed_timeline(request)
     if timeline is None:
-        return Response(
-            {
-                "error": (
-                    "No editable semester timeline exists. Upload a timeline "
-                    "for a Draft or Active semester first."
-                )
-            },
-            status=status.HTTP_409_CONFLICT,
+        timeline = SemesterTimeline(
+            academic_semester=semester,
+            semester=semester.get_term_display(),
+            session=semester.academic_session,
+            uploaded_by=request.user,
         )
 
     serializer = TimelineEntryCreateSerializer(data=request.data, context={"timeline": timeline})
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
+    if timeline.pk is None:
+        timeline.save()
 
     with transaction.atomic():
         level_entries = SemesterTimelineEntry.objects.select_for_update().filter(

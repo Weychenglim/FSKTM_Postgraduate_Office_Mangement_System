@@ -1203,16 +1203,17 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             programme=self.student_user.student.programme,
             semester=self.student_user.student.intake_semester,
             proposed_topic="Panel workflow audit",
-            supervisor=self.other_supervisor,
+            supervisor=self.supervisor_user,
         )
         recommendation = PanelRecommendation.objects.create(
             profile=profile,
-            supervisor=self.other_supervisor,
-            recommended_member=self.supervisor_user,
+            supervisor=self.supervisor_user,
+            recommended_member=self.other_supervisor,
+            academic_semester=self.academic_semester,
             status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
         )
 
-        self.authenticate(self.supervisor_user)
+        self.authenticate(self.other_supervisor)
         accepted = self.client.post(
             f"/api/appointments/panel/recommendations/{recommendation.pk}/panel-accept/"
         )
@@ -1222,4 +1223,4 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             panel_recommendation=recommendation
         )
         self.assertEqual(event.action, "PANEL_ACCEPT")
-        self.assertEqual(event.actor, self.supervisor_user)
+        self.assertEqual(event.actor, self.other_supervisor)
