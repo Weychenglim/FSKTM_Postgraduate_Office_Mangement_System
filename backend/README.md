@@ -279,7 +279,7 @@ The chatbot's answers (UC28, UC29).
 
 | Method | Path | Body | Returns |
 | ------ | ---- | ---- | ------- |
-| GET | `start/` | | topics with their questions, four common questions, the contact text (the office may read it too) |
+| GET | `start/` | | topics with their questions, up to four common questions (only those a Published entry still has as its question), the contact text (the office may read it too) |
 | POST | `ask/` | `{question}`, or `{entryId, questionId, token}` for a picked choice or related question | `{outcome: ANSWERED, CHOICES or NO_MATCH, answer, choices, related, contactText, mode, questionId, token}` |
 | POST | `feedback/` | `{questionId, token, helpful}` | `{helpful, contactText}` (the contact text after "No") |
 
@@ -343,7 +343,7 @@ The chatbot's answers (UC28, UC29).
 - `python manage.py import_faq_corrections <filled review list.xlsx>` loads the "Correct answer" column, plus "Correct question" where filled.
 - Each corrected entry counts as checked and is published (`--draft` keeps it a draft).
 - Blank rows are skipped, so the list can come back in parts.
-| GET | `entries/` | `search`, `category` (id), `status` (PUBLISHED, DRAFT, NEEDS_CHECKING, ARCHIVED), `page`, `pageSize` | `{count, page, pageSize, statusCounts, results}` |
+| GET | `entries/` | `search`, `category` (id), `status` (PUBLISHED, DRAFT, NEEDS_CHECKING, ARCHIVED), `page`, `pageSize` | `{count, page, pageSize, statusCounts, results}`; each entry carries `askedThisMonth` and `notHelpfulThisMonth` |
 | POST | `entries/` | `{question, answer, category, portalLink, altQuestions, publish}` | the entry (a draft unless `publish`) |
 | GET, PATCH, DELETE | `entries/<id>/` | `{question, answer, category, portalLink, altQuestions}` | the entry with its other ways of asking, PDF text and history |
 | POST | `entries/<id>/publish/`, `checked/`, `archive/`, `restore/` | | the entry |
