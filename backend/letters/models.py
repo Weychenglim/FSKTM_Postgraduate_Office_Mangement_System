@@ -79,6 +79,9 @@ class LetterTemplate(models.Model):
     # Printed under the signature line; blank keeps the faculty default.
     signatory_name = models.CharField(max_length=120, blank=True, default="")
     signatory_title = models.CharField(max_length=120, blank=True, default="")
+    # The same lines on the Malay page; blank uses the English ones, then the Malay default.
+    signatory_name_ms = models.CharField(max_length=120, blank=True, default="")
+    signatory_title_ms = models.CharField(max_length=120, blank=True, default="")
     modified_by = models.CharField(max_length=255, blank=True, default="Office Staff")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -126,6 +129,8 @@ class LetterTemplate(models.Model):
             "referencePrefix": self.reference_prefix,
             "signatoryName": self.signatory_name,
             "signatoryTitle": self.signatory_title,
+            "signatoryNameMs": self.signatory_name_ms,
+            "signatoryTitleMs": self.signatory_title_ms,
             "asksRecipient": self.asks_recipient,
             "optionalDetails": self.optional_details(),
             "formQuestions": list(self.form_questions or []),
@@ -231,6 +236,8 @@ class GeneratedLetter(models.Model):
     replaced_by = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     signatory_name = models.CharField(max_length=120, blank=True, default="")
     signatory_title = models.CharField(max_length=120, blank=True, default="")
+    signatory_name_ms = models.CharField(max_length=120, blank=True, default="")
+    signatory_title_ms = models.CharField(max_length=120, blank=True, default="")
     # Set on approval. Several pending requests may hold no number at once.
     reference_number = models.CharField(max_length=96, unique=True, null=True, blank=True)
     content = models.TextField(
@@ -339,6 +346,8 @@ class GeneratedLetter(models.Model):
             "replacedById": str(self.replaced_by_id) if self.replaced_by_id else None,
             "signatoryName": self.signatory_name,
             "signatoryTitle": self.signatory_title,
+            "signatoryNameMs": self.signatory_name_ms,
+            "signatoryTitleMs": self.signatory_title_ms,
             "status": self.status,
             "date": _day(self.issued_on),
             "requestedAt": _moment(self.created_at),

@@ -55,9 +55,9 @@ class SupportingSupervisorLetterTests(LifecycleFixtures):
         letter = GeneratedLetter.objects.get(co_supervisor_appointment=appointment)
         self.assertEqual(letter.status, GeneratedLetter.Status.ISSUED)
         self.assertTrue(letter.reference_number.startswith(f"UMF/PG/CSV/{self.year}/"))
-        self.assertIn("| Supporting Supervisor | Dr Helper |", letter.content)
+        self.assertIn("Dear Dr Helper,", letter.content)
         self.assertIn("| Main Supervisor | Dr Supervisor |", letter.content)
-        self.assertIn("| Penyelia Bersama | Dr Helper |", letter.content_ms)
+        self.assertIn("PENGESAHAN PELANTIKAN SEBAGAI PENYELIA BERSAMA", letter.content_ms)
         self.assertNotIn("{{", letter.content + letter.content_ms)
         self.assertEqual(set(letter.recipients.all()), {self.ali.user, self.helper, self.supervisor})
         self.assertEqual(

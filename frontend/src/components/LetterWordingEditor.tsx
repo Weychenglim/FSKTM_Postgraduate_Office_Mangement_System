@@ -263,7 +263,13 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
   const officeTags = [...fields.map((f) => f.name), ...questionNames(values.questions)];
   const previewHtml = (text: string) =>
     renderLetterBodyHtml(sample ? fillLetterTags(text, sample.values) : text, { highlightPlaceholders: true, officeFields: officeTags, tagLabels: labels.toLabel });
-  const closing = letterClosing({ purpose, signatoryName: values.signatoryName, signatoryTitle: values.signatoryTitle });
+  const closing = letterClosing({
+    purpose,
+    signatoryName: values.signatoryName,
+    signatoryTitle: values.signatoryTitle,
+    signatoryNameMs: values.signatoryNameMs,
+    signatoryTitleMs: values.signatoryTitleMs,
+  });
   const reference = `${(values.referencePrefix.trim() || DEFAULT_REFERENCE_PREFIX).replace(/\/+$/, '')}/${new Date().getFullYear()}/####`;
   const inLetter = (name: string) => `${values.content}\n${values.contentMs}`.includes(`{{${name}}}`);
 

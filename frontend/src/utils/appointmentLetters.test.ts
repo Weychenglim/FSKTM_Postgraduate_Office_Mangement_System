@@ -82,13 +82,29 @@ assert.deepEqual(letterClosing({ purpose: 'REQUEST' }), {
   malayDisclaimer: LETTERHEAD.malayDisclaimer,
   signatoryName: LETTERHEAD.signatoryName,
   signatoryOffice: LETTERHEAD.signatoryOffice,
+  malaySignatoryName: LETTERHEAD.malaySignatoryName,
+  malaySignatoryOffice: LETTERHEAD.malaySignatoryOffice,
 });
 assert.deepEqual(letterClosing({ purpose: 'SUPERVISOR_APPOINTMENT', signatoryName: ' Prof Signer ', signatoryTitle: 'Deputy Dean' }), {
   disclaimer: LETTERHEAD.appointmentDisclaimer,
   malayDisclaimer: LETTERHEAD.malayAppointmentDisclaimer,
   signatoryName: 'Prof Signer',
   signatoryOffice: 'Deputy Dean',
+  malaySignatoryName: 'Prof Signer',
+  malaySignatoryOffice: 'Deputy Dean',
 });
+// the Malay page takes its own lines when the template has them
+assert.deepEqual(
+  letterClosing({ purpose: 'SUPERVISOR_APPOINTMENT', signatoryName: 'Dean', signatoryTitle: 'Faculty', signatoryNameMs: ' Dekan ', signatoryTitleMs: 'Fakulti' }),
+  {
+    disclaimer: LETTERHEAD.appointmentDisclaimer,
+    malayDisclaimer: LETTERHEAD.malayAppointmentDisclaimer,
+    signatoryName: 'Dean',
+    signatoryOffice: 'Faculty',
+    malaySignatoryName: 'Dekan',
+    malaySignatoryOffice: 'Fakulti',
+  },
+);
 const issued = {
   id: '9', referenceNumber: 'UMF/PG/SV/2026/0001', templateId: '1', templateName: 'Supervisor appointment letter',
   letterType: 'Academic Certification', purpose: 'SUPERVISOR_APPOINTMENT', signatoryName: 'Prof Signer', signatoryTitle: '',

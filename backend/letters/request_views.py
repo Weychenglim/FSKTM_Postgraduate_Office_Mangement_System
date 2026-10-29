@@ -423,6 +423,8 @@ def _review(letter):
         # Who will sign it: the letter takes the template's signatory when issued.
         "signatoryName": template.signatory_name if template else "",
         "signatoryTitle": template.signatory_title if template else "",
+        "signatoryNameMs": template.signatory_name_ms if template else "",
+        "signatoryTitleMs": template.signatory_title_ms if template else "",
         "fields": letter_fields(f"{content}\n{content_ms}", values, custom, student),
         "problem": problem,
         "replaces": [

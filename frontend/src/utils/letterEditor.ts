@@ -125,6 +125,8 @@ export interface EditorValues {
   readyInDays: string;
   signatoryName: string;
   signatoryTitle: string;
+  signatoryNameMs: string;
+  signatoryTitleMs: string;
 }
 
 // A new letter type is only saved when the office presses Save.
@@ -143,6 +145,8 @@ export const BLANK_TEMPLATE: EditorValues = {
   readyInDays: '',
   signatoryName: '',
   signatoryTitle: '',
+  signatoryNameMs: '',
+  signatoryTitleMs: '',
 };
 
 export const valuesOf = (template: LetterTemplate): EditorValues => ({
@@ -160,6 +164,8 @@ export const valuesOf = (template: LetterTemplate): EditorValues => ({
   readyInDays: template.readyInDays ? String(template.readyInDays) : '',
   signatoryName: template.signatoryName ?? '',
   signatoryTitle: template.signatoryTitle ?? '',
+  signatoryNameMs: template.signatoryNameMs ?? '',
+  signatoryTitleMs: template.signatoryTitleMs ?? '',
 });
 
 export const sameValues = (a: EditorValues, b: EditorValues) => JSON.stringify(a) === JSON.stringify(b);

@@ -201,6 +201,7 @@ The office's `GET requests/` also takes `madeBy=request|automatic`.
   - Students never see appointment templates.
   - Appointment templates may also use the appointment placeholders, each in the letter kinds listed in `letters/placeholders.py`. Examples: `{{RESEARCH_TITLE}}`, `{{COURSE_CODES}}`, `{{PANEL_NAME}}`, `{{CO_SUPERVISOR_NAME}}`, `{{COORDINATOR_NAME}}`, `{{SEMESTER}}`.
   - **Sample templates.** Migrations `letters.0010` and `letters.0012` add an active sample template (English and Malay pages) for each appointment purpose that has none, marked "Sample wording set up by the system". They use only details the system always has, so each approval issues its letter at once. The office replaces the wording once the faculty's own letter is ready; the migrations never overwrite a template the office made.
+  - `letters.0014` gives the samples a placeholder wording in the faculty's letter style, modelled on the Maya Student Confirmation Letter: addressed to the lecturer appointed, "Dear ..." / "Tuan/Puan,", a details table, "Thank you." / "Sekian, terima kasih.", signed by the Dean of the faculty (Dekan on the Malay page). It changes a sample only while it still has the first wording; rolling it back restores that wording.
 - **When a letter is made.**
   - `letters/signals.py` hears a new active `SupervisorAppointment`, `PanelAppointment` or `CoSupervisorAppointment`, which the coordinator's final approval creates. Once that approval commits, it makes the letter (`letters/appointment_letters.py`).
   - The appointment code is not changed, and a failed letter never undoes an approval.
@@ -214,8 +215,8 @@ The office's `GET requests/` also takes `madeBy=request|automatic`.
 - **Limits.** One live letter per appointment is guarded by the database.
 - **Reissue.** It issues a new letter with the current details and revokes the old one as "Replaced by <ref>.".
 - **Ended or replaced appointments.** When an appointment stops being active, its Issued letter is revoked with the reason ("Replaced on <date>: <name> is now the supervisor." or "The panel member appointment ended on <date>.") and everyone on it gets a notice; a Pending one is withdrawn. Revoked letters stay in history. The office's own revoke of an appointment letter tells the same people.
-- **Malay page.** Appointment, approval and acceptance dates print in Malay, and the footer reads as issued by the postgraduate office.
-- **Signatory.** Each template's `signatoryName` and `signatoryTitle` are printed on its letters, and every letter keeps its own copy.
+- **Malay page.** Appointment, approval and acceptance dates print in Malay, the letterhead is in Malay, and the footer reads as issued by the postgraduate office.
+- **Signatory.** Each template's `signatoryName` and `signatoryTitle` are printed on its letters, and every letter keeps its own copy. The Malay page prints `signatoryNameMs` and `signatoryTitleMs`; a blank one falls back to the English line, then to the Malay default (Dekan Pengajian Pascasiswazah, Sekretariat Eksekutif Pejabat FSKTM).
 
 ## Staff account endpoints (`/api/registry/staff/`)
 

@@ -57,6 +57,9 @@ export interface LetterTemplate {
   /** Printed under the signature line; blank keeps the faculty default. */
   signatoryName?: string;
   signatoryTitle?: string;
+  /** The same lines on the Malay page; blank uses the English ones. */
+  signatoryNameMs?: string;
+  signatoryTitleMs?: string;
   /** The same letter in Malay, printed as a second page; only staff get it. */
   contentMs?: string;
   /** Students say who the letter is for (a bank, an agency...) when they ask. */
@@ -294,6 +297,8 @@ export interface GeneratedLetter {
   replacedById?: string | null;
   signatoryName?: string;
   signatoryTitle?: string;
+  signatoryNameMs?: string;
+  signatoryTitleMs?: string;
   /** Appointment letters: who it was sent to. */
   recipients?: LetterRecipient[];
   status: GeneratedLetterStatus;

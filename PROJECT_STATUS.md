@@ -1089,6 +1089,16 @@ Final validation: all 168 frontend test checks pass, including production demo/C
 
 Browser coverage: Office attention and exact pending recommendation were inspected locally. The user requested no further browser checks; cross-role desktop/mobile browser acceptance and new decision previews were not completed or claimed. Shared rendering, navigation, capability, privacy and outcome contracts have automated coverage. Temporary viewport override was reset. API restarted at 127.0.0.1:8000; portal remains localhost:3001. Implementation stays local and uncommitted; the earlier requested snapshot was already pushed separately.
 
+## Appointment Letters: Placeholder Wording and an All-Malay Malay Page (2026-10-29)
+
+Asked by Xiang: a placeholder appointment confirmation letter built from what we have, until the PG office sends the real template, and the Malay page without English lines.
+
+- **Checked first.** After the PR #23/#24 merge the three appointment letters still work end to end (letters 151 and appointments 447 tests pass; supervisor, panel and supporting supervisor approvals, reissue, ended appointments, template switched off and the office's Create letters, run on a private copy of the database and in the browser for each role).
+- **Placeholder wording** (`letters.0014`). Modelled on the two real letters we have, the Maya Student Confirmation Letter (English and Malay) and the PG office's visa letter: addressed to the lecturer appointed, "Dear ..." / "Tuan/Puan,", a bold title, a details table, a line on the lecturer's role, "please contact the Postgraduate Office", "Thank you." / "Sekian, terima kasih.", signed by the Dean of the faculty (Dekan on the Malay page). Only samples still holding the first wording change; rolling back restores it.
+- **Malay page in Malay.** Letter types have their own Malay signature lines (`signatoryNameMs`, `signatoryTitleMs`), edited under "Signature and status" when the letter has a Malay page; a blank one uses the English line, then a Malay default. The letterhead on the Malay page is in Malay too (Fakulti Sains Komputer & Teknologi Maklumat, Pejabat Hal Ehwal Akademik, Aras 4). The same applies on screen, in print and in the PDF. The Student Confirmation Letter now signs its Malay page "Dekan / Pengarah", as Maya does.
+- **Checks:** letters 158, documents and announcements tests pass; frontend type check, 232 of 232 test files and the build pass; the migration rolled back and forward on a private copy; the three letters approved on that copy, read on screen as the student, supervisor and panel member at 1440 and 390 px (no scrollbars inside the page) and in the PDF; the office's editor shows the four signature boxes. The copy was removed afterwards.
+- **Still to do when the real template arrives:** replace the wording in Letter Generation (Letter types), and the signature lines and letterhead if they differ.
+
 ## FAQ Chatbot: Office Screens Restructured (2026-10-29)
 
 Plan: `docs/superpowers/plans/2026-10-29-faq-office-redesign.md`, approved by Xiang after the proposal page "FAQ Chatbot Office Redesign" (Intercom Fin, Zendesk AI agents and Tidio Lyro, with wireframes). Commits `e4c5449` (backend) and `e92a942`. The student chatbot is unchanged.
